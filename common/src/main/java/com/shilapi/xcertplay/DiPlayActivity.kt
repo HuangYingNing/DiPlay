@@ -221,6 +221,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     private var adbCheckInProgress = false
     private var adbCheckMayAsk = false
     private var adbCheckFailed = false
+    private var adbEnableInProgress = false
+    private var adbEnableGeneration = 0
     private var vehicleProbeAuthorizationInProgress = false
     private var vehicleProbeInProgress = false
     private var vehicleProbeOutcome: BydVehicleProbeOutcome? = null
@@ -546,11 +548,13 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         cancelKeyLearning()
         handler.removeCallbacks(automaticVehicleValidation)
         adbCheckGeneration++
+        adbEnableGeneration++
         synchronized(vehicleOperationLock) {
             vehicleProbeGeneration++
             vehicleValidationGeneration++
         }
         adbCheckInProgress = false
+        adbEnableInProgress = false
         vehicleProbeAuthorizationInProgress = false
         vehicleProbeInProgress = false
         automaticVehicleValidationInProgress = false
@@ -2692,7 +2696,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     }
 
     private fun vehicleAdbWorkInProgress(): Boolean =
-        adbCheckInProgress || vehicleProbeAuthorizationInProgress || vehicleProbeInProgress
+        adbCheckInProgress || adbEnableInProgress || vehicleProbeAuthorizationInProgress || vehicleProbeInProgress
 
     private fun startCarHotspotOnLaunch() {
         if (!startupHotspotEligible()) return
@@ -3987,7 +3991,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             (adbAccessState == null || adbAccessState == BydAdbAccess.State.READY)
         card.addView(label(adbText, 14, if (healthy) MUTED else WARNING)
             .apply { setPadding(0, dp(12), 0, 0) })
-        val busy = vehicleProbeAuthorizationInProgress || adbCheckInProgress || vehicleProbeInProgress
+        val busy = vehicleProbeAuthorizationInProgress || adbCheckInProgress || vehicleProbeInProgress ||
+            adbEnableInProgress
         if (!busy && adbAccessState == BydAdbAccess.State.READY) {
             defaultVehicleStatus?.let { showDefaultVehicleReadings(card, it) }
         }
@@ -4000,7 +4005,81 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             card.addView(button(getString(R.string.check_adb_access), false) {
                 checkAdbState(mayAsk = true)
             }.apply { isEnabled = !adbSwitchChangePending }, matchButton(10, 56))
+            card.addView(button(getString(R.string.settings_allow_abd), false) {
+                allowAdbAccess()
+            }.apply { isEnabled = !adbSwitchChangePending }, matchButton(10, 56))
+            card.addView(label(getString(R.string.settings_allow_adb_description), 14, MUTED))
+        } else if (adbEnableInProgress) {
+            card.addView(label(getString(R.string.settings_allow_adb_working), 14, MUTED)
+                .apply { setPadding(0, dp(10), 0, 0) })
         }
+    }
+
+    private fun allowAdbAccess() {
+        if (adbEnableInProgress || vehicleAdbWorkInProgress()) return
+        val generation = ++adbEnableGeneration
+        adbEnableInProgress = true
+        render()
+        BydVehicleSettingsBackendProvider.current.execute("diplay-allow-adb") {
+            val result = runCatching { AdbAccessEnableAttempt.run(applicationContext) }
+            runOnUiThread {
+                if (generation != adbEnableGeneration || isFinishing || isDestroyed) return@runOnUiThread
+                adbEnableInProgress = false
+                val message = result.fold(
+                    onSuccess = { attempt ->
+                        when (attempt.outcome) {
+                            AdbAccessEnableAttempt.Outcome.READY -> R.string.settings_allow_adb_ready
+                            AdbAccessEnableAttempt.Outcome.AUTHORIZATION_REQUIRED ->
+                                R.string.settings_allow_adb_authorization_required
+                            AdbAccessEnableAttempt.Outcome.SETTINGS_REQUIRED -> if (openAdbSettings()) {
+                                R.string.settings_allow_adb_settings_opened
+                            } else {
+                                R.string.settings_allow_adb_failed
+                            }
+                        }
+                    },
+                    onFailure = {
+                        AdbEnableDiagnostics.append(
+                            applicationContext,
+                            System.currentTimeMillis().toString(36),
+                            "activity-failure",
+                            "type=${it.javaClass.simpleName}",
+                        )
+                        R.string.settings_allow_adb_failed
+                    },
+                )
+                render()
+                toast(getString(message))
+            }
+        }
+    }
+
+    private fun openAdbSettings(): Boolean {
+        val attemptId = System.currentTimeMillis().toString(36)
+        val candidates = listOf(
+            Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS),
+            Intent(Settings.ACTION_SETTINGS),
+        )
+        for (intent in candidates) {
+            val resolved = intent.resolveActivity(packageManager)
+            AdbEnableDiagnostics.append(
+                applicationContext,
+                attemptId,
+                "resolve-settings",
+                "action=${intent.action} component=${resolved?.flattenToShortString() ?: "none"}",
+            )
+            if (resolved == null) continue
+            val started = runCatching { startActivity(intent) }
+            AdbEnableDiagnostics.append(
+                applicationContext,
+                attemptId,
+                "start-settings",
+                "action=${intent.action} result=${if (started.isSuccess) "started" else "failed"} " +
+                    "type=${started.exceptionOrNull()?.javaClass?.simpleName ?: "none"}",
+            )
+            if (started.isSuccess) return true
+        }
+        return false
     }
 
     /** The last default-mode reads; a value an enabled switch needs is a warning when missing. */
@@ -5273,6 +5352,9 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         appendLine()
         appendLine("--- Recent own-app process exits (Android 11+) ---")
         appendLine(ProcessExitDiagnostics.report(appContext))
+        appendLine()
+        appendLine("--- ADB allow attempts ---")
+        appendLine(AdbEnableDiagnostics.report(appContext).ifEmpty { "No ADB allow attempt has been recorded." })
         appendLine()
         for (name in SessionLogFile.REPORT_NAMES) {
             val file = File(appContext.filesDir, "logs/$name")

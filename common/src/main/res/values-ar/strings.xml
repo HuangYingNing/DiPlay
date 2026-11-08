@@ -442,6 +442,13 @@
     <string name="dashboard_map_only_in_small_and_full_navi">خريطة لوحة العدادات فقط في عرض الملاحة المصغّر والكامل</string>
     <string name="dashboard_map_only_in_small_and_full_navi_description">يقرأ DiPlay وضع الملاحة الذي تختاره من أزرار المقود. في وضعي «إيقاف» و«التشغيل عند الملاحة» تعرض لوحة العدادات الأسهم فقط، لذا لا يرسل iPhone الخريطة؛ أما في عرض الملاحة المصغّر والكامل فيرسلها خلال ثانية أو ثانيتين من التبديل. يتطلب ADB عبر الشبكة على وحدة القيادة.</string>
     <string name="check_adb_access">التحقق من الوصول عبر ADB</string>
+    <string name="settings_allow_abd">السماح بـ ADB (تجريبي)</string>
+    <string name="settings_allow_adb_description">تجريبي: يحاول مفتاح Android القياسي، ويطلب تفويض DiPlay على localhost:5555، ثم يفتح خيارات المطوّر إذا منع Flyme Auto الوصول المباشر. أوقف السيارة قبل الاستخدام. تُضاف كل خطوة إلى التشخيصات.</string>
+    <string name="settings_allow_adb_working">جارٍ محاولة السماح بـ ADB…</string>
+    <string name="settings_allow_adb_ready">تم تمكين ADB وتفويض DiPlay.</string>
+    <string name="settings_allow_adb_authorization_required">يستجيب ADB. وافق على DiPlay في شاشة السيارة، ثم تحقق من الوصول عبر ADB.</string>
+    <string name="settings_allow_adb_settings_opened">لم يسمح Flyme Auto بالوصول المباشر. فعّل ADB أو تصحيح أخطاء الشبكة في الإعدادات المفتوحة، ثم ارجع وتحقق من الوصول.</string>
+    <string name="settings_allow_adb_failed">تعذر السماح بـ ADB ولم يتم العثور على شاشة إعدادات متوافقة. ارفع التشخيصات للتحليل.</string>
     <string name="adb_checking">جارٍ التحقق من الوصول عبر ADB…</string>
     <string name="adb_checking_may_ask">جارٍ التحقق من الوصول عبر ADB… إذا طلبت السيارة، فاسمح لـ DiPlay وحدّد «السماح دائمًا».</string>
     <string name="adb_check_failed">فشل التحقق من ADB. حاول مرة أخرى.</string>

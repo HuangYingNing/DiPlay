@@ -442,6 +442,13 @@
     <string name="dashboard_map_only_in_small_and_full_navi">Mapa del panel solo en navegación en pantalla pequeña y completa</string>
     <string name="dashboard_map_only_in_small_and_full_navi_description">DiPlay lee el modo de navegación que eliges con el volante. En «Apagado» y «Activar con la navegación» el panel solo muestra flechas, así que el iPhone no envía el mapa; en navegación en pantalla pequeña y completa sí lo envía, uno o dos segundos después del cambio. Requiere ADB por red en la unidad principal.</string>
     <string name="check_adb_access">Comprobar acceso ADB</string>
+    <string name="settings_allow_abd">Permitir ADB (experimental)</string>
+    <string name="settings_allow_adb_description">Experimental: prueba el interruptor estándar de Android, solicita autorización para DiPlay en localhost:5555 y abre las opciones de desarrollador si Flyme Auto bloquea el acceso directo. Úsalo con el coche estacionado. Cada paso se añade al diagnóstico.</string>
+    <string name="settings_allow_adb_working">Intentando permitir ADB…</string>
+    <string name="settings_allow_adb_ready">ADB está activado y DiPlay está autorizado.</string>
+    <string name="settings_allow_adb_authorization_required">ADB responde. Autoriza DiPlay en la pantalla del coche y después comprueba el acceso ADB.</string>
+    <string name="settings_allow_adb_settings_opened">Flyme Auto no permitió el acceso directo. Activa ADB o la depuración por red en los ajustes abiertos, vuelve y comprueba el acceso.</string>
+    <string name="settings_allow_adb_failed">No se pudo permitir ADB ni se encontró una pantalla de ajustes compatible. Sube el diagnóstico para analizarlo.</string>
     <string name="adb_checking">Comprobando el acceso ADB…</string>
     <string name="adb_checking_may_ask">Comprobando el acceso ADB… Si el coche lo pide, permite DiPlay y marca «Permitir siempre».</string>
     <string name="adb_check_failed">La comprobación de ADB falló. Inténtalo de nuevo.</string>

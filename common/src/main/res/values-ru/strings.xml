@@ -442,6 +442,13 @@
     <string name="dashboard_map_only_in_small_and_full_navi">Карта на приборной панели только в малой и полноэкранной навигации</string>
     <string name="dashboard_map_only_in_small_and_full_navi_description">DiPlay считывает режим навигации, выбранный кнопками на руле. В режимах «Выкл.» и «Включать при навигации» приборная панель показывает только стрелки, поэтому iPhone не передаёт карту; в режимах малого и полного экрана навигации передаёт — через секунду-две после переключения. Нужен ADB по сети на головном устройстве.</string>
     <string name="check_adb_access">Проверить доступ ADB</string>
+    <string name="settings_allow_abd">Разрешить ADB (экспериментально)</string>
+    <string name="settings_allow_adb_description">Экспериментально: пробует стандартный переключатель Android, запрашивает авторизацию DiPlay на localhost:5555 и открывает параметры разработчика, если Flyme Auto блокирует прямой доступ. Используйте на стоянке. Каждый этап записывается в диагностику.</string>
+    <string name="settings_allow_adb_working">Попытка разрешить ADB…</string>
+    <string name="settings_allow_adb_ready">ADB включён, DiPlay авторизован.</string>
+    <string name="settings_allow_adb_authorization_required">ADB отвечает. Разрешите DiPlay на экране автомобиля, затем проверьте доступ ADB.</string>
+    <string name="settings_allow_adb_settings_opened">Flyme Auto не разрешил прямой доступ. Включите ADB или сетевую отладку в открытых настройках, затем вернитесь и проверьте доступ.</string>
+    <string name="settings_allow_adb_failed">Не удалось разрешить ADB и найти совместимый экран настроек. Загрузите диагностику для анализа.</string>
     <string name="adb_checking">Проверка доступа ADB…</string>
     <string name="adb_checking_may_ask">Проверка доступа ADB… Если машина спросит, разрешите DiPlay и отметьте «Всегда разрешать».</string>
     <string name="adb_check_failed">Проверка ADB не удалась. Попробуйте ещё раз.</string>

@@ -33,6 +33,15 @@
     <string name="settings_gesture_fingers_label">打开设置 · 下滑手指数</string>
     <string name="settings_gesture_fingers_option">%1$d 指</string>
     <string name="settings_interface_size">界面大小</string>
+    <string name="settings_allow_abd">允许ABD（实验性）</string>
+    <string name="settings_allow_adb_description">实验性尝试：使用标准 Android 开关、请求 127.0.0.1:5555 上的 DiPlay 授权；如果 Flyme Auto 拒绝直接访问，则打开开发者设置。请停车后操作。每个步骤都会写入诊断日志。</string>
+    <string name="settings_allow_adb_working">正在尝试允许 ADB…</string>
+    <string name="settings_allow_adb_ready">ADB 已开启，并已授权 DiPlay。</string>
+    <string name="settings_allow_adb_authorization_required">ADB 已响应。请在车机屏幕上允许 DiPlay，然后检查 ADB 访问。</string>
+    <string name="settings_allow_adb_settings_opened">Flyme Auto 未允许直接访问。请在已打开的设置中开启 ADB 或网络调试，然后返回检查 ADB 访问。</string>
+    <string name="settings_allow_adb_failed">无法允许 ADB，也没有找到兼容的设置页面。请上传诊断日志以便分析。</string>
+    <string name="settings_background_update_checks">在后台检查更新</string>
+    <string name="settings_background_update_checks_description">DiPlay 每天会在 GitHub 上检查一次新版本，并显示在主屏幕上。未经你点击，绝不会下载。</string>
     <string name="settings_interface_size_auto">自动</string>
     <string name="settings_interface_size_hint">DiPlay 自身界面中文字和控件的大小。自动模式会在大尺寸低密度屏幕上放大它们。不影响 CarPlay。</string>
     <string name="settings_language_summary">选择 DiPlay 的语言</string>

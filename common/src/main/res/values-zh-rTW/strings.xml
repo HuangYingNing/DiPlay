@@ -476,6 +476,13 @@
     <string name="dashboard_map_only_in_small_and_full_navi">僅在小螢幕或全螢幕導航時顯示儀表板地圖 · 需要 ADB</string>
     <string name="dashboard_map_only_in_small_and_full_navi_description">DiPlay 讀取你在方向盤選單中選擇的導航模式。在「關閉」和「導航時開啟」模式下，儀表板只顯示箭頭，因此 iPhone 不會傳送地圖；在小螢幕導航和全螢幕導航模式下會傳送，切換後一至兩秒內生效。需要在車機上開啟網路 ADB。</string>
     <string name="check_adb_access">檢查 ADB 存取權限</string>
+    <string name="settings_allow_abd">允許 ADB（實驗性）</string>
+    <string name="settings_allow_adb_description">實驗性嘗試：使用標準 Android 開關、請求 127.0.0.1:5555 上的 DiPlay 授權；若 Flyme Auto 拒絕直接存取，則開啟開發人員設定。請停車後操作。每個步驟都會寫入診斷記錄。</string>
+    <string name="settings_allow_adb_working">正在嘗試允許 ADB…</string>
+    <string name="settings_allow_adb_ready">ADB 已開啟，且已授權 DiPlay。</string>
+    <string name="settings_allow_adb_authorization_required">ADB 已回應。請在車機螢幕上允許 DiPlay，然後檢查 ADB 存取權限。</string>
+    <string name="settings_allow_adb_settings_opened">Flyme Auto 未允許直接存取。請在已開啟的設定中啟用 ADB 或網路除錯，然後返回檢查 ADB 存取權限。</string>
+    <string name="settings_allow_adb_failed">無法允許 ADB，也找不到相容的設定頁面。請上傳診斷記錄以供分析。</string>
     <string name="adb_checking">正在檢查 ADB 存取權限…</string>
     <string name="adb_checking_may_ask">正在檢查 ADB 存取權限…如果車機詢問，請允許 DiPlay 並勾選「永遠允許」。</string>
     <string name="adb_check_failed">ADB 檢查失敗，請再試一次。</string>

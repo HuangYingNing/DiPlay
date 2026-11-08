@@ -485,6 +485,13 @@
     <string name="dashboard_map_only_in_small_and_full_navi">仅在小屏或全屏导航时显示仪表盘地图</string>
     <string name="dashboard_map_only_in_small_and_full_navi_description">DiPlay 读取你在方向盘菜单中选择的导航模式。在“关闭”和“导航时开启”模式下仪表盘只显示箭头，因此 iPhone 不发送地图；在小屏导航和全屏导航模式下会发送，切换后一两秒内生效。需要在车机上开启网络 ADB。</string>
     <string name="check_adb_access">检查 ADB 访问</string>
+    <string name="settings_allow_abd">允许ABD（实验性）</string>
+    <string name="settings_allow_adb_description">实验性尝试：使用标准 Android 开关、请求 127.0.0.1:5555 上的 DiPlay 授权；如果 Flyme Auto 拒绝直接访问，则打开开发者设置。请停车后操作。每个步骤都会写入诊断日志。</string>
+    <string name="settings_allow_adb_working">正在尝试允许 ADB…</string>
+    <string name="settings_allow_adb_ready">ADB 已开启，并已授权 DiPlay。</string>
+    <string name="settings_allow_adb_authorization_required">ADB 已响应。请在车机屏幕上允许 DiPlay，然后检查 ADB 访问。</string>
+    <string name="settings_allow_adb_settings_opened">Flyme Auto 未允许直接访问。请在已打开的设置中开启 ADB 或网络调试，然后返回检查 ADB 访问。</string>
+    <string name="settings_allow_adb_failed">无法允许 ADB，也没有找到兼容的设置页面。请上传诊断日志以便分析。</string>
     <string name="adb_checking">正在检查 ADB 访问…</string>
     <string name="adb_checking_may_ask">正在检查 ADB 访问…如果车机询问，请允许 DiPlay 并勾选“始终允许”。</string>
     <string name="adb_check_failed">ADB 检查失败，请重试。</string>

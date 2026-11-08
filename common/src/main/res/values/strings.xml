@@ -523,6 +523,13 @@
     <string name="dashboard_map_only_in_small_and_full_navi">Dashboard map only in Small and Full navi</string>
     <string name="dashboard_map_only_in_small_and_full_navi_description">DiPlay reads the navi mode you pick on the steering wheel. In Off and Turn on by navi the dashboard shows arrows only, so the iPhone does not send the map; in Small and Full screen navi it does, within a second or two of the switch. Needs ADB over network on the head unit.</string>
     <string name="check_adb_access">Check ADB access</string>
+    <string name="settings_allow_abd">Allow ADB (experimental)</string>
+    <string name="settings_allow_adb_description">Experimental: tries the standard Android switch, requests DiPlay authorization on localhost:5555, then opens developer settings if Flyme Auto blocks direct access. Park the car before use. Every step is added to diagnostics.</string>
+    <string name="settings_allow_adb_working">Trying to allow ADB…</string>
+    <string name="settings_allow_adb_ready">ADB is enabled and DiPlay is authorized.</string>
+    <string name="settings_allow_adb_authorization_required">ADB is responding. Approve DiPlay on the car screen, then check ADB access.</string>
+    <string name="settings_allow_adb_settings_opened">Flyme Auto did not allow direct access. Use the ADB or network debugging switch in the opened settings, then return and check ADB access.</string>
+    <string name="settings_allow_adb_failed">ADB could not be allowed and no compatible settings screen was found. Upload diagnostics for analysis.</string>
     <string name="adb_checking">Checking ADB access…</string>
     <string name="adb_checking_may_ask">Checking ADB access… If the car asks, allow DiPlay and tick “Always allow”.</string>
     <string name="adb_check_failed">The ADB check failed. Try again.</string>

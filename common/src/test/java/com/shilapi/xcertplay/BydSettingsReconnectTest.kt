@@ -2,7 +2,10 @@ package com.shilapi.xcertplay
 
 import android.content.Context
 import android.os.Looper
+import android.view.View
+import android.view.ViewGroup
 import android.widget.LinearLayout
+import android.widget.TextView
 import com.shilapi.xcertplay.adb.LocalAdb
 import com.shilapi.xcertplay.hud.BydAdbAccess
 import com.shilapi.xcertplay.hud.BydOutputSettings
@@ -113,6 +116,18 @@ class BydSettingsReconnectTest {
         assertNull(shadowOf(activity).nextStartedActivity)
     }
 
+    @Test fun allowAdbIsImmediatelyBelowCheckAdbAccess() {
+        val card = LinearLayout(activity)
+        ReflectionHelpers.callInstanceMethod<Unit>(activity, "defaultVehicleData",
+            ReflectionHelpers.ClassParameter.from(LinearLayout::class.java, card))
+
+        val labels = descendants(card).filterIsInstance<TextView>().map { it.text.toString() }.toList()
+        assertEquals(
+            labels.indexOf(activity.getString(com.shilapi.xcertplay.host.R.string.check_adb_access)) + 1,
+            labels.indexOf(activity.getString(com.shilapi.xcertplay.host.R.string.settings_allow_abd)),
+        )
+    }
+
     private fun beginBatteryReconnect() {
         BydOutputSettings.setBatteryToIphone(activity, true)
         val stop: ((() -> Unit) -> Unit) = { done -> reconnects++; done() }
@@ -126,6 +141,10 @@ class BydSettingsReconnectTest {
     private fun renderHotspotCard() = ReflectionHelpers.callInstanceMethod<Unit>(activity, "renderBydAdbControls",
         ReflectionHelpers.ClassParameter.from(LinearLayout::class.java, LinearLayout(activity)),
         ReflectionHelpers.ClassParameter.from(LocalAdb.Access::class.java, LocalAdb.Access.READY))
+    private fun descendants(root: View): Sequence<View> = sequence {
+        yield(root)
+        if (root is ViewGroup) for (index in 0 until root.childCount) yieldAll(descendants(root.getChildAt(index)))
+    }
 
     private class DeferredBackend : BydVehicleSettingsBackend {
         var result = BydAdbAccess.Status(BydAdbAccess.State.READY, batteryPercent = 51.0, rangeKm = 100)
