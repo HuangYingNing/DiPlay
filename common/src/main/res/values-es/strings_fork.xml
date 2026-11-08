@@ -1,0 +1,6 @@
+<resources>
+    <string name="ui_open_huangyingning_fork">Abrir el código de la versión modificada por HuangYingNing</string>
+    <string name="ui_support_project">Apoyar el proyecto</string>
+    <string name="ui_support_project_description">Si DiPlay te resulta útil, puedes apoyar su desarrollo continuo mediante GitHub Sponsors.</string>
+    <string name="ui_open_github_sponsors">Donar mediante GitHub Sponsors</string>
+</resources>

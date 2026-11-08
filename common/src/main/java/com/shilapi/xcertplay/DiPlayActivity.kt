@@ -2348,6 +2348,15 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             card.addView(button(getString(R.string.ui_open_carlito_fork), false) {
                 openProjectLink("https://github.com/carlito12345/diplay")
             }, matchButton(8, 56))
+            card.addView(button(getString(R.string.ui_open_huangyingning_fork), false) {
+                openProjectLink("https://github.com/HuangYingNing/DiPlay")
+            }, matchButton(8, 56))
+        }
+        section(content, getString(R.string.ui_support_project)) { card ->
+            card.addView(label(getString(R.string.ui_support_project_description), 16, MUTED))
+            card.addView(button(getString(R.string.ui_open_github_sponsors), true) {
+                openProjectLink("https://github.com/sponsors/HuangYingNing")
+            }, matchButton(8, 56))
         }
     }
 

@@ -782,6 +782,25 @@ class AdaptiveSettingsUiTest {
         open(R.string.about)
         assertEquals("about", ReflectionHelpers.getField<String>(screen, "page"))
         assertTrue(texts(screen).any { it.text == screen.getString(R.string.carplay_at_home_in_your_car) })
+        val aboutText = texts(screen).map { it.text.toString() }.toList()
+        val carlitoSource = aboutText.indexOf(screen.getString(R.string.ui_open_carlito_fork))
+        val huangYingNingSource = aboutText.indexOf(screen.getString(R.string.ui_open_huangyingning_fork))
+        val supportProject = aboutText.indexOf(screen.getString(R.string.ui_support_project))
+        val sponsor = aboutText.indexOf(screen.getString(R.string.ui_open_github_sponsors))
+        assertTrue(carlitoSource >= 0)
+        assertTrue(carlitoSource < huangYingNingSource)
+        assertTrue(huangYingNingSource < supportProject)
+        assertTrue(supportProject < sponsor)
+        texts(screen).single { it.text == screen.getString(R.string.ui_open_huangyingning_fork) }.performClick()
+        assertEquals(
+            "https://github.com/HuangYingNing/DiPlay",
+            shadowOf(screen).nextStartedActivity.data.toString(),
+        )
+        texts(screen).single { it.text == screen.getString(R.string.ui_open_github_sponsors) }.performClick()
+        assertEquals(
+            "https://github.com/sponsors/HuangYingNing",
+            shadowOf(screen).nextStartedActivity.data.toString(),
+        )
         screen.onBackPressedDispatcher.onBackPressed()
         assertEquals("settings", ReflectionHelpers.getField<String>(screen, "page"))
         assertEquals(SettingsCategory.OVERVIEW, ReflectionHelpers.getField<SettingsCategory>(screen, "settingsCategory"))

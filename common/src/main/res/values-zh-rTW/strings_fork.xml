@@ -1,0 +1,6 @@
+<resources>
+    <string name="ui_open_huangyingning_fork">查看 HuangYingNing 修改版原始碼</string>
+    <string name="ui_support_project">支持專案</string>
+    <string name="ui_support_project_description">如果 DiPlay 對你有幫助，可以透過 GitHub Sponsors 支持專案持續開發。</string>
+    <string name="ui_open_github_sponsors">透過 GitHub Sponsors 贊助</string>
+</resources>

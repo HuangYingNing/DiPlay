@@ -6,5 +6,9 @@
     <string name="ui_carlito_modification_credit">本版本由 carlito 修改，基于上游 DiPlay 项目。</string>
     <string name="ui_open_upstream_source">查看上游开源地址</string>
     <string name="ui_open_carlito_fork">查看 carlito 修改版源码</string>
+    <string name="ui_open_huangyingning_fork">查看 HuangYingNing 修改版源码</string>
+    <string name="ui_support_project">支持项目</string>
+    <string name="ui_support_project_description">如果 DiPlay 对你有帮助，可以通过 GitHub Sponsors 支持项目继续开发。</string>
+    <string name="ui_open_github_sponsors">通过 GitHub Sponsors 捐赠</string>
     <string name="ui_project_link_failed">无法打开项目链接</string>
 </resources>
