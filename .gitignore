@@ -39,3 +39,5 @@ release-signing.properties
 *.key
 *.apk
 *.aab
+
+AGENTS.md

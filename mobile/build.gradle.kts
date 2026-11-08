@@ -3,6 +3,18 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+fun gitOutput(vararg arguments: String): String? = runCatching {
+    providers.exec {
+        commandLine("git", *arguments)
+        isIgnoreExitValue = true
+    }.standardOutput.asText.get().trim().takeIf(String::isNotEmpty)
+}.getOrNull()
+
+val ciRevision = providers.environmentVariable("GITHUB_SHA").orNull
+val sourceRevision = (ciRevision ?: gitOutput("rev-parse", "HEAD") ?: "unknown").take(12)
+val sourceDirtySuffix = if (ciRevision == null &&
+    !gitOutput("status", "--porcelain", "--untracked-files=no").isNullOrEmpty()) "-dirty" else ""
+
 // Optional local-only input. CI and ordinary source builds contain no accessory identity.
 val localAuthenticationAssets = providers.environmentVariable("DIPLAY_AUTH_ASSETS_DIR")
     .orNull?.let { file(it).canonicalFile }
@@ -20,6 +32,7 @@ android {
         // carlito | Fork installs must upgrade from code 39 while matching upstream's name.
         versionCode = 41
         versionName = "0.2.16"
+        versionNameSuffix = "+$sourceRevision$sourceDirtySuffix"
 
     }
 

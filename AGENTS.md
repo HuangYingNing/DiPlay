@@ -2,6 +2,20 @@
 
 Instructions for coding agents that work on DiPlay.
 
+## Remembered rules
+
+When a user prompt explicitly asks the agent to "请记住" a rule, record that rule in
+this project-level `AGENTS.md` so that future AI agents follow it.
+
+PasteDB credentials are local secrets. Store the API key only in the Git-ignored
+`.private/pastedb.properties` file as `PASTEDB_API_KEY=...`; never write the key into
+tracked source, documentation, tests, Gradle properties, or commits.
+
+After each feature is complete, commit its tracked source changes and push the commit
+to the configured Git remote. Write commit messages in Chinese, separate modification
+items with the Chinese semicolon `；`, and end the message with the Chinese full stop
+`。`. Never commit Git-ignored credentials, generated artifacts, or other local secrets.
+
 ## Checks
 
 Run the CI command from `.github/workflows/android.yml` before you report a change as done:

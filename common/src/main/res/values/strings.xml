@@ -720,13 +720,13 @@
     <string name="return_home_icon">CarPlay home icon</string>
     <string name="return_home_icon_description">Choose a square image for CarPlay’s button that returns to the car home screen. The new icon is used on the next connection.</string>
     <string name="describe_the_problem">Describe the problem, when it happened, and what you expected</string>
-    <string name="upload_report_to_cloud">Upload report to cloud</string>
-    <string name="uploading_to_cloud">Uploading to cloud…</string>
+    <string name="upload_report_to_cloud">Upload logs</string>
+    <string name="uploading_to_cloud">Uploading logs…</string>
     <string name="describe_problem_before_uploading">Describe the problem before uploading.</string>
     <string name="problem_description_too_long">Keep the problem description under 2,000 characters.</string>
-    <string name="report_upload_privacy">Uploads only when you tap the button. The problem description and redacted diagnostic report are sent together.</string>
+    <string name="report_upload_privacy">Uploads only when you tap the button. The optional problem description and complete redacted diagnostic logs replace the contents of the project’s public PasteDB paste.</string>
     <string name="report_uploaded">Report uploaded</string>
-    <string name="report_uploaded_message">The cloud received your problem description and diagnostic report.</string>
+    <string name="report_uploaded_message">PasteDB received the complete redacted diagnostic logs.</string>
     <string name="report_upload_failed">Could not upload the report</string>
     <string name="report_upload_failed_message">Check the head unit’s internet connection and try again.</string>
     <string name="retry_report_upload">Try again</string>

@@ -1593,9 +1593,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 true,
             ) {
                 val description = reportIssueInput?.text?.toString()?.trim().orEmpty()
-                if (description.isEmpty()) {
-                    toast(getString(R.string.describe_problem_before_uploading))
-                } else if (description.length > DiagnosticReportUpload.MAX_DESCRIPTION_LENGTH) {
+                if (description.length > PasteDbDiagnosticUpload.MAX_DESCRIPTION_LENGTH) {
                     toast(getString(R.string.problem_description_too_long))
                 } else {
                     reportIssueDescription = description
@@ -5194,7 +5192,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         val fileName = reportFileName()
         Thread({
             val result = runCatching {
-                DiagnosticReportUpload.upload(fileName, issueDescription, buildDiagnosticReport(appContext))
+                PasteDbDiagnosticUpload.upload(version(), fileName, issueDescription, buildDiagnosticReport(appContext))
             }
             runOnUiThread {
                 reportUploadInProgress = false
