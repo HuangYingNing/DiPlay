@@ -5,6 +5,7 @@ import java.io.File
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -33,10 +34,10 @@ class UpdateClientTest {
         server.stop(0)
     }
 
-    // carlito | Fork installations must not switch to the upstream APK/update channel.
+    // Fork installations must not switch to the original project's APK/update channel.
     @Test
     fun updatesUseTheForkReleaseChannel() {
-        assertEquals("https://api.github.com/repos/carlito12345/DiPlay/releases?per_page=3", UpdateClient.RELEASES_URL)
+        assertEquals("https://api.github.com/repos/HuangYingNing/DiPlay/releases?per_page=3", UpdateClient.RELEASES_URL)
     }
 
     @Test
@@ -63,6 +64,20 @@ class UpdateClientTest {
         } catch (expected: java.io.IOException) {
             assertTrue(expected.message!!.contains("403"))
         }
+    }
+
+    @Test fun fetchTextUsesTheSuppliedNetworkConnectionFactory() {
+        server.createContext("/selected-network") { exchange ->
+            val bytes = "[]".toByteArray()
+            exchange.sendResponseHeaders(200, bytes.size.toLong())
+            exchange.responseBody.use { it.write(bytes) }
+        }
+        val selected = AtomicBoolean()
+        UpdateClient.fetchText("$root/selected-network", null, "DiPlay/test") { url ->
+            selected.set(true)
+            url.openConnection()
+        }
+        assertTrue(selected.get())
     }
 
     @Test

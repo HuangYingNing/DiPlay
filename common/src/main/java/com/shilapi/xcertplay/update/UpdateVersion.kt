@@ -1,18 +1,38 @@
 package com.shilapi.xcertplay.update
 
 internal object UpdateVersion {
-    private val TRIPLE = Regex("(\\d+)\\.(\\d+)\\.(\\d+)")
+    internal data class Parsed(
+        val major: Int,
+        val minor: Int,
+        val patch: Int,
+        val buildDate: Int = 0,
+        val buildSequence: Int = 0,
+    )
 
-    internal fun parse(value: String): Triple<Int, Int, Int>? =
-        TRIPLE.find(value)?.let { match ->
-            Triple(match.groupValues[1].toInt(), match.groupValues[2].toInt(), match.groupValues[3].toInt())
+    private val VERSION = Regex("(\\d+)\\.(\\d+)\\.(\\d+)(?:-build(\\d{8})-(\\d{3}))?")
+
+    internal fun parse(value: String): Parsed? =
+        VERSION.find(value)?.let { match ->
+            Parsed(
+                major = match.groupValues[1].toInt(),
+                minor = match.groupValues[2].toInt(),
+                patch = match.groupValues[3].toInt(),
+                buildDate = match.groupValues[4].toIntOrNull() ?: 0,
+                buildSequence = match.groupValues[5].toIntOrNull() ?: 0,
+            )
         }
 
     internal fun isNewer(remote: String, installed: String): Boolean {
         val target = parse(remote) ?: return false
         val current = parse(installed) ?: return true
-        if (target.first != current.first) return target.first > current.first
-        if (target.second != current.second) return target.second > current.second
-        return target.third > current.third
+        return compareValuesBy(
+            target,
+            current,
+            Parsed::major,
+            Parsed::minor,
+            Parsed::patch,
+            Parsed::buildDate,
+            Parsed::buildSequence,
+        ) > 0
     }
 }

@@ -42,4 +42,17 @@ class UpdateVersionTest {
         assertTrue(UpdateVersion.isNewer("0.2.15", "psa.2"))
         assertFalse(UpdateVersion.isNewer("public-preview", "psa.2"))
     }
+
+    @Test fun buildSequenceComparesWithinTheSameDate() {
+        assertTrue(UpdateVersion.isNewer("0.2.16-build20261108-002", "0.2.16-build20261108-001"))
+        assertFalse(UpdateVersion.isNewer("0.2.16-build20261108-001", "0.2.16-build20261108-002"))
+    }
+
+    @Test fun buildReleaseIsNewerThanThePlainBaseVersion() {
+        assertTrue(UpdateVersion.isNewer("0.2.16-build20261108-001", "0.2.16"))
+    }
+
+    @Test fun commitMetadataDoesNotChangeTheBuildIdentity() {
+        assertFalse(UpdateVersion.isNewer("0.2.16-build20261108-002", "0.2.16-build20261108-002+17624e03"))
+    }
 }

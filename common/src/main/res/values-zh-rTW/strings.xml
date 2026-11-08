@@ -727,10 +727,14 @@
     <string name="update_check">檢查更新</string>
     <string name="update_checking">正在檢查…</string>
     <string name="update_up_to_date">已是最新版本</string>
-    <string name="update_download">下載 %1$s</string>
+    <string name="update_download">下載更新</string>
     <string name="update_downloading">正在下載 · %1$d%%</string>
     <string name="update_verifying">正在驗證…</string>
     <string name="update_install">安裝 %1$s</string>
+    <string name="update_available_home">有可用更新</string>
+    <string name="update_saved_to">已儲存至 %1$s</string>
+    <string name="settings_background_update_checks">在背景檢查更新</string>
+    <string name="settings_background_update_checks_description">DiPlay 每天會在 GitHub 上檢查一次新版本，並顯示在主畫面上。未經你點選，絕不會下載。</string>
     <string name="update_failed">更新失敗</string>
     <string name="setup_guide">設定精靈</string>
     <string name="setup_guide_description">識別 DiLink 版本，選擇連線方式，並開啟適合你車輛的功能。</string>

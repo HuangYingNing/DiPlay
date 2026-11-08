@@ -6,18 +6,25 @@ import java.io.IOException
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLConnection
 
 internal object UpdateClient {
     internal const val RELEASES_URL =
-        // carlito | Update the installed Geely fork, preserving its signing identity and features.
-        "https://api.github.com/repos/carlito12345/DiPlay/releases?per_page=3"
+        "https://api.github.com/repos/HuangYingNing/DiPlay/releases?per_page=3"
     private const val CONNECT_TIMEOUT_MILLIS = 10_000
     private const val READ_TIMEOUT_MILLIS = 30_000
+    internal const val MAXIMUM_DOWNLOAD_BYTES = 64L * 1024 * 1024
     private const val MAXIMUM_TEXT_BYTES = 4 * 1024 * 1024
     private const val BUFFER_BYTES = 64 * 1024
 
-    internal fun fetchText(url: String, accept: String?, userAgent: String): String {
-        val connection = URL(url).openConnection() as HttpURLConnection
+    internal fun fetchText(
+        url: String,
+        accept: String?,
+        userAgent: String,
+        openConnection: (URL) -> URLConnection = { it.openConnection() },
+    ): String {
+        val connection = openConnection(URL(url)) as? HttpURLConnection
+            ?: throw IOException("Request to $url did not open an HTTP connection")
         try {
             connection.requestMethod = "GET"
             connection.connectTimeout = CONNECT_TIMEOUT_MILLIS
@@ -45,6 +52,7 @@ internal object UpdateClient {
             val statusCode = connection.responseCode
             if (statusCode !in 200..299) throw IOException("Download from $url failed: $statusCode")
             val total = connection.contentLengthLong.takeIf { it > 0 }
+            if (total != null && total > MAXIMUM_DOWNLOAD_BYTES) throw IOException("Download from $url is too large")
             var written = 0L
             connection.inputStream.use { input ->
                 destination.outputStream().use { output ->
@@ -54,6 +62,7 @@ internal object UpdateClient {
                         if (read < 0) break
                         output.write(buffer, 0, read)
                         written += read
+                        if (written > MAXIMUM_DOWNLOAD_BYTES) throw IOException("Download from $url is too large")
                         onProgress(written, total)
                     }
                 }

@@ -894,10 +894,14 @@
     <string name="update_check">Check for updates</string>
     <string name="update_checking">Checking…</string>
     <string name="update_up_to_date">You\'re up to date</string>
-    <string name="update_download">Download %1$s</string>
+    <string name="update_download">Download update</string>
     <string name="update_downloading">Downloading · %1$d%%</string>
     <string name="update_verifying">Verifying…</string>
     <string name="update_install">Install %1$s</string>
+    <string name="update_available_home">Update available</string>
+    <string name="update_saved_to">Saved to %1$s</string>
+    <string name="settings_background_update_checks">Check for updates in the background</string>
+    <string name="settings_background_update_checks_description">Once a day, DiPlay checks GitHub for a new version and shows it on the home screen. It never downloads without your tap.</string>
     <string name="update_failed">Update failed</string>
     <string name="setup_guide">Setup guide</string>
     <string name="setup_guide_description">Find your DiLink version, choose a connection and turn on the features that suit your car.</string>
