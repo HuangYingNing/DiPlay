@@ -38,6 +38,7 @@ class UpdateClientTest {
     @Test
     fun updatesUseTheForkReleaseChannel() {
         assertEquals("https://api.github.com/repos/HuangYingNing/DiPlay/releases?per_page=3", UpdateClient.RELEASES_URL)
+        assertEquals("https://github.com/HuangYingNing/DiPlay/releases.atom", UpdateClient.RELEASES_FEED_URL)
     }
 
     @Test

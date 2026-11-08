@@ -11,6 +11,8 @@ import java.net.URLConnection
 internal object UpdateClient {
     internal const val RELEASES_URL =
         "https://api.github.com/repos/HuangYingNing/DiPlay/releases?per_page=3"
+    internal const val RELEASES_FEED_URL =
+        "https://github.com/HuangYingNing/DiPlay/releases.atom"
     private const val CONNECT_TIMEOUT_MILLIS = 10_000
     private const val READ_TIMEOUT_MILLIS = 30_000
     internal const val MAXIMUM_DOWNLOAD_BYTES = 64L * 1024 * 1024
