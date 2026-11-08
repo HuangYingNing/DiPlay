@@ -4,6 +4,20 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Build and publish a signed GitHub Release
+        required: true
+        type: boolean
+        default: false
+      release_version:
+        description: Release version, for example 0.2.16-build20261108-001
+        required: false
+        type: string
+      release_notes_path:
+        description: Repository-relative Markdown release notes path
+        required: false
+        type: string
 permissions:
   contents: read
 jobs:
@@ -43,7 +57,10 @@ jobs:
             samples/home/build/reports/lint-results-debug.html
             samples/maphost/build/reports/lint-results-debug.html
   release:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.publish_release
     needs: check
     permissions:
       contents: write
@@ -54,6 +71,32 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - name: Resolve release metadata
+        id: release_metadata
+        shell: bash
+        env:
+          REQUESTED_VERSION: ${{ inputs.release_version }}
+          REQUESTED_NOTES_PATH: ${{ inputs.release_notes_path }}
+        run: |
+          set -euo pipefail
+          base_version="$(sed -nE 's/^[[:space:]]*versionName[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' mobile/build.gradle.kts | head -n 1)"
+          if [[ -z "$base_version" ]]; then
+            echo "::error::Could not read the base version from mobile/build.gradle.kts"
+            exit 1
+          fi
+          version="${REQUESTED_VERSION:-$base_version}"
+          escaped_base_version="${base_version//./\\.}"
+          if [[ ! "$version" =~ ^${escaped_base_version}-build[0-9]{8}-[0-9]{3}$ ]]; then
+            echo "::error::Release version must match ${base_version}-buildYYYYMMDD-NNN"
+            exit 1
+          fi
+          notes_path="${REQUESTED_NOTES_PATH:-docs/UPDATE-NOTES-${base_version}.md}"
+          if [[ "$notes_path" = /* || "$notes_path" == *..* || ! -s "$notes_path" ]]; then
+            echo "::error::Release notes must be a non-empty repository-relative file"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "notes_path=$notes_path" >> "$GITHUB_OUTPUT"
       - name: Check release signing and CarPlay authentication
         id: signing
         shell: bash
@@ -64,13 +107,18 @@ jobs:
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           MFI_IDENTITY_BASE64: ${{ secrets.DIPLAY_AUTH_IDENTITY_BASE64 }}
           MFI_CERTIFICATE_BASE64: ${{ secrets.DIPLAY_AUTH_CERTIFICATE_BASE64 }}
+          PASTEDB_API_KEY: ${{ secrets.PASTEDB_API_KEY }}
+          ALLOW_EMBEDDED_PASTEDB_KEY: ${{ vars.ALLOW_EMBEDDED_PASTEDB_KEY }}
         run: |
-          if [[ -n "$KEYSTORE_BASE64" && -n "$KEYSTORE_PASSWORD" && -n "$KEY_ALIAS" && -n "$KEY_PASSWORD" && -n "$MFI_IDENTITY_BASE64" && -n "$MFI_CERTIFICATE_BASE64" ]]; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Release is not configured. Add the four ANDROID_* signing secrets and DIPLAY_AUTH_IDENTITY_BASE64 plus DIPLAY_AUTH_CERTIFICATE_BASE64 as repository Actions secrets."
+          if [[ -z "$KEYSTORE_BASE64" || -z "$KEYSTORE_PASSWORD" || -z "$KEY_ALIAS" || -z "$KEY_PASSWORD" || -z "$MFI_IDENTITY_BASE64" || -z "$MFI_CERTIFICATE_BASE64" || -z "$PASTEDB_API_KEY" ]]; then
+            echo "::error::Release is not configured. Add the four ANDROID_* signing secrets, both DIPLAY_AUTH_* secrets, and PASTEDB_API_KEY as repository Actions secrets."
+            exit 1
           fi
+          if [[ "$ALLOW_EMBEDDED_PASTEDB_KEY" != "true" ]]; then
+            echo "::error::Set repository variable ALLOW_EMBEDDED_PASTEDB_KEY=true only after accepting that a public APK exposes the PasteDB API key to reverse engineering."
+            exit 1
+          fi
+          echo "available=true" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-java@v4
         if: steps.signing.outputs.available == 'true'
         with:
@@ -120,7 +168,9 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           DIPLAY_AUTH_ASSETS_DIR: ${{ runner.temp }}/diplay-auth-assets
-        run: ./gradlew :mobile:assembleRelease --stacktrace
+          PASTEDB_API_KEY: ${{ secrets.PASTEDB_API_KEY }}
+          RELEASE_VERSION: ${{ steps.release_metadata.outputs.version }}
+        run: ./gradlew :mobile:assembleRelease -PDIPLAY_RELEASE_VERSION="$RELEASE_VERSION" --stacktrace
       - name: Upload signed release APK
         if: steps.signing.outputs.available == 'true'
         uses: actions/upload-artifact@v4
@@ -128,23 +178,12 @@ jobs:
           name: diplay-release-apk
           path: mobile/build/outputs/apk/release/*.apk
           if-no-files-found: error
-      - name: Read app version
-        if: steps.signing.outputs.available == 'true'
-        id: version
-        shell: bash
-        run: |
-          set -euo pipefail
-          version="$(sed -nE 's/^[[:space:]]*versionName[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' mobile/build.gradle.kts | head -n 1)"
-          if [[ -z "$version" ]]; then
-            echo "::error::Could not read app version from mobile/build.gradle.kts"
-            exit 1
-          fi
-          echo "value=$version" >> "$GITHUB_OUTPUT"
-      - name: Publish or update GitHub Release
+      - name: Publish GitHub Release
         if: steps.signing.outputs.available == 'true'
         uses: actions/github-script@v7
         env:
-          APP_VERSION: ${{ steps.version.outputs.value }}
+          APP_VERSION: ${{ steps.release_metadata.outputs.version }}
+          RELEASE_NOTES_PATH: ${{ steps.release_metadata.outputs.notes_path }}
         with:
           script: |
             const fs = require('fs');
@@ -152,7 +191,7 @@ jobs:
             const version = process.env.APP_VERSION;
             const tag = `v${version}`;
             const assetName = `DiPlay-${version}.apk`;
-            const releaseNotes = fs.readFileSync(`docs/UPDATE-NOTES-${version}.md`, 'utf8').trim();
+            const releaseNotes = fs.readFileSync(process.env.RELEASE_NOTES_PATH, 'utf8').trim();
             if (!releaseNotes) throw new Error(`Release notes for ${version} are empty`);
             const apkDir = 'mobile/build/outputs/apk/release';
             const apks = fs.readdirSync(apkDir).filter(name => name.endsWith('.apk'));
@@ -160,12 +199,13 @@ jobs:
             const apkPath = `${apkDir}/${apks[0]}`;
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            let release;
             try {
-              ({ data: release } = await github.rest.repos.getReleaseByTag({ owner, repo, tag }));
+              await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+              throw new Error(`Release already exists: ${tag}`);
             } catch (error) {
               if (error.status !== 404) throw error;
-              ({ data: release } = await github.rest.repos.createRelease({
+            }
+            const { data: release } = await github.rest.repos.createRelease({
                 owner,
                 repo,
                 tag_name: tag,
@@ -175,22 +215,7 @@ jobs:
                 draft: false,
                 prerelease: false,
                 make_latest: 'true',
-              }));
-            }
-            await github.rest.repos.updateRelease({
-              owner,
-              repo,
-              release_id: release.id,
-              body: releaseNotes,
-              draft: false,
-              prerelease: false,
-              make_latest: 'true',
             });
-            for (const asset of release.assets) {
-              if (asset.name === assetName || asset.name === 'SHA256SUMS.txt') {
-                await github.rest.repos.deleteReleaseAsset({ owner, repo, asset_id: asset.id });
-              }
-            }
             await github.rest.repos.uploadReleaseAsset({
               owner,
               repo,
