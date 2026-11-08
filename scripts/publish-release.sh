@@ -5,12 +5,14 @@ usage() {
   cat <<'EOF'
 Usage: scripts/publish-release.sh [options]
 
-Calculates BASE-buildYYYYMMDD-NNN and triggers the signed Android GitHub
-Actions release workflow. Nothing is published unless --publish is supplied.
+Builds one signed release APK and publishes it to GitHub by default. The version is
+BASE-buildYYYYMMDD-NNN. Use --skip-build to publish an already-built matching APK.
 
 Options:
-  --publish             Dispatch and watch the GitHub Actions release workflow.
-  --dry-run             Print the resolved release without dispatching (default).
+  --publish             Build and publish (default; retained for explicit calls).
+  --dry-run             Print the resolved release without building or publishing.
+  --skip-build          Skip Gradle and publish an existing signed APK.
+  --apk PATH            APK used by --skip-build (default: release output path).
   --date YYYYMMDD       Override today's date.
   --sequence N          Override the automatically selected daily sequence.
   --notes PATH          Repository-relative Markdown release notes file.
@@ -25,17 +27,65 @@ fail() {
   exit 1
 }
 
-publish=false
+read_secret_file() {
+  local variable_name="$1"
+  local file_path="$2"
+  if [[ -z "${!variable_name:-}" && -s "$file_path" ]]; then
+    printf -v "$variable_name" '%s' "$(<"$file_path")"
+    export "$variable_name"
+  fi
+}
+
+decode_base64_file() {
+  local source_file="$1"
+  local destination_file="$2"
+  if base64 --decode "$source_file" > "$destination_file" 2>/dev/null; then
+    return
+  fi
+  base64 -D "$source_file" > "$destination_file"
+}
+
+sha256_file() {
+  local file_path="$1"
+  if command -v sha256sum >/dev/null; then
+    sha256sum "$file_path" | awk '{print $1}'
+  else
+    shasum -a 256 "$file_path" | awk '{print $1}'
+  fi
+}
+
+find_aapt() {
+  if command -v aapt >/dev/null; then
+    command -v aapt
+    return
+  fi
+  local sdk_root candidate
+  for sdk_root in "${ANDROID_HOME:-}" "${ANDROID_SDK_ROOT:-}"; do
+    [[ -n "$sdk_root" && -d "$sdk_root/build-tools" ]] || continue
+    candidate="$(find "$sdk_root/build-tools" -maxdepth 2 -type f -name aapt | sort | tail -n 1)"
+    if [[ -n "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return
+    fi
+  done
+  return 1
+}
+
+publish=true
+skip_build=false
 release_date="$(date +%Y%m%d)"
 sequence=""
 notes_path=""
 repo=""
 release_ref="main"
+apk_path="mobile/build/outputs/apk/release/mobile-release.apk"
 
 while (($#)); do
   case "$1" in
     --publish) publish=true; shift ;;
     --dry-run) publish=false; shift ;;
+    --skip-build) skip_build=true; shift ;;
+    --apk) (($# >= 2)) || fail "--apk 缺少值"; apk_path="$2"; shift 2 ;;
     --date) (($# >= 2)) || fail "--date 缺少值"; release_date="$2"; shift 2 ;;
     --sequence) (($# >= 2)) || fail "--sequence 缺少值"; sequence="$2"; shift 2 ;;
     --notes) (($# >= 2)) || fail "--notes 缺少值"; notes_path="$2"; shift 2 ;;
@@ -75,8 +125,8 @@ else
   command -v gh >/dev/null || fail "未安装 GitHub CLI (gh)"
   gh auth status -h github.com >/dev/null 2>&1 || fail "GitHub CLI 未登录，请先运行 gh auth login -h github.com"
   highest=0
-  while IFS= read -r tag; do
-    if [[ "$tag" =~ ^v?${base_version//./\.}-build${release_date}-([0-9]{3})$ ]]; then
+  while IFS= read -r tag_name; do
+    if [[ "$tag_name" =~ ^v?${base_version//./\.}-build${release_date}-([0-9]{3})$ ]]; then
       value=$((10#${BASH_REMATCH[1]}))
       ((value > highest)) && highest=$value
     fi
@@ -88,51 +138,92 @@ fi
 printf -v sequence_padded '%03d' "$sequence"
 release_version="${base_version}-build${release_date}-${sequence_padded}"
 tag="v${release_version}"
+head_sha="$(git rev-parse HEAD)"
+short_sha="${head_sha:0:12}"
+expected_apk_version="${release_version}+${short_sha}"
 
 printf '基础版本：%s\n' "$base_version"
 printf '发布版本：%s\n' "$release_version"
+printf 'APK 版本：%s\n' "$expected_apk_version"
 printf 'Git 标签：%s\n' "$tag"
 printf '目标仓库：%s\n' "$repo"
 printf '发布分支：%s\n' "$release_ref"
 printf '发布说明：%s\n' "$notes_path"
+printf '构建方式：%s\n' "$([[ "$skip_build" == true ]] && printf '复用现有 APK' || printf '单次 Gradle Release 构建')"
 
 if [[ "$publish" != true ]]; then
-  printf '预演完成；未触发 GitHub Release。使用 --publish 执行发布。\n'
+  printf '预演完成；未编译 APK，也未创建 GitHub Release。\n'
   exit 0
 fi
 
 [[ "$release_ref" == "main" ]] || fail "正式发布只允许 main 分支"
 [[ "$(git branch --show-current)" == "$release_ref" ]] || fail "请切换到 $release_ref 分支后发布"
-[[ -z "$(git status --porcelain)" ]] || fail "工作树不干净，请先提交所有修改"
+[[ -z "$(git status --porcelain)" ]] || fail "工作树不干净；调用发布脚本前必须先提交修改"
 command -v gh >/dev/null || fail "未安装 GitHub CLI (gh)"
 gh auth status -h github.com >/dev/null 2>&1 || fail "GitHub CLI 未登录，请先运行 gh auth login -h github.com"
+
+remote_sha="$(git ls-remote origin "refs/heads/$release_ref" | awk '{print $1}')"
+[[ -n "$remote_sha" && "$head_sha" == "$remote_sha" ]] || fail "本地 $release_ref 必须与 origin/$release_ref 完全一致"
+gh release view "$tag" --repo "$repo" >/dev/null 2>&1 && fail "Release 已存在：$tag"
 allow_embedded_key="$(gh variable get ALLOW_EMBEDDED_PASTEDB_KEY --repo "$repo" --json value --jq '.value' 2>/dev/null || true)"
 [[ "$allow_embedded_key" == "true" ]] ||
   fail "发布公开 APK 前，必须确认密钥可被逆向提取并设置仓库变量 ALLOW_EMBEDDED_PASTEDB_KEY=true"
 
-head_sha="$(git rev-parse HEAD)"
-remote_sha="$(git ls-remote origin "refs/heads/$release_ref" | awk '{print $1}')"
-[[ -n "$remote_sha" && "$head_sha" == "$remote_sha" ]] || fail "本地 $release_ref 必须与 origin/$release_ref 完全一致"
-gh release view "$tag" --repo "$repo" >/dev/null 2>&1 && fail "Release 已存在：$tag"
+temporary_directory="$(mktemp -d)"
+trap 'rm -rf "$temporary_directory"' EXIT
 
-dispatched_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-gh workflow run android.yml \
+if [[ "$skip_build" != true ]]; then
+  read_secret_file ANDROID_KEYSTORE_PASSWORD .private/ANDROID_KEYSTORE_PASSWORD.txt
+  read_secret_file ANDROID_KEY_ALIAS .private/ANDROID_KEY_ALIAS.txt
+  read_secret_file ANDROID_KEY_PASSWORD .private/ANDROID_KEY_PASSWORD.txt
+  if [[ -z "${ANDROID_KEYSTORE_PATH:-}" && -s .private/ANDROID_KEYSTORE_BASE64.txt ]]; then
+    ANDROID_KEYSTORE_PATH="$temporary_directory/diplay-release.jks"
+    decode_base64_file .private/ANDROID_KEYSTORE_BASE64.txt "$ANDROID_KEYSTORE_PATH"
+    export ANDROID_KEYSTORE_PATH
+  fi
+  DIPLAY_AUTH_ASSETS_DIR="${DIPLAY_AUTH_ASSETS_DIR:-$project_root/.private/runtime-assets}"
+  export DIPLAY_AUTH_ASSETS_DIR
+  if [[ -z "${PASTEDB_API_KEY:-}" && -s .private/pastedb.properties ]]; then
+    PASTEDB_API_KEY="$(sed -n 's/^PASTEDB_API_KEY=//p' .private/pastedb.properties | head -n 1)"
+    export PASTEDB_API_KEY
+  fi
+
+  [[ -s "${ANDROID_KEYSTORE_PATH:-}" ]] || fail "缺少 ANDROID_KEYSTORE_PATH 或 .private/ANDROID_KEYSTORE_BASE64.txt"
+  [[ -n "${ANDROID_KEYSTORE_PASSWORD:-}" ]] || fail "缺少 Android 签名库密码"
+  [[ -n "${ANDROID_KEY_ALIAS:-}" ]] || fail "缺少 Android 签名别名"
+  [[ -n "${ANDROID_KEY_PASSWORD:-}" ]] || fail "缺少 Android 签名私钥密码"
+  [[ -s "$DIPLAY_AUTH_ASSETS_DIR/offline-mfi/identity.pk8" ]] || fail "缺少 CarPlay identity.pk8"
+  [[ -s "$DIPLAY_AUTH_ASSETS_DIR/offline-mfi/certificate.p7b" ]] || fail "缺少 CarPlay certificate.p7b"
+  [[ -n "${PASTEDB_API_KEY:-}" ]] || fail "缺少 PasteDB API Key"
+
+  gradle_user_home="${GRADLE_USER_HOME:-$project_root/.gradle}"
+  GRADLE_USER_HOME="$gradle_user_home" ./gradlew \
+    :shared:testDebugUnitTest \
+    :common:testDebugUnitTest \
+    :home:testDebugUnitTest \
+    :mobile:lintRelease \
+    :home:lintDebug \
+    :maphost:lintDebug \
+    :mobile:assembleRelease \
+    -PDIPLAY_RELEASE_VERSION="$release_version"
+fi
+
+[[ -s "$apk_path" ]] || fail "找不到待发布 APK：$apk_path"
+aapt_path="$(find_aapt)" || fail "找不到 aapt，无法验证 APK 内部版本"
+apk_version="$($aapt_path dump badging "$apk_path" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p" | head -n 1)"
+[[ "$apk_version" == "$expected_apk_version" ]] ||
+  fail "APK 版本不匹配：需要 $expected_apk_version，实际 ${apk_version:-未知}"
+
+asset_name="DiPlay-${release_version}.apk"
+checksum="$(sha256_file "$apk_path")"
+checksum_file="$temporary_directory/SHA256SUMS.txt"
+printf '%s  %s\n' "$checksum" "$asset_name" > "$checksum_file"
+
+gh release create "$tag" \
+  "$apk_path#$asset_name" \
+  "$checksum_file#SHA256SUMS.txt" \
   --repo "$repo" \
-  --ref "$release_ref" \
-  -f publish_release=true \
-  -f release_version="$release_version" \
-  -f release_notes_path="$notes_path"
-
-run_id=""
-for _ in {1..30}; do
-  run_id="$(gh run list --repo "$repo" --workflow android.yml --branch "$release_ref" \
-    --event workflow_dispatch --commit "$head_sha" --limit 10 \
-    --json databaseId,createdAt --jq ".[] | select(.createdAt >= \"$dispatched_at\") | .databaseId" | head -n 1)"
-  [[ -n "$run_id" ]] && break
-  sleep 2
-done
-[[ -n "$run_id" ]] || fail "已触发工作流，但未找到对应的运行记录"
-
-printf 'GitHub Actions：%s/actions/runs/%s\n' "https://github.com/$repo" "$run_id"
-gh run watch "$run_id" --repo "$repo" --exit-status
-gh release view "$tag" --repo "$repo" --json url --jq '.url'
+  --target "$head_sha" \
+  --title "DiPlay v${release_version}" \
+  --notes-file "$notes_path" \
+  --latest

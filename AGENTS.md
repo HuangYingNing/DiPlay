@@ -16,6 +16,11 @@ to the configured Git remote. Write commit messages in Chinese, separate modific
 items with the Chinese semicolon `；`, and end the message with the Chinese full stop
 `。`. Never commit Git-ignored credentials, generated artifacts, or other local secrets.
 
+Before invoking `scripts/publish-release.sh`, all program changes are already committed
+and pushed. Do not compile the APK separately before calling it: the release script owns
+the single release build by default. Use `--skip-build` only to publish an already-built,
+signed APK whose embedded version matches the release being created.
+
 ## Checks
 
 Run the CI command from `.github/workflows/android.yml` before you report a change as done:

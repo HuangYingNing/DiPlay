@@ -20,19 +20,32 @@ variable `ALLOW_EMBEDDED_PASTEDB_KEY=true`. Both the script and workflow refuse 
 release without this explicit acknowledgement. Prefer replacing direct authentication
 with a narrowly scoped server proxy before distributing the APK broadly.
 
-After the secrets are configured, use the release script from a clean, pushed `main` branch:
+For a local release, provide the same values through environment variables or the local
+files in the table. `DIPLAY_AUTH_ASSETS_DIR` defaults to `.private/runtime-assets`, and
+the PasteDB key defaults to `.private/pastedb.properties`.
+
+Use the release script from a clean, committed and pushed `main` branch. Publishing is
+the default behavior:
 
 ```sh
 scripts/publish-release.sh --dry-run
-scripts/publish-release.sh --publish
+scripts/publish-release.sh
 ```
 
 The script reads the base version from `mobile/build.gradle.kts`, finds the next daily
 sequence from GitHub Releases, and creates a version such as
-`0.2.16-build20261108-001`. It then dispatches and watches the Android workflow. The
-workflow runs the repository checks, builds the signed APK with CarPlay authentication
-and PasteDB upload support, and publishes the APK plus `SHA256SUMS.txt`.
+`0.2.16-build20261108-001`. It runs the checks and exactly one signed Release APK build,
+then publishes the APK plus `SHA256SUMS.txt` directly to GitHub. `--publish` remains
+available as an explicit synonym for the default.
+
+To publish an existing signed APK without running Gradle again, its embedded version
+must match the release version and current commit exactly:
+
+```sh
+scripts/publish-release.sh --skip-build --apk /absolute/path/to/DiPlay.apk
+```
 
 Use `--date YYYYMMDD`, `--sequence N`, or `--notes PATH` only when an explicit override
-is required. The release signing key must be backed up securely. A different key cannot
-update an APK signed with this one.
+is required. Do not pre-build before a normal invocation; the script performs the one
+required build. The release signing key must be backed up securely. A different key
+cannot update an APK signed with this one.
