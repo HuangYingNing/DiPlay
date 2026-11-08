@@ -20,15 +20,15 @@ class UpdateAvailabilityTest {
     @After fun clear() = UpdateAvailability.clearAllForTest(context)
 
     @Test fun persistsANewerBuildRelease() {
-        val release = release("0.2.16-build20261108-002")
+        val release = release("v0.2.16-b261108-002")
         UpdateAvailability.save(context, release)
-        assertEquals(release, UpdateAvailability.available(context, "0.2.16-build20261108-001"))
+        assertEquals(release, UpdateAvailability.available(context, "v0.2.16-b261108-001"))
     }
 
     @Test fun removesAReleaseAfterTheAppCatchesUp() {
-        UpdateAvailability.save(context, release("0.2.16-build20261108-002"))
-        assertNull(UpdateAvailability.available(context, "0.2.16-build20261108-002"))
-        assertNull(UpdateAvailability.available(context, "0.2.16-build20261108-001"))
+        UpdateAvailability.save(context, release("v0.2.16-b261108-002"))
+        assertNull(UpdateAvailability.available(context, "v0.2.16-b261108-002"))
+        assertNull(UpdateAvailability.available(context, "v0.2.16-b261108-001"))
     }
 
     @Test fun backgroundChecksDefaultOnAndPersistTheChoice() {

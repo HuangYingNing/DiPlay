@@ -7,9 +7,10 @@ Instructions for coding agents that work on DiPlay.
 When a user prompt explicitly asks the agent to "请记住" a rule, record that rule in
 this project-level `AGENTS.md` so that future AI agents follow it.
 
-PasteDB credentials are local secrets. Store the API key only in the Git-ignored
-`.private/pastedb.properties` file as `PASTEDB_API_KEY=...`; never write the key into
-tracked source, documentation, tests, Gradle properties, or commits.
+PasteDB credentials must never be embedded in the APK, tracked source, documentation,
+tests, Gradle properties, or commits. Keep the HTTPS key endpoint only in the Git-ignored
+`.private/PASTEDB_KEY_ENDPOINT.txt` file or the matching GitHub Actions secret; Gradle
+injects it at build time, and the client retrieves the key only when uploading a log.
 
 After each feature is complete, commit its tracked source changes and push the commit
 to the configured Git remote. Write commit messages in Chinese, separate modification

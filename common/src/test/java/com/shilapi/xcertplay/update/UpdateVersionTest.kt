@@ -44,15 +44,16 @@ class UpdateVersionTest {
     }
 
     @Test fun buildSequenceComparesWithinTheSameDate() {
-        assertTrue(UpdateVersion.isNewer("0.2.16-build20261108-002", "0.2.16-build20261108-001"))
-        assertFalse(UpdateVersion.isNewer("0.2.16-build20261108-001", "0.2.16-build20261108-002"))
+        assertTrue(UpdateVersion.isNewer("v0.2.16-b261108-002", "v0.2.16-b261108-001"))
+        assertFalse(UpdateVersion.isNewer("v0.2.16-b261108-001", "v0.2.16-b261108-002"))
     }
 
     @Test fun buildReleaseIsNewerThanThePlainBaseVersion() {
-        assertTrue(UpdateVersion.isNewer("0.2.16-build20261108-001", "0.2.16"))
+        assertTrue(UpdateVersion.isNewer("v0.2.16-b261108-001", "v0.2.16"))
     }
 
-    @Test fun commitMetadataDoesNotChangeTheBuildIdentity() {
-        assertFalse(UpdateVersion.isNewer("0.2.16-build20261108-002", "0.2.16-build20261108-002+17624e03"))
+    @Test fun oldAndNewBuildFormatsCompareDuringMigration() {
+        assertTrue(UpdateVersion.isNewer("v0.2.16-b261108-002", "0.2.16-build20261108-001+17624e03"))
+        assertFalse(UpdateVersion.isNewer("v0.2.16-b261108-001", "0.2.16-build20261108-001+17624e03"))
     }
 }

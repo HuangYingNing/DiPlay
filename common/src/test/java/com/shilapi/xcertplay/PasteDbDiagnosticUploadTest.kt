@@ -29,9 +29,16 @@ class PasteDbDiagnosticUploadTest {
 
     @Test
     fun uploadsCompleteReportToFixedPasteWithApiKey() {
+        var keyRequests = 0
         var method = ""
         var apiKey = ""
         var body = ""
+        server.createContext("/key.htm") { exchange ->
+            keyRequests++
+            val response = ("pdb_" + "a".repeat(64) + "\n").toByteArray()
+            exchange.sendResponseHeaders(200, response.size.toLong())
+            exchange.responseBody.use { it.write(response) }
+        }
         server.createContext("/api/paste/diplay-geely-xingyuan") { exchange ->
             method = exchange.requestMethod
             apiKey = exchange.requestHeaders.getFirst("x-api-key")
@@ -44,39 +51,65 @@ class PasteDbDiagnosticUploadTest {
         }
 
         val receipt = PasteDbDiagnosticUpload.upload(
-            appVersion = "0.2.16+abc123def456",
+            appVersion = "v0.2.16-b261108-002",
+            sourceRevision = "abc123def456",
             fileName = "DiPlay-20261108-120000-123.txt",
             issueDescription = "Wireless connection failed",
             report = "first log line\nlast log line",
-            apiKey = "test-api-key",
+            apiKeyEndpoint = "$root/key.htm",
             endpoint = "$root/api/paste/diplay-geely-xingyuan",
             submittedAt = 0,
         )
 
         assertEquals("mongo-id", receipt)
         assertEquals("PUT", method)
-        assertEquals("test-api-key", apiKey)
+        assertEquals("pdb_" + "a".repeat(64), apiKey)
+        assertEquals(1, keyRequests)
         assertTrue(body.contains("\"syntax\":\"text\""))
-        assertTrue(body.contains("\"content\":\"DiPlay version: 0.2.16+abc123def456\\n"))
+        assertTrue(body.contains("\"content\":\"DiPlay version: v0.2.16-b261108-002\\n"))
+        assertTrue(body.contains("Source commit: abc123def456\\n"))
         assertTrue(body.contains("Wireless connection failed"))
         assertTrue(body.contains("first log line\\nlast log line"))
         assertTrue(body.contains("1970-01-01T00:00:00.000Z"))
     }
 
     @Test
-    fun refusesUploadWithoutConfiguredApiKey() {
+    fun refusesInvalidApiKeyResponse() {
+        server.createContext("/key.htm") { exchange ->
+            val response = "not-a-pastedb-key".toByteArray()
+            exchange.sendResponseHeaders(200, response.size.toLong())
+            exchange.responseBody.use { it.write(response) }
+        }
         try {
             PasteDbDiagnosticUpload.upload(
-                appVersion = "0.2.16+abc123def456",
+                appVersion = "v0.2.16-b261108-002",
+                sourceRevision = "abc123def456",
                 fileName = "DiPlay-20261108-120000-123.txt",
                 issueDescription = "",
                 report = "log",
-                apiKey = "",
+                apiKeyEndpoint = "$root/key.htm",
                 endpoint = "$root/api/paste/diplay-geely-xingyuan",
             )
             throw AssertionError("expected missing API key to fail")
+        } catch (expected: IllegalStateException) {
+            assertTrue(expected.message!!.contains("invalid"))
+        }
+    }
+
+    @Test fun refusesNonHttpsRemoteKeyEndpoint() {
+        try {
+            PasteDbDiagnosticUpload.upload(
+                appVersion = "v0.2.16-b261108-002",
+                sourceRevision = "abc123def456",
+                fileName = "DiPlay-20261108-120000-123.txt",
+                issueDescription = "",
+                report = "log",
+                apiKeyEndpoint = "http://example.com/key.htm",
+                endpoint = "$root/api/paste/diplay-geely-xingyuan",
+            )
+            throw AssertionError("expected insecure endpoint to fail")
         } catch (expected: IllegalArgumentException) {
-            assertTrue(expected.message!!.contains("API key"))
+            assertTrue(expected.message!!.contains("HTTPS"))
         }
     }
 }

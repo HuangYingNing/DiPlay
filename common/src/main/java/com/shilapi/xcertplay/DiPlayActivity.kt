@@ -5282,7 +5282,13 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         val fileName = reportFileName()
         Thread({
             val result = runCatching {
-                PasteDbDiagnosticUpload.upload(version(), fileName, issueDescription, buildDiagnosticReport(appContext))
+                PasteDbDiagnosticUpload.upload(
+                    version(),
+                    sourceRevision(),
+                    fileName,
+                    issueDescription,
+                    buildDiagnosticReport(appContext),
+                )
             }
             runOnUiThread {
                 reportUploadInProgress = false
@@ -5474,6 +5480,11 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         return grid
     }
     private fun version() = packageManager.getPackageInfo(packageName, 0).versionName ?: "0.1.0-beta.1"
+
+    private fun sourceRevision(): String = runCatching {
+        packageManager.getApplicationInfo(packageName, PackageManager.GET_META_DATA)
+            .metaData?.getString("com.shilapi.xcertplay.SOURCE_REVISION")
+    }.getOrNull().orEmpty().ifBlank { "unknown" }
     private fun languageSettings(content: LinearLayout) {
         filteredSection(content, SettingsSection.LANGUAGE,
             getString(R.string.language_section_title), R.drawable.ic_dp_language) { card ->

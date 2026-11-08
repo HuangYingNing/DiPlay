@@ -6,7 +6,7 @@ usage() {
 Usage: scripts/publish-release.sh [options]
 
 Builds one signed release APK and publishes it to GitHub by default. The version is
-BASE-buildYYYYMMDD-NNN. Use --skip-build to publish an already-built matching APK.
+vBASE-bYYMMDD-NNN. Use --skip-build to publish an already-built matching APK.
 
 Options:
   --publish             Build and publish (default; retained for explicit calls).
@@ -103,8 +103,9 @@ date -j -f '%Y%m%d' "$release_date" '+%Y%m%d' >/dev/null 2>&1 ||
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$project_root"
 
-base_version="$(sed -nE 's/^[[:space:]]*versionName[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' mobile/build.gradle.kts | head -n 1)"
-[[ -n "$base_version" ]] || fail "无法读取 mobile/build.gradle.kts 的基础版本号"
+configured_version="$(sed -nE 's/^[[:space:]]*versionName[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' mobile/build.gradle.kts | head -n 1)"
+[[ -n "$configured_version" ]] || fail "无法读取 mobile/build.gradle.kts 的基础版本号"
+base_version="${configured_version#v}"
 [[ "$base_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "基础版本号格式无效：$base_version"
 
 if [[ -z "$repo" ]]; then
@@ -125,9 +126,10 @@ else
   command -v gh >/dev/null || fail "未安装 GitHub CLI (gh)"
   gh auth status -h github.com >/dev/null 2>&1 || fail "GitHub CLI 未登录，请先运行 gh auth login -h github.com"
   highest=0
+  short_release_date="${release_date:2:6}"
   while IFS= read -r tag_name; do
-    if [[ "$tag_name" =~ ^v?${base_version//./\.}-build${release_date}-([0-9]{3})$ ]]; then
-      value=$((10#${BASH_REMATCH[1]}))
+    if [[ "$tag_name" =~ ^(v${base_version//./\.}-b${short_release_date}-|v?${base_version//./\.}-build${release_date}-)([0-9]{3})$ ]]; then
+      value=$((10#${BASH_REMATCH[2]}))
       ((value > highest)) && highest=$value
     fi
   done < <(gh release list --repo "$repo" --limit 1000 --json tagName --jq '.[].tagName')
@@ -136,11 +138,11 @@ else
 fi
 
 printf -v sequence_padded '%03d' "$sequence"
-release_version="${base_version}-build${release_date}-${sequence_padded}"
-tag="v${release_version}"
+short_release_date="${release_date:2:6}"
+release_version="v${base_version}-b${short_release_date}-${sequence_padded}"
+tag="$release_version"
 head_sha="$(git rev-parse HEAD)"
-short_sha="${head_sha:0:12}"
-expected_apk_version="${release_version}+${short_sha}"
+expected_apk_version="$release_version"
 
 printf '基础版本：%s\n' "$base_version"
 printf '发布版本：%s\n' "$release_version"
@@ -165,9 +167,6 @@ gh auth status -h github.com >/dev/null 2>&1 || fail "GitHub CLI 未登录，请
 remote_sha="$(git ls-remote origin "refs/heads/$release_ref" | awk '{print $1}')"
 [[ -n "$remote_sha" && "$head_sha" == "$remote_sha" ]] || fail "本地 $release_ref 必须与 origin/$release_ref 完全一致"
 gh release view "$tag" --repo "$repo" >/dev/null 2>&1 && fail "Release 已存在：$tag"
-allow_embedded_key="$(gh variable get ALLOW_EMBEDDED_PASTEDB_KEY --repo "$repo" --json value --jq '.value' 2>/dev/null || true)"
-[[ "$allow_embedded_key" == "true" ]] ||
-  fail "发布公开 APK 前，必须确认密钥可被逆向提取并设置仓库变量 ALLOW_EMBEDDED_PASTEDB_KEY=true"
 
 temporary_directory="$(mktemp -d)"
 trap 'rm -rf "$temporary_directory"' EXIT
@@ -176,6 +175,7 @@ if [[ "$skip_build" != true ]]; then
   read_secret_file ANDROID_KEYSTORE_PASSWORD .private/ANDROID_KEYSTORE_PASSWORD.txt
   read_secret_file ANDROID_KEY_ALIAS .private/ANDROID_KEY_ALIAS.txt
   read_secret_file ANDROID_KEY_PASSWORD .private/ANDROID_KEY_PASSWORD.txt
+  read_secret_file PASTEDB_KEY_ENDPOINT .private/PASTEDB_KEY_ENDPOINT.txt
   if [[ -z "${ANDROID_KEYSTORE_PATH:-}" && -s .private/ANDROID_KEYSTORE_BASE64.txt ]]; then
     ANDROID_KEYSTORE_PATH="$temporary_directory/diplay-release.jks"
     decode_base64_file .private/ANDROID_KEYSTORE_BASE64.txt "$ANDROID_KEYSTORE_PATH"
@@ -183,19 +183,13 @@ if [[ "$skip_build" != true ]]; then
   fi
   DIPLAY_AUTH_ASSETS_DIR="${DIPLAY_AUTH_ASSETS_DIR:-$project_root/.private/runtime-assets}"
   export DIPLAY_AUTH_ASSETS_DIR
-  if [[ -z "${PASTEDB_API_KEY:-}" && -s .private/pastedb.properties ]]; then
-    PASTEDB_API_KEY="$(sed -n 's/^PASTEDB_API_KEY=//p' .private/pastedb.properties | head -n 1)"
-    export PASTEDB_API_KEY
-  fi
-
   [[ -s "${ANDROID_KEYSTORE_PATH:-}" ]] || fail "缺少 ANDROID_KEYSTORE_PATH 或 .private/ANDROID_KEYSTORE_BASE64.txt"
   [[ -n "${ANDROID_KEYSTORE_PASSWORD:-}" ]] || fail "缺少 Android 签名库密码"
   [[ -n "${ANDROID_KEY_ALIAS:-}" ]] || fail "缺少 Android 签名别名"
   [[ -n "${ANDROID_KEY_PASSWORD:-}" ]] || fail "缺少 Android 签名私钥密码"
   [[ -s "$DIPLAY_AUTH_ASSETS_DIR/offline-mfi/identity.pk8" ]] || fail "缺少 CarPlay identity.pk8"
   [[ -s "$DIPLAY_AUTH_ASSETS_DIR/offline-mfi/certificate.p7b" ]] || fail "缺少 CarPlay certificate.p7b"
-  [[ -n "${PASTEDB_API_KEY:-}" ]] || fail "缺少 PasteDB API Key"
-
+  [[ "$PASTEDB_KEY_ENDPOINT" == https://* ]] || fail "缺少 HTTPS PasteDB 取钥地址"
   gradle_user_home="${GRADLE_USER_HOME:-$project_root/.gradle}"
   GRADLE_USER_HOME="$gradle_user_home" ./gradlew \
     :mobile:assembleRelease \
@@ -209,15 +203,17 @@ apk_version="$($aapt_path dump badging "$apk_path" | sed -n "s/.*versionName='\(
   fail "APK 版本不匹配：需要 $expected_apk_version，实际 ${apk_version:-未知}"
 
 asset_name="DiPlay-${release_version}.apk"
+asset_path="$temporary_directory/$asset_name"
+cp "$apk_path" "$asset_path"
 checksum="$(sha256_file "$apk_path")"
 checksum_file="$temporary_directory/SHA256SUMS.txt"
 printf '%s  %s\n' "$checksum" "$asset_name" > "$checksum_file"
 
 gh release create "$tag" \
-  "$apk_path#$asset_name" \
-  "$checksum_file#SHA256SUMS.txt" \
+  "$asset_path" \
+  "$checksum_file" \
   --repo "$repo" \
   --target "$head_sha" \
-  --title "DiPlay v${release_version}" \
+  --title "DiPlay ${release_version}" \
   --notes-file "$notes_path" \
   --latest

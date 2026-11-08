@@ -17,6 +17,9 @@
         <meta-data
             android:name="android.allow_multiple_resumed_activities"
             android:value="true" />
+        <meta-data
+            android:name="com.shilapi.xcertplay.SOURCE_REVISION"
+            android:value="${diplaySourceRevision}" />
 
         <receiver
             android:name="com.shilapi.xcertplay.BootReceiver"

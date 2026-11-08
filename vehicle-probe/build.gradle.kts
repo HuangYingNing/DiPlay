@@ -1,16 +1,15 @@
-import java.util.Properties
-
 // carlito | DiPlay property client; vehicle implementation is in a separate GD bridge APK.
 plugins { id("com.android.library") }
 
-val localPasteDbProperties = Properties().apply {
-    val propertiesFile = rootProject.file(".private/pastedb.properties")
-    if (propertiesFile.isFile) propertiesFile.inputStream().use(::load)
-}
-val pasteDbApiKey = providers.gradleProperty("PASTEDB_API_KEY")
-    .orElse(providers.environmentVariable("PASTEDB_API_KEY"))
-    .orElse(localPasteDbProperties.getProperty("PASTEDB_API_KEY", ""))
-val escapedPasteDbApiKey = pasteDbApiKey.get()
+val localPasteDbKeyEndpoint = rootProject.file(".private/PASTEDB_KEY_ENDPOINT.txt")
+    .takeIf { it.isFile }
+    ?.readText()
+    ?.trim()
+    .orEmpty()
+val pasteDbKeyEndpoint = providers.gradleProperty("PASTEDB_KEY_ENDPOINT")
+    .orElse(providers.environmentVariable("PASTEDB_KEY_ENDPOINT"))
+    .orElse(localPasteDbKeyEndpoint)
+val escapedPasteDbKeyEndpoint = pasteDbKeyEndpoint.get()
     .replace("\\", "\\\\")
     .replace("\"", "\\\"")
 
@@ -29,7 +28,7 @@ android {
         // carlito | The client follows DiPlay; the separately installed GD bridge still needs Android 9.
         minSdk = 25
         consumerProguardFiles("consumer-rules.pro")
-        buildConfigField("String", "PASTEDB_API_KEY", "\"$escapedPasteDbApiKey\"")
+        buildConfigField("String", "PASTEDB_KEY_ENDPOINT", "\"$escapedPasteDbKeyEndpoint\"")
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

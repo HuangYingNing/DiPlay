@@ -77,19 +77,19 @@ class UpdateCatalogTest {
     }
 
     private fun releaseWith(
-        apkName: String = "DiPlay-0.2.16-build20261108-002.apk",
+        apkName: String = "DiPlay-v0.2.16-b261108-002.apk",
         apkUrl: String,
         checksumsUrl: String = GITHUB + "SHA256SUMS.txt",
     ) = """
-        [{"tag_name": "0.2.16-build20261108-002", "draft": false, "assets": [
+        [{"tag_name": "v0.2.16-b261108-002", "draft": false, "assets": [
           {"name": ${org.json.JSONObject.quote(apkName)}, "browser_download_url": ${org.json.JSONObject.quote(apkUrl)}},
           {"name": "SHA256SUMS.txt", "browser_download_url": ${org.json.JSONObject.quote(checksumsUrl)}}
         ]}]
     """.trimIndent()
 
     @Test fun acceptsAssetsFromTheConfiguredForkRelease() {
-        val release = UpdateCatalog.parse(releaseWith(apkUrl = GITHUB + "DiPlay-0.2.16-build20261108-002.apk"))
-        assertEquals("DiPlay-0.2.16-build20261108-002.apk", release?.apkName)
+        val release = UpdateCatalog.parse(releaseWith(apkUrl = GITHUB + "DiPlay-v0.2.16-b261108-002.apk"))
+        assertEquals("DiPlay-v0.2.16-b261108-002.apk", release?.apkName)
     }
 
     @Test fun refusesAnApkNameThatLeavesTheDownloadFolder() {
@@ -111,6 +111,6 @@ class UpdateCatalogTest {
     }
 
     private companion object {
-        const val GITHUB = "https://github.com/HuangYingNing/DiPlay/releases/download/0.2.16-build20261108-002/"
+        const val GITHUB = "https://github.com/HuangYingNing/DiPlay/releases/download/v0.2.16-b261108-002/"
     }
 }

@@ -9,7 +9,7 @@ internal object UpdateVersion {
         val buildSequence: Int = 0,
     )
 
-    private val VERSION = Regex("(\\d+)\\.(\\d+)\\.(\\d+)(?:-build(\\d{8})-(\\d{3}))?")
+    private val VERSION = Regex("(\\d+)\\.(\\d+)\\.(\\d+)(?:(?:-build(\\d{8})|-b(\\d{6}))-(\\d{3}))?")
 
     internal fun parse(value: String): Parsed? =
         VERSION.find(value)?.let { match ->
@@ -17,8 +17,8 @@ internal object UpdateVersion {
                 major = match.groupValues[1].toInt(),
                 minor = match.groupValues[2].toInt(),
                 patch = match.groupValues[3].toInt(),
-                buildDate = match.groupValues[4].toIntOrNull() ?: 0,
-                buildSequence = match.groupValues[5].toIntOrNull() ?: 0,
+                buildDate = (match.groupValues[4].takeLast(6).ifEmpty { match.groupValues[5] }).toIntOrNull() ?: 0,
+                buildSequence = match.groupValues[6].toIntOrNull() ?: 0,
             )
         }
 
