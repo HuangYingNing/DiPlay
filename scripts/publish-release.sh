@@ -198,12 +198,6 @@ if [[ "$skip_build" != true ]]; then
 
   gradle_user_home="${GRADLE_USER_HOME:-$project_root/.gradle}"
   GRADLE_USER_HOME="$gradle_user_home" ./gradlew \
-    :shared:testDebugUnitTest \
-    :common:testDebugUnitTest \
-    :home:testDebugUnitTest \
-    :mobile:lintRelease \
-    :home:lintDebug \
-    :maphost:lintDebug \
     :mobile:assembleRelease \
     -PDIPLAY_RELEASE_VERSION="$release_version"
 fi

@@ -34,9 +34,10 @@ scripts/publish-release.sh
 
 The script reads the base version from `mobile/build.gradle.kts`, finds the next daily
 sequence from GitHub Releases, and creates a version such as
-`0.2.16-build20261108-001`. It runs the checks and exactly one signed Release APK build,
-then publishes the APK plus `SHA256SUMS.txt` directly to GitHub. `--publish` remains
-available as an explicit synonym for the default.
+`0.2.16-build20261108-001`. Because the script requires committed and pushed source, it
+does not repeat the development CI checks. It performs exactly one signed Release APK
+build, then publishes the APK plus `SHA256SUMS.txt` directly to GitHub. `--publish`
+remains available as an explicit synonym for the default.
 
 To publish an existing signed APK without running Gradle again, its embedded version
 must match the release version and current commit exactly:
