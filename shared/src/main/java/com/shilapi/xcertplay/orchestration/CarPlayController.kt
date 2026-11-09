@@ -86,6 +86,7 @@ import com.shilapi.xcertplay.transport.I2cTransport
 import com.shilapi.xcertplay.transport.I2cTransportException
 import com.shilapi.xcertplay.transport.IphoneCarPlayConfiguration
 import com.shilapi.xcertplay.transport.IphoneUsbException
+import com.shilapi.xcertplay.transport.IphoneUsbAdbGrant
 import com.shilapi.xcertplay.transport.IphoneUsbHost
 import com.shilapi.xcertplay.transport.IphoneUsbMatcher
 import com.shilapi.xcertplay.transport.LinuxI2cTransport
@@ -1904,6 +1905,22 @@ class CarPlayController(
                     permissionGrant.set(false)
                     onStatus(CarPlayStatus.RequestingIphonePermission)
                     pollIphonePermission(device)
+                }
+                is IphoneUsbHost.PermissionRequest.AdbRequired -> {
+                    debugLog("wired iPhone USB permission UI unavailable; trying authorized ADB grant")
+                    permissionGrant.set(false)
+                    val result = IphoneUsbAdbGrant.grant(appContext, request.device)
+                    debugLog(
+                        "wired iPhone ADB permission result=${result.code} " +
+                            "attached=${result.attached} granted=${result.granted}",
+                    )
+                    if (result.permissionGranted) {
+                        onIphonePermission(IphoneUsbHost.PermissionResult.Granted(request.device))
+                    } else {
+                        fail(IphoneUsbException.PermissionDenied(
+                            "Unable to grant iPhone USB permission through authorized ADB: ${result.code}",
+                        ))
+                    }
                 }
             }
         } catch (error: Throwable) {

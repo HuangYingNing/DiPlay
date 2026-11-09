@@ -111,9 +111,7 @@ internal class MicrophoneUplink(
             MediaRecorder.AudioSource.VOICE_COMMUNICATION.takeIf { source == MediaRecorder.AudioSource.VOICE_RECOGNITION })
         val nextRecorder = sources.distinct().firstNotNullOfOrNull { candidate ->
             createStartedRecorder(candidate, channelMask, bufferSize)?.also {
-                if (candidate == MediaRecorder.AudioSource.VOICE_COMMUNICATION && source == MediaRecorder.AudioSource.VOICE_RECOGNITION) {
-                    stats.useVoiceCommunicationSource()
-                }
+                stats.useSource(candidate)
             }
         }
         if (nextRecorder == null) {
