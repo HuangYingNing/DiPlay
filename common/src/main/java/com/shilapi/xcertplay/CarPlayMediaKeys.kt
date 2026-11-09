@@ -114,7 +114,7 @@ internal object CarPlayMediaKeys {
         }
         appContext = context.applicationContext
         controller = next
-        this.manageAudioFocus = manageAudioFocus
+        this.manageAudioFocus = manageAudioFocus && !AirPlayPersistence.loadDisableMediaKeyAudioFocus(context)
         steeringProfile = SteeringProfiles.loadEnabled(context)
         com.shilapi.xcertplay.media.AmbientMusicController.claimPlaybackOwner(next)
         next.playbackListener = { playing ->
