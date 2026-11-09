@@ -4881,6 +4881,15 @@ open class CarPlayHostActivity : ComponentActivity() {
             showConnectionHelp(null)
         } else if (status is CarPlayStatus.Failed) {
             showConnectionHelp(status)
+        } else if (!wirelessEnabled) {
+            connectionInstructionsView?.text = getString(when (status) {
+                is CarPlayStatus.IphoneNotListed -> if (status.nonHubDeviceListed) {
+                    R.string.connection_help_usb_device_not_iphone
+                } else {
+                    R.string.connection_help_no_usb_device
+                }
+                else -> R.string.use_a_usb_data_cable_and_unlock_your_iphone_allow_trust_an
+            })
         }
         if (menuOpen) {
             if (status is CarPlayStatus.Failed) failurePendingAfterMenu = status
@@ -4899,7 +4908,9 @@ open class CarPlayHostActivity : ComponentActivity() {
                     getString(R.string.wifi_direct_refused_beside_hotspot)
                 WirelessStartupFailure.BLUETOOTH_UNUSABLE ->
                     getString(R.string.bluetooth_cannot_open_connections)
-                null -> if (description.contains("socket", ignoreCase = true) ||
+                null -> if (description.contains("CarPlay configuration request transferred -1 of 1 bytes")) {
+                    getString(R.string.iphone_usb_mode_rejected)
+                } else if (description.contains("socket", ignoreCase = true) ||
                     description.contains("RFCOMM", ignoreCase = true)) {
                     getString(R.string.your_iphone_isn_t_available_unlock_it_and_check_bluetooth)
                 } else if (description.contains(BluetoothRadioCheck.RADIO_OFF_MARK, ignoreCase = true)) {
@@ -5993,6 +6004,7 @@ open class CarPlayHostActivity : ComponentActivity() {
             R.string.car_sees_usb_device_not_iphone,
             R.string.car_sees_no_usb_device,
             R.string.connection_interrupted_retrying,
+            R.string.iphone_usb_mode_rejected,
             R.string.turn_on_bluetooth_in_the_head_unit_s_settings_to_connect,
         ).any { message == getString(it) } -> message
         message == getString(R.string.vpn_authorization_unavailable) -> message
