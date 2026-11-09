@@ -24,9 +24,6 @@ import com.shilapi.xcertplay.host.R
 import com.shilapi.xcertplay.hud.BydOutputSettings
 import com.shilapi.xcertplay.media.CarPlayNowPlaying
 import com.shilapi.xcertplay.orchestration.CarPlayController
-import com.shilapi.xcertplay.vehicle.GeelyFactoryCarPlay
-import com.shilapi.xcertplay.vehicleprobe.VehicleSteeringClient
-import com.shilapi.xcertplay.vehicleprobe.VehicleProjectionClient
 import java.util.concurrent.Executors
 import java.util.concurrent.Executor
 import kotlin.math.roundToInt
@@ -34,10 +31,10 @@ import kotlin.math.roundToInt
 /**
  * Steering-wheel and other hardware media buttons for CarPlay.
  *
- * Android delivers media keys to a media session; BYD picks the session of the audio-focus
- * owner. Once CarPlay plays music, DiPlay holds audio focus and an active session until the
- * CarPlay session ends, so play also works after a pause. Keys go to the iPhone as CarPlay media
- * HID presses ([CarPlayMediaButton]).
+ * Android delivers media keys to a media session; some head units pick the session of the
+ * audio-focus owner. DiPlay normally holds focus and an active session until the CarPlay session
+ * ends, but focus can be disabled on head units that otherwise route physical volume buttons to
+ * DiPlay. Keys go to the iPhone as CarPlay media HID presses ([CarPlayMediaButton]).
  */
 internal object CarPlayMediaKeys {
     private const val TAG = "DiPlay-MediaKeys"
@@ -50,55 +47,24 @@ internal object CarPlayMediaKeys {
             Thread(task, "diplay-now-playing-artwork").apply { isDaemon = true }
         },
         main = Executor { mainHandler.post(it) },
-        decode = ::decodeArtwork,
+        decode = ::decodeAmbientArtwork,
         publish = ::onArtworkDecoded,
-        discard = Bitmap::recycle,
+        discard = { it.bitmap.recycle() },
     )
     private var artworkOwner: Any? = null
-    @Volatile private var controller: CarPlayController? = null
+    private val ambientColorCache = LinkedHashMap<Int, Int?>()
+    private var initialAlbumRecovery = InitialAlbumRecovery()
+    private var initialAlbumRetry: Runnable? = null
+    private var controller: CarPlayController? = null
     private var session: MediaSession? = null
     private var focusRequest: AudioFocusRequestCompat? = null
     private var focusOwner: Any? = null
     private var focusEventRevision = 0L
     private var focusHeld = false
-    private var manageAudioFocus = true
+    /** Some car firmware never sends a gain callback after the phone call ends. */
+    private var transientFocusInterrupted = false
     private var appContext: Context? = null
-    // carlito | The independent bridge owns all OEM input implementation and interception.
-    @Volatile private var bridgeInput: VehicleSteeringClient? = null
-    // carlito | One shared steering lease; volume keys are added only while map zoom is active.
-    private var bridgeBaseKeys = intArrayOf()
-    private val bridgeZoom = WheelZoomKeys()
-    private var bridgeZoomKeys = emptyMap<WheelZoomSettings.Role, Int>()
-    @Volatile private var instrumentStatus: VehicleProjectionClient? = null
-    @Volatile private var zoomEpoch = 0L
-    @Volatile private var zoomActive = false
-    @Volatile private var zoomDeadline = 0L
-    private val zoomPoll = object : Runnable {
-        override fun run() = synchronized(this@CarPlayMediaKeys) {
-            refreshZoomEligibility()
-            if (controller != null && bridgeZoomKeys.isNotEmpty()) mainHandler.postDelayed(this, 100L)
-        }
-    }
-    @Volatile private var steeringGeneration = 0
-    private var keyLogMonitor: SteeringKeyLogMonitor? = null
-    private var lastGeelyInputDiagnostics = "vehicleBridge INACTIVE"
-    private var lastKeyLogDiagnostics = "logMonitor INACTIVE"
-    @Volatile private var monitorGeneration = 0
-    private var steeringProfile: SteeringProfile? = null
-    private data class Learning(val owner: Any, val onKey: (SteeringObservedKey?) -> Unit)
-    @Volatile private var learning: Learning? = null
-    private var learningTimeout: Runnable? = null
-    private var suppressedUntil = 0L
-    private var lastSentButton = -1
-    private var lastSentSource = ""
-    private var lastSentAt = 0L
-    private val observedKeys = ArrayDeque<String>()
-    private val lastSystemTrigger = mutableMapOf<String, Long>()
     private var mediaAudioActive = false
-    // carlito | Resume only the music paused by this speech burst in the same controller session.
-    private var speechPlaying = false
-    private var resumeAfterSpeech = false
-    private var speechMedia: CarPlayNowPlaying? = null
     private var nowPlaying = CarPlayNowPlaying()
     private var elapsedUpdatedAt = 0L
     private var artwork: Bitmap? = null
@@ -106,25 +72,24 @@ internal object CarPlayMediaKeys {
     private var placeholder: Bitmap? = null
 
     @Synchronized
-    fun attach(context: Context, next: CarPlayController, manageAudioFocus: Boolean = true,
-        onMediaPlaying: (Boolean) -> Unit = {}) {
+    fun attach(context: Context, next: CarPlayController) {
         if (controller !== next) {
             releaseLocked()
             artworkOwner = artworkQueue.newSession()
         }
         appContext = context.applicationContext
         controller = next
-        this.manageAudioFocus = manageAudioFocus
-        steeringProfile = SteeringProfiles.loadEnabled(context)
+        GeelyWheelKeys.start(context)
         com.shilapi.xcertplay.media.AmbientMusicController.claimPlaybackOwner(next)
         next.playbackListener = { playing ->
             com.shilapi.xcertplay.media.AmbientMusicController.phonePlaybackChanged(next, playing)
-            onMediaPlaying(playing)
             onIphonePlaying(next, playing)
         }
-        next.nowPlayingListener = { update -> onNowPlayingChanged(next, update) }
+        next.nowPlayingListener = { _ -> onNowPlayingChanged(next) }
         next.artworkListener = { id, bytes -> onArtworkChanged(next, id, bytes) }
-        syncGeelyInputLocked()
+        val retained = next.nowPlayingSnapshot()
+        onNowPlayingChanged(next)
+        next.matchingArtworkSnapshot(retained.artworkTransferId)?.let { onArtworkChanged(next, it.id, it.bytes) }
     }
 
     /** Ends key handling for [expected]; a newer controller's state is left alone. */
@@ -136,6 +101,7 @@ internal object CarPlayMediaKeys {
         expected.nowPlayingListener = null
         expected.artworkListener = null
         controller = null
+        GeelyWheelKeys.stop()
         releaseLocked()
     }
 
@@ -144,47 +110,43 @@ internal object CarPlayMediaKeys {
         mainHandler.post { synchronized(this) { updateLocked(active) } }
     }
 
-    fun onSpeechPlayback(expected: CarPlayController, active: Boolean) {
-        mainHandler.post { synchronized(this) {
-            if (controller !== expected || speechPlaying == active) return@synchronized
-            speechPlaying = active
-            if (active) {
-                val playing = if (nowPlaying.title != null || nowPlaying.elapsedMillis != null) nowPlaying.playing else mediaAudioActive
-                speechMedia = nowPlaying
-                resumeAfterSpeech = playing && expected.sendMediaButton(CarPlayMediaButton.PAUSE)
-            } else {
-                val resume = resumeAfterSpeech
-                resumeAfterSpeech = false; speechMedia = null
-                if (resume) expected.sendMediaButton(CarPlayMediaButton.PLAY)
-            }
-        } }
-    }
-
     /** The iPhone started or stopped playing; may run on any thread. */
     private fun onIphonePlaying(expected: CarPlayController, playing: Boolean) {
         if (playing) mainHandler.post {
             synchronized(this) {
-                if (controller === expected) regainFocusLocked()
+                if (controller === expected) regainFocusLocked(onIphonePlaybackResume = true)
             }
         }
     }
 
     /** Publishes the iPhone's retained metadata through Android's system media session. */
-    private fun onNowPlayingChanged(expected: CarPlayController, update: CarPlayNowPlaying) {
+    private fun onNowPlayingChanged(expected: CarPlayController) {
         mainHandler.post {
             synchronized(this) {
                 if (controller !== expected) return@synchronized
+                // Resolve retained state at delivery: a queued callback cannot roll a replay back.
+                val update = expected.nowPlayingSnapshot()
                 val previousArtwork = artwork
-                speechMedia?.let { before ->
-                    if (before.title != update.title || before.artist != update.artist || before.sourceApp != update.sourceApp)
-                        resumeAfterSpeech = false
-                }
-                if (nowPlaying.artworkTransferId != update.artworkTransferId) {
+                if (albumTrackChanged(nowPlaying, update)) {
+                    val previousId = nowPlaying.artworkTransferId
+                    if (previousId != null) {
+                        ambientColorCache.remove(previousId)
+                        if (previousId != update.artworkTransferId) artworkCache.remove(previousId)
+                    }
+                    if (previousId == update.artworkTransferId) {
+                        // Metadata can arrive after its artwork. Keep the connection's decode token;
+                        // cancelling it here loses a valid in-flight cover for a reused reference.
+                        initialAlbumRecovery = InitialAlbumRecovery()
+                    }
+                    com.shilapi.xcertplay.media.AmbientMusicController.albumColorChanged(expected,
+                        update.artworkTransferId?.let { ambientColorCache[it] })
                     artwork = nextArtwork(update.artworkTransferId, artworkCache, artwork)
                 }
                 if (nowPlaying.elapsedMillis != update.elapsedMillis) elapsedUpdatedAt = SystemClock.elapsedRealtime()
                 val metadataChanged = metadataChanged(nowPlaying, update) || artwork !== previousArtwork
                 nowPlaying = update
+                if (metadataChanged) ClusterMusicState.publish(update, artwork)
+                updateInitialAlbumRecovery(expected)
                 // The iPhone repeats NowPlayingUpdate about twice a second for the position alone.
                 // Republishing the metadata each time sent a copy of the artwork through system_server
                 // to every media listener, and on a DiLink 5.0 Tang that exhausted memory within
@@ -202,301 +164,123 @@ internal object CarPlayMediaKeys {
     }
 
     @Synchronized
-    private fun onArtworkDecoded(expected: Any, id: Int, decoded: Bitmap?) {
+    private fun onArtworkDecoded(expected: Any, id: Int, result: AmbientArtwork?) {
+        val decoded = result?.bitmap
         if (artworkOwner !== expected) {
             decoded?.recycle()
             return
         }
+        // Empty/corrupt transfers are not a request to clear a valid cover. Session teardown
+        // clears the image explicitly. Keep recovery eligible when decoding has failed.
+        if (decoded == null) {
+            Log.i(TAG, "artwork decode failed reference=$id; retaining cover")
+            controller?.let(::updateInitialAlbumRecovery)
+            return
+        }
         artworkCache.remove(id)
         artworkCache[id] = decoded
+        ambientColorCache.remove(id)
+        ambientColorCache[id] = result?.color
+        while (ambientColorCache.size > MAX_CACHED_ARTWORK) ambientColorCache.remove(ambientColorCache.keys.first())
         while (artworkCache.size > MAX_CACHED_ARTWORK) artworkCache.remove(artworkCache.keys.first())
         if (nowPlaying.artworkTransferId == id) {
             artwork = decoded
+            ClusterMusicState.publish(nowPlaying, artwork)
+            controller?.let { com.shilapi.xcertplay.media.AmbientMusicController.albumColorChanged(it, result?.color) }
+            controller?.let(::updateInitialAlbumRecovery)
             session?.setMetadata(androidMetadata(nowPlaying, shownArtworkLocked()))
         }
     }
 
-    /** Changes the Geely steering listener immediately if a CarPlay session is already active. */
-    fun setGeelySteeringEnabled(context: Context, enabled: Boolean) {
-        AirPlayPersistence.saveGeelySteeringEnabled(context, enabled)
-        synchronized(this) {
-            appContext = context.applicationContext
-            syncGeelyInputLocked()
+    private fun hasCurrentAlbumColor(): Boolean =
+        nowPlaying.artworkTransferId?.let { ambientColorCache.containsKey(it) } == true
+
+    private fun albumRecoveryEnabled(): Boolean {
+        val context = appContext ?: return false
+        if (ClusterMusicSettings.enabled(context)) return true
+        val settings = com.shilapi.xcertplay.media.AmbientMusicSettings.load(context)
+        return settings.enabled && settings.colorSource == com.shilapi.xcertplay.media.AmbientColorSource.ALBUM
+    }
+
+    private fun logAlbumRecoveryEvents(recovery: InitialAlbumRecovery) {
+        recovery.takeEvents().forEach { Log.i(TAG, "album recovery=$it") }
+        if (!recovery.timerPending) {
+            initialAlbumRetry?.let(mainHandler::removeCallbacks)
+            initialAlbumRetry = null
         }
     }
 
-    private fun syncGeelyInputLocked() {
-        bridgeZoomKeys = appContext?.takeIf { WheelZoomSettings.enabled(it) }?.let(WheelZoomSettings::bridgeKeys).orEmpty()
-        if (controller != null && bridgeZoomKeys.isNotEmpty() && instrumentStatus == null)
-            instrumentStatus = VehicleProjectionClient(appContext!!)
-        if (controller == null || bridgeZoomKeys.isEmpty()) { instrumentStatus?.close(); instrumentStatus = null; endBridgeZoom() }
-        mainHandler.removeCallbacks(zoomPoll)
-        if (controller != null && bridgeZoomKeys.isNotEmpty()) mainHandler.post(zoomPoll)
-        val profileUsesVehicleBridge = steeringProfile?.bindings?.any { it.isVendorInput } == true
-        val useGeelyInput = learning != null || controller != null &&
-            (bridgeZoomKeys.isNotEmpty() || profileUsesVehicleBridge || steeringProfile == null &&
-                appContext?.let(AirPlayPersistence::loadGeelySteeringEnabled) == true)
-        if (!useGeelyInput) {
-            steeringGeneration++
-            bridgeInput?.let { lastGeelyInputDiagnostics = it.diagnostics(); it.close() }
-            bridgeInput = null
-        } else {
-            if (bridgeInput == null) {
-                val generation = ++steeringGeneration
-                bridgeInput = VehicleSteeringClient(appContext!!) { event ->
-                    onGeelySteeringKey(GeelySteeringKeyEvent(event.getInt("keyCode"), event.getInt("rawKeyCode"),
-                        event.getInt("action"), event.getLong("eventTimeMs")), generation, source = "vehicle_bridge")
-                }
-            }
-            bridgeBaseKeys = steeringProfile?.bindings?.filter { it.isVendorInput }
-                ?.map { GeelySteeringKeyCodes.canonicalize(it.keyCode) ?: it.keyCode }?.toIntArray()
-                ?: intArrayOf(200085, 200087, 200088, 200231, 210005, 210006)
-            // Learning is a passive observation; playback only uses acknowledged interception.
-            updateBridgeKeys()
-        }
-        keyLogMonitor?.let { lastKeyLogDiagnostics = it.diagnostics(); it.close() }; keyLogMonitor = null
-        val generation = ++monitorGeneration
-        val inputBindings = steeringProfile?.bindings?.filterNot { it.isVendorInput } ?: if (!useGeelyInput && appContext?.let(GeelyFactoryCarPlay::load) != null) {
-            // HardKeyModel in the factory APK logs this press even without a connected iPhone.
-            listOf(SteeringBinding("siri", 200231, 0, "logcat", "HardKeyModel"))
-        } else emptyList()
-        val needsSystemInput = learning != null || (controller != null && inputBindings.isNotEmpty())
-        if (needsSystemInput && appContext != null &&
-            (learning == null || !VehicleSteeringClient.installed(appContext!!))) {
-            keyLogMonitor = SteeringKeyLogMonitor(appContext!!, inputBindings, learning != null) { key ->
-                mainHandler.post { if (generation == monitorGeneration) onObservedKey(key) }
-            }.also { it.start() }
-        }
-    }
-
-    private fun onGeelySteeringKey(event: GeelySteeringKeyEvent, generation: Int = steeringGeneration,
-        source: String = "oneos") {
-        mainHandler.post {
-            if (generation != steeringGeneration) return@post
-            if (learning == null && onBridgeZoomKey(event)) return@post
-            if (learning != null || steeringProfile?.bindings?.any { it.isVendorInput } == true) {
-                onObservedKey(SteeringObservedKey(event.keyCode, event.action, source))
-                return@post
-            }
-            if (steeringProfile != null) return@post
-            val operation = when (event.keyCode) {
-                GeelySteeringKeyCodes.MEDIA_PLAY_PAUSE -> "play_pause"
-                GeelySteeringKeyCodes.MEDIA_NEXT, GeelySteeringKeyCodes.SEEK_NEXT -> "next"
-                GeelySteeringKeyCodes.MEDIA_PREVIOUS, GeelySteeringKeyCodes.SEEK_PREVIOUS -> "previous"
-                GeelySteeringKeyCodes.VOICE_ASSIST -> "siri"
-                else -> return@post
-            }
-            if (steeringProfile?.bindings?.any { it.operation == operation } == true) return@post
-            val trigger = if (operation == "siri") event.action in 1..4 else event.action == 0 || event.action == 2
-            if (trigger) sendSteeringOperation(operation, source)
-        }
-    }
-
-    fun refreshWheelZoom(context: Context) = synchronized(this) {
-        appContext = context.applicationContext
-        endBridgeZoom()
-        syncGeelyInputLocked()
-        refreshZoomEligibility()
-        updateBridgeKeys()
-    }
-
-    fun learnBridgeZoom(context: Context, owner: Any, role: WheelZoomSettings.Role, done: (WheelKey?) -> Unit) {
-        startSteeringLearning(context, owner) { observed ->
-            if (observed == null) done(null)
-            else if (observed.source in listOf("oneos", "ecarx", "vehicle_bridge")) {
-                stopSteeringLearning(owner)
-                val key = WheelKey(GeelySteeringKeyCodes.canonicalize(observed.keyCode) ?: observed.keyCode, 0, "vehicle_bridge")
-                WheelZoomSettings.assign(context, role, key)
-                done(key)
+    private fun updateInitialAlbumRecovery(expected: CarPlayController) {
+        val recovery = initialAlbumRecovery
+        val schedule = recovery.observe(nowPlaying, hasCurrentAlbumColor(), ::albumRecoveryEnabled)
+        logAlbumRecoveryEvents(recovery)
+        if (!schedule) return
+        initialAlbumRetry?.let(mainHandler::removeCallbacks)
+        initialAlbumRetry = null
+        val token = recovery.pendingToken
+        Log.i(TAG, "album recovery=scheduled reference=${nowPlaying.artworkTransferId}")
+        val retry = Runnable {
+            synchronized(this) {
+                if (controller !== expected || initialAlbumRecovery !== recovery) return@Runnable
+                val begin = recovery.beginRequest(token, nowPlaying, hasCurrentAlbumColor(), ::albumRecoveryEnabled)
+                logAlbumRecoveryEvents(recovery)
+                if (!begin) return@Runnable
+                artworkQueue.execute(Runnable { expected.refreshInitialNowPlaying(
+                    stillNeeded = {
+                        synchronized(this) {
+                            val needed = controller === expected && initialAlbumRecovery === recovery &&
+                                recovery.stillNeeded(token, nowPlaying, hasCurrentAlbumColor(), ::albumRecoveryEnabled)
+                            if (initialAlbumRecovery === recovery) logAlbumRecoveryEvents(recovery)
+                            needed
+                        }
+                    },
+                    beforeSend = {
+                        synchronized(this) {
+                            val claimed = controller === expected && initialAlbumRecovery === recovery &&
+                                recovery.claimSend(token, nowPlaying, hasCurrentAlbumColor(), ::albumRecoveryEnabled)
+                            if (initialAlbumRecovery === recovery) logAlbumRecoveryEvents(recovery)
+                            if (claimed) Log.i(TAG, "album recovery=requested reference=${nowPlaying.artworkTransferId}")
+                            claimed
+                        }
+                    },
+                    onFinished = { result ->
+                        synchronized(this) {
+                            if (controller === expected && initialAlbumRecovery === recovery) {
+                                recovery.finished(token)
+                                val state = when (result) {
+                                    CarPlayController.InitialAlbumRefreshResult.SENT -> "sent"
+                                    CarPlayController.InitialAlbumRefreshResult.FAILED -> "failed"
+                                    else -> "skipped reason=${result.name.lowercase()}"
+                                }
+                                Log.i(TAG, "album recovery=$state")
+                                logAlbumRecoveryEvents(recovery)
+                            }
+                        }
+                    },
+                ) })
             }
         }
+        initialAlbumRetry = retry
+        mainHandler.postDelayed(retry, 2000)
     }
-
-    private fun menuAllowsBridgeZoom(): Boolean {
-        val status = instrumentStatus?.status() ?: return false
-        // Unknown/stale OEM menu state cannot steal a volume knob from the original instrument UI.
-        return status.getInt("schema") == 1 && (!status.getBoolean("supported") || status.getBoolean("menuAllowsZoom"))
-    }
-    private fun bridgeZoomRoute(): Any? {
-        val mode = appContext?.getSystemService(AudioManager::class.java)?.mode
-        return if (learning == null && mode !in listOf(AudioManager.MODE_IN_CALL, AudioManager.MODE_IN_COMMUNICATION) &&
-            menuAllowsBridgeZoom()) controller?.dashboardMapRoute() else null
-    }
-
-    private fun refreshZoomEligibility() {
-        val stage = bridgeInput?.status()?.getString("stage")
-        val volumes = bridgeZoomKeys.filterKeys { it != WheelZoomSettings.Role.MODE }.values
-        if (bridgeZoom.updateEligibility(bridgeZoomRoute()) || zoomActive &&
-            (SystemClock.elapsedRealtime() >= zoomDeadline || stage !in listOf("ACTIVE", "PARTIAL_INTERCEPTION", "CONFIGURING") ||
-                stage == "PARTIAL_INTERCEPTION" && volumes.any { bridgeInput?.ownsCanonicalKey(it) != true }))
-            endBridgeZoom()
-        if (bridgeZoomRoute() == null) endBridgeZoom()
-        updateBridgeKeys()
-    }
-    private fun updateBridgeKeys() {
-        val route = bridgeZoomRoute()
-        val mode = bridgeZoomKeys[WheelZoomSettings.Role.MODE]?.takeIf { route != null }
-        val volume = if (zoomActive && route != null) bridgeZoomKeys.filterKeys { it != WheelZoomSettings.Role.MODE }.values else emptyList()
-        bridgeInput?.update(if (learning != null) intArrayOf() else (bridgeBaseKeys.toList() + listOfNotNull(mode) + volume).distinct().toIntArray(), learning == null)
-    }
-    private fun endBridgeZoom() {
-        if (zoomActive || bridgeZoom.zoomMode) zoomEpoch++
-        zoomActive = false; zoomDeadline = 0L; bridgeZoom.timeOut()
-    }
-
-    private fun onBridgeZoomKey(event: GeelySteeringKeyEvent): Boolean {
-        if (bridgeZoomKeys.isEmpty()) return false
-        refreshZoomEligibility()
-        val role = bridgeZoomKeys.entries.firstOrNull { it.value == event.keyCode }?.key ?: return false
-        val route = bridgeZoomRoute() ?: return false
-        val now = SystemClock.elapsedRealtime()
-        if (now - event.eventTimeMs !in 0..2_000L) return true
-        val volumes = bridgeZoomKeys.filterKeys { it != WheelZoomSettings.Role.MODE }.values
-        val confirmed = volumes.all { bridgeInput?.ownsCanonicalKey(it) == true }
-        if (role != WheelZoomSettings.Role.MODE && (!zoomActive || !confirmed)) return true
-        val single = event.action == GeelySteeringKeyEvent.ACTION_SINGLE
-        if (event.action !in 0..2) return false
-        val action = bridgeZoom.onKey(role, event.action != GeelySteeringKeyEvent.ACTION_UP, true, true, false, event.keyCode)
-        if (single) bridgeZoom.onKey(role, false, true, true, false, event.keyCode)
-        when (action) {
-            WheelZoomKeys.Action.MODE_ON -> {
-                zoomEpoch++; zoomActive = true
-                zoomDeadline = if (appContext?.let(WheelZoomSettings::behaviour) == WheelZoomSettings.Behaviour.TIMED) now + 2_000L else Long.MAX_VALUE
-                updateBridgeKeys()
-            }
-            WheelZoomKeys.Action.MODE_OFF -> { endBridgeZoom(); updateBridgeKeys() }
-            WheelZoomKeys.Action.ZOOM_IN, WheelZoomKeys.Action.ZOOM_OUT -> {
-                val epoch = zoomEpoch
-                controller?.zoomDashboardMap(action == WheelZoomKeys.Action.ZOOM_IN) {
-                    zoomActive && epoch == zoomEpoch && SystemClock.elapsedRealtime() < zoomDeadline &&
-                        bridgeZoomRoute() == route && volumes.all { bridgeInput?.ownsCanonicalKey(it) == true }
-                }
-            }
-            else -> Unit
-        }
-        return action != WheelZoomKeys.Action.PASS
-    }
-
-    fun reloadSteeringProfile(context: Context) = synchronized(this) {
-        appContext = context.applicationContext
-        steeringProfile = SteeringProfiles.loadEnabled(context)
-        lastSystemTrigger.clear()
-        syncGeelyInputLocked()
-    }
-
-    fun startSteeringLearning(context: Context, owner: Any, onKey: (SteeringObservedKey?) -> Unit) = synchronized(this) {
-        stopSteeringLearning(owner)
-        appContext = context.applicationContext
-        steeringProfile = SteeringProfiles.loadEnabled(context)
-        learning = Learning(owner, onKey)
-        learningTimeout?.let(mainHandler::removeCallbacks)
-        learningTimeout = Runnable {
-            val callback = synchronized(this) { learning?.takeIf { it.owner === owner }?.onKey }
-            stopSteeringLearning(owner)
-            callback?.invoke(null)
-        }.also { mainHandler.postDelayed(it, 25_000L) }
-        syncGeelyInputLocked()
-    }
-
-    fun stopSteeringLearning(owner: Any) = synchronized(this) {
-        if (learning?.owner !== owner) return@synchronized
-        learning = null
-        learningTimeout?.let(mainHandler::removeCallbacks)
-        learningTimeout = null
-        suppressedUntil = SystemClock.elapsedRealtime() + 500L
-        syncGeelyInputLocked()
-    }
-
-    fun steeringDiagnostics(): String = synchronized(this) {
-        val permitted = appContext?.checkSelfPermission(android.Manifest.permission.READ_LOGS) == android.content.pm.PackageManager.PERMISSION_GRANTED
-        "systemLogAccess=$permitted\n" + SteeringLogAccess.diagnostics() + "\n" +
-            (bridgeInput?.diagnostics() ?: "last: $lastGeelyInputDiagnostics") + "\n" +
-            (keyLogMonitor?.diagnostics() ?: "last: $lastKeyLogDiagnostics") + "\n" + observedKeys.joinToString("\n")
-    }
-
-    fun steeringDirectReady(): Boolean = synchronized(this) { bridgeInput?.ready() == true }
-
-    private fun onObservedKey(key: SteeringObservedKey) {
-        val learner = synchronized(this) {
-            if (observedKeys.size >= 40) observedKeys.removeFirst()
-            observedKeys.addLast("key=${key.keyCode} event=${key.event} source=${key.source} tag=${key.logTag} broadcast=${key.broadcastAction}")
-            learning?.onKey
-        }
-        if (learner != null) { learner(key); return }
-        // carlito | Passive OEM logs/broadcasts cannot consume the original music-card action.
-        if (key.source in listOf("logcat", "broadcast") &&
-            GeelySteeringKeyCodes.canonicalize(key.keyCode) in listOf(200085, 200087, 200088, 210005, 210006)) return
-        // carlito | A bridge-owned key can also be logged/broadcast by the stock dispatcher.
-        if (key.source !in listOf("oneos", "ecarx", "vehicle_bridge") && bridgeInput?.ownsCanonicalKey(
-                GeelySteeringKeyCodes.canonicalize(key.keyCode) ?: key.keyCode) == true) return
-        if (SystemClock.elapsedRealtime() < suppressedUntil) return
-        val profile = synchronized(this) { steeringProfile }
-        val binding = profile?.bindings?.firstOrNull {
-            (it.keyCode == key.keyCode || it.isVendorInput &&
-                GeelySteeringKeyCodes.canonicalize(it.keyCode)?.let { code ->
-                    code == GeelySteeringKeyCodes.canonicalize(key.keyCode) } == true) &&
-                (it.source == key.source || it.isVendorInput && key.source in listOf("oneos", "ecarx", "vehicle_bridge")) &&
-                (key.source != "logcat" || it.logTag == key.logTag) &&
-                it.logContains == key.logContains &&
-                (key.source != "broadcast" || (it.broadcastAction == key.broadcastAction && it.keyExtra == key.keyExtra && it.eventExtra == key.eventExtra))
-        }
-        if (binding != null) {
-            if (key.event == binding.event) {
-                val now = SystemClock.elapsedRealtime()
-                val ready = synchronized(this) {
-                    val previous = lastSystemTrigger[binding.inputId]
-                    if (previous != null && now - previous < 180L) false
-                    else { lastSystemTrigger[binding.inputId] = now; true }
-                }
-                if (ready) sendSteeringOperation(binding.operation, key.source)
-            }
-            return
-        }
-        if (profile == null && key.source == "logcat" && key.logTag == "HardKeyModel" &&
-            key.keyCode == 200231 && key.event == 0 && appContext?.let(GeelyFactoryCarPlay::load) != null) {
-            val now = SystemClock.elapsedRealtime()
-            val ready = synchronized(this) {
-                val previous = lastSystemTrigger.put("factory_siri", now)
-                previous == null || now - previous >= 180L
-            }
-            if (ready) sendSteeringOperation("siri", "logcat")
-        }
-    }
-
-    /** Avoid applying the standard action again when this physical key has a custom mapping. */
-    fun consumesHardwareKey(keyCode: Int): Boolean = synchronized(this) {
-        val standard = CarPlayMediaButton.forKeyCode(keyCode) != null || CarPlayMediaButton.opensSiri(keyCode)
-        ((learning != null || SystemClock.elapsedRealtime() < suppressedUntil) && standard) ||
-            bridgeInput?.ownsRawKey(keyCode) == true ||
-            bridgeInput?.ownsCanonicalKey(GeelySteeringKeyCodes.canonicalize(keyCode) ?: keyCode) == true ||
-            steeringProfile?.bindings?.any { it.keyCode > 0 && it.keyCode == keyCode } == true
-    }
-
-    private fun sendSteeringOperation(operation: String, source: String) {
-        when (operation) {
-            "play_pause" -> send(CarPlayMediaButton.PLAY_PAUSE, source)
-            "next" -> send(CarPlayMediaButton.NEXT, source)
-            "previous" -> send(CarPlayMediaButton.PREVIOUS, source)
-            "siri" -> {
-                val sent = synchronized(this) { controller }?.requestSiri() == true
-                Log.i(TAG, "Steering voice key source=$source sent=$sent")
-            }
-        }
-    }
-
-    internal fun onExternalSiriKey(): Boolean = synchronized(this) { controller }?.requestSiri() == true
-
-    internal fun onExternalMediaKey(index: Int) = send(index, "geely-wheel")
 
     // Another car app (its own Spotify, the radio) took audio focus and with it the steering-wheel
     // keys. When CarPlay starts playing again it becomes the car's media source again, as any player
     // would; only the start counts, so a car source picked while the iPhone plays on is not undone.
-    private fun regainFocusLocked() {
+    private fun regainFocusLocked() = regainFocusLocked(onIphonePlaybackResume = false)
+
+    private fun regainFocusLocked(onIphonePlaybackResume: Boolean) {
         val request = focusRequest ?: return
-        if (focusHeld) return
+        // Do not compete with an ongoing call. Only a fresh iPhone play transition may
+        // retry a transient loss for which the head unit never sent AUDIOFOCUS_GAIN.
+        if (transientFocusInterrupted && !onIphonePlaybackResume) return
+        if (focusHeld && !transientFocusInterrupted) return
         val audio = appContext?.getSystemService(AudioManager::class.java) ?: return
         focusHeld = request.request(audio) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-        if (focusHeld) forwardGrantedFocusLocked()
+        if (focusHeld) {
+            transientFocusInterrupted = false
+            forwardGrantedFocusLocked()
+        }
         Log.i(TAG, "audio focus regained=$focusHeld")
     }
 
@@ -510,28 +294,41 @@ internal object CarPlayMediaKeys {
 
     private fun start(context: Context) {
         val expectedController = controller ?: return
-        val owner = Any().also { focusOwner = it }
-        focusEventRevision = 0L
-        val audio = context.getSystemService(AudioManager::class.java)
-        val request = AudioFocusRequestCompat(
-            AudioManager.AUDIOFOCUS_GAIN,
-            AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_MEDIA)
-                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                .build(),
-            { change -> onFocusChanged(expectedController, owner, change) },
-            mainHandler,
-        )
-        val granted = manageAudioFocus && audio?.let(request::request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-        focusRequest = request.takeIf { manageAudioFocus }
-        focusHeld = granted
-        if (granted) forwardGrantedFocusLocked()
+        val focusDisabled = AirPlayPersistence.loadDisableMediaKeyAudioFocus(context)
+        transientFocusInterrupted = false
+        val granted = if (focusDisabled) {
+            // Some OEMs route physical volume buttons to the focus owner. Keep an active
+            // MediaSession without permanent focus so those buttons remain vehicle-owned.
+            focusOwner = null
+            focusRequest = null
+            focusHeld = false
+            false
+        } else {
+            val owner = Any().also { focusOwner = it }
+            focusEventRevision = 0L
+            val audio = context.getSystemService(AudioManager::class.java)
+            val request = AudioFocusRequestCompat(
+                AudioManager.AUDIOFOCUS_GAIN,
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build(),
+                { change -> onFocusChanged(expectedController, owner, change) },
+                mainHandler,
+            )
+            focusRequest = request
+            (audio?.let(request::request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED).also {
+                focusHeld = it
+                if (it) forwardGrantedFocusLocked()
+            }
+        }
         session = MediaSession(context, "DiPlay CarPlay").apply {
             setCallback(callback, mainHandler)
             setMetadata(androidMetadata(nowPlaying, shownArtworkLocked()))
             isActive = true
         }
-        Log.i(TAG, "media keys active focusGranted=$granted")
+        Log.i(TAG, "media keys active focusDisabled=$focusDisabled focusGranted=$granted")
+        WheelKeyLog.note("media keys active focusDisabled=$focusDisabled focusGranted=$granted")
     }
 
     private fun forwardGrantedFocusLocked() {
@@ -552,13 +349,23 @@ internal object CarPlayMediaKeys {
             else {
                 focusEventRevision += 1
                 // Only permanent loss moves media keys elsewhere; transient losses come back.
-                if (change == AudioManager.AUDIOFOCUS_LOSS) focusHeld = false
-                else if (change == AudioManager.AUDIOFOCUS_GAIN) focusHeld = true
+                when (change) {
+                    AudioManager.AUDIOFOCUS_LOSS -> {
+                        focusHeld = false
+                        transientFocusInterrupted = false
+                    }
+                    AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> transientFocusInterrupted = true
+                    AudioManager.AUDIOFOCUS_GAIN -> {
+                        focusHeld = true
+                        transientFocusInterrupted = false
+                    }
+                }
                 true
             }
         }
         if (!current) return
         Log.i(TAG, "audio focus change=$change")
+        WheelKeyLog.note("media keys audio focus change=$change")
         // Resolve the matching sink and invoke it outside the media-key monitor. An abandoned
         // request must never mute a newer controller, and these owners must not nest locks.
         val background = CarPlayBackgroundSession.snapshot()
@@ -566,17 +373,13 @@ internal object CarPlayMediaKeys {
     }
 
     private fun releaseLocked() {
-        endBridgeZoom(); mainHandler.removeCallbacks(zoomPoll)
-        instrumentStatus?.close(); instrumentStatus = null; bridgeZoomKeys = emptyMap()
-        steeringGeneration++
-        bridgeInput?.close()
-        bridgeInput = null
-        keyLogMonitor?.close()
-        keyLogMonitor = null
-        monitorGeneration++
-        lastSystemTrigger.clear()
         focusOwner = null
+        controller?.let(com.shilapi.xcertplay.media.AmbientMusicController::releasePlaybackOwner)
         artworkOwner = null
+        initialAlbumRetry?.let(mainHandler::removeCallbacks)
+        initialAlbumRetry = null
+        initialAlbumRecovery = InitialAlbumRecovery()
+        ambientColorCache.clear()
         artworkQueue.clear()
         session?.let {
             it.isActive = false
@@ -584,14 +387,14 @@ internal object CarPlayMediaKeys {
         }
         session = null
         mediaAudioActive = false
-        speechPlaying = false; resumeAfterSpeech = false; speechMedia = null
         nowPlaying = CarPlayNowPlaying()
         artwork = null
         artworkCache.clear()
+        ClusterMusicState.publish(CarPlayNowPlaying(), null)
         focusRequest?.let { request -> appContext?.getSystemService(AudioManager::class.java)?.let(request::abandon) }
         focusRequest = null
         focusHeld = false
-        if (learning != null) syncGeelyInputLocked()
+        transientFocusInterrupted = false
     }
 
     private fun publishPlaybackStateLocked() {
@@ -616,28 +419,36 @@ internal object CarPlayMediaKeys {
     }
 
     private fun send(index: Int, source: String) {
-        val group = if (source in listOf("oneos", "ecarx", "vehicle_bridge", "logcat", "broadcast")) source else "media_session"
-        val now = SystemClock.elapsedRealtime()
-        synchronized(this) {
-            if (learning != null || now < suppressedUntil) return
-            if (lastSentButton == index && group != lastSentSource && now - lastSentAt < 120L) return
-            resumeAfterSpeech = false
-            lastSentButton = index; lastSentSource = group; lastSentAt = now
-        }
         // While the car's video player is on screen the wheel drives it: a CarPlay play/pause would
         // make the iPhone end the video session.
         if (CarPlayVideo.onMediaKey(index)) {
             Log.i(TAG, "media key $source -> car video player $index")
+            WheelKeyLog.note("media key $source -> car video player $index")
             return
         }
         val sent = synchronized(this) { controller }?.sendMediaButton(index) ?: false
         Log.i(TAG, "media key $source -> CarPlay $index sent=$sent")
+        WheelKeyLog.note("media key $source -> CarPlay $index sent=$sent")
+    }
+
+    private fun notUsed(source: String) {
+        Log.i(TAG, "media key $source not used by CarPlay")
+        WheelKeyLog.note("media key $source not used by CarPlay")
+    }
+
+    /** A steering-wheel media key captured outside the Android key stream (Geely/Lynk). */
+    internal fun onExternalMediaKey(index: Int) = send(index, "geely-wheel")
+
+    /** The steering-wheel microphone key captured outside the Android key stream (Geely/Lynk). */
+    internal fun onExternalSiriKey(): Boolean {
+        val active = synchronized(this) { controller } ?: return false
+        return runCatching { active.requestSiri() }.getOrDefault(false)
     }
 
     private val callback = CarPlayMediaCallback(
-        send = ::send,
-        consumesKey = ::consumesHardwareKey,
         experimentalDiLink3Keys = { appContext?.let(BydOutputSettings::carPlayCallControls) == true },
+        notUsed = ::notUsed,
+        send = ::send,
     )
 
     /** Whether [next] changes what the media session's metadata shows; position and play state do not. */
@@ -679,6 +490,20 @@ internal object CarPlayMediaKeys {
         id == null -> null
         cache.containsKey(id) -> cache[id]
         else -> current
+    }
+
+    private data class AmbientArtwork(val bitmap: Bitmap, val color: Int?)
+
+    private fun decodeAmbientArtwork(bytes: ByteArray): AmbientArtwork? {
+        val bitmap = decodeArtwork(bytes) ?: return null
+        // Runs once per decoded cover on the existing bounded artwork worker (576 pixels).
+        val small = Bitmap.createScaledBitmap(bitmap, 24, 24, true)
+        val pixels = IntArray(24 * 24)
+        val color = try {
+            small.getPixels(pixels, 0, 24, 0, 0, 24, 24)
+            com.shilapi.xcertplay.media.AmbientAlbumPalette.albumColor(pixels)
+        } finally { if (small !== bitmap) small.recycle() }
+        return AmbientArtwork(bitmap, color)
     }
 
     private fun decodeArtwork(bytes: ByteArray): Bitmap? {
@@ -730,27 +555,24 @@ internal object CarPlayMediaKeys {
 /**
  * Media-session input → CarPlay presses. Hardware keys arrive as button events and keep the toggle;
  * media controllers (not hardware keys) call [onPlay] and [onPause] with an explicit intent.
+ * A button that is not a CarPlay key goes to [notUsed]: a car that sends its own code for a wheel key
+ * then shows that code in the report, instead of looking like a car that sent nothing (#610).
  */
 internal class CarPlayMediaCallback(
-    private val send: (index: Int, source: String) -> Unit,
-    private val consumesKey: (Int) -> Boolean = { false },
     private val experimentalDiLink3Keys: () -> Boolean = { false },
+    private val notUsed: (source: String) -> Unit = {},
+    private val send: (index: Int, source: String) -> Unit,
 ) : MediaSession.Callback() {
-    constructor(send: (index: Int, source: String) -> Unit) : this(send, { false }, { false })
-
-    // carlito: Preserve upstream's named opt-in with a trailing send callback.
-    constructor(experimentalDiLink3Keys: () -> Boolean, send: (index: Int, source: String) -> Unit) :
-        this(send = send, consumesKey = { false }, experimentalDiLink3Keys = experimentalDiLink3Keys)
-
     override fun onMediaButtonEvent(mediaButtonIntent: Intent): Boolean {
         @Suppress("DEPRECATION")
         val event = mediaButtonIntent.getParcelableExtra<KeyEvent>(Intent.EXTRA_KEY_EVENT) ?: return false
-        if (consumesKey(event.keyCode)) return true
+        val press = event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0
         val index = CarPlayMediaButton.forKeyCode(event.keyCode, experimentalDiLink3Keys())
-            ?: return super.onMediaButtonEvent(mediaButtonIntent)
-        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-            send(index, KeyEvent.keyCodeToString(event.keyCode))
+        if (index == null) {
+            if (press) notUsed(KeyEvent.keyCodeToString(event.keyCode))
+            return super.onMediaButtonEvent(mediaButtonIntent)
         }
+        if (press) send(index, KeyEvent.keyCodeToString(event.keyCode))
         return true
     }
 
