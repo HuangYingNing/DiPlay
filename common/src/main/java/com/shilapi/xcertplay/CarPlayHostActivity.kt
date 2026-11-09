@@ -911,6 +911,10 @@ open class CarPlayHostActivity : ComponentActivity() {
 
     private fun showWirelessPermissionHelp() {
         if (isFinishing || isDestroyed) return
+        val missing = requiredWirelessPermissions().filter {
+            checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED
+        }
+        setConnectionStage(WirelessPermissions.refusalMessage(missing))
         AlertDialog.Builder(this, if (appNight) R.style.Theme_Xcertplay_Dialog_Dark else R.style.Theme_Xcertplay_Dialog_Light)
             .setTitle(R.string.wireless_permissions)
             .setMessage(R.string.allow_nearby_devices_and_on_older_android_versions_locatio)
