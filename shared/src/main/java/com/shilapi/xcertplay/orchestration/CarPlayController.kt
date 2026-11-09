@@ -91,7 +91,6 @@ import com.shilapi.xcertplay.transport.I2cTransportException
 import com.shilapi.xcertplay.transport.IphoneCarPlayConfiguration
 import com.shilapi.xcertplay.transport.IphoneUsbAdbGrant
 import com.shilapi.xcertplay.transport.IphoneUsbException
-import com.shilapi.xcertplay.transport.IphoneUsbAdbGrant
 import com.shilapi.xcertplay.transport.IphoneUsbHost
 import com.shilapi.xcertplay.transport.IphoneUsbMatcher
 import com.shilapi.xcertplay.transport.LinuxI2cTransport
@@ -2993,7 +2992,7 @@ class CarPlayController(
                 factoryBluetoothGuard?.setSuppressed(!bluetoothAudioOutput && (geelyFactory != null || bluetoothAudioOwnership || bluetoothAudioCommand))
                 return@post
             }
-            val bonded = runCatching { bluetoothAdapter?.bondedDevices?.any { it.address.equals(address, true) } == true }.getOrDefault(false)
+            val bonded = runCatching { currentBluetoothAdapter()?.bondedDevices?.any { it.address.equals(address, true) } == true }.getOrDefault(false)
             if (!bonded) return@post
             val previous = factoryBluetoothGuard
             bluetoothAudioCommand = force
