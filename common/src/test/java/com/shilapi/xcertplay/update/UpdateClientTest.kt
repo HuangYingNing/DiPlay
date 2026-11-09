@@ -54,6 +54,23 @@ class UpdateClientTest {
     }
 
     @Test
+    fun fetchTextUsesTheSuppliedNetworkConnectionFactory() {
+        server.createContext("/selected-network") { exchange ->
+            val bytes = "[]".toByteArray()
+            exchange.sendResponseHeaders(200, bytes.size.toLong())
+            exchange.responseBody.use { it.write(bytes) }
+        }
+        val selected = AtomicBoolean()
+
+        UpdateClient.fetchText("$root/selected-network", null, "DiPlay/test") { url ->
+            selected.set(true)
+            url.openConnection()
+        }
+
+        assertTrue(selected.get())
+    }
+
+    @Test
     fun fetchTextFailsOnHttpErrors() {
         server.createContext("/releases") { exchange ->
             exchange.sendResponseHeaders(403, -1)
@@ -111,4 +128,24 @@ class UpdateClientTest {
             assertTrue(!destination.exists())
         }
     }
+    private fun assertRefusedAsTooLarge(path: String, length: Long) {
+        val chunk = ByteArray(1024 * 1024)
+        server.createContext(path) { exchange ->
+            exchange.sendResponseHeaders(200, length)
+            exchange.responseBody.use { out -> repeat(70) { out.write(chunk) } }
+        }
+        val destination = File(temporaryFolder.root, "update/DiPlay.apk")
+        try {
+            UpdateClient.download("$root$path", destination) { _, _ -> }
+            throw AssertionError("expected an IOException, got ${destination.length()} bytes")
+        } catch (expected: java.io.IOException) {
+            assertTrue(!destination.exists())
+        }
+    }
+
+    @Test
+    fun downloadRefusesABodyBeyondTheLimitWhenItsLengthIsKnown() = assertRefusedAsTooLarge("/big", 70L * 1024 * 1024)
+
+    @Test
+    fun downloadRefusesABodyBeyondTheLimitWhenItsLengthIsNotKnown() = assertRefusedAsTooLarge("/chunked", 0L)
 }

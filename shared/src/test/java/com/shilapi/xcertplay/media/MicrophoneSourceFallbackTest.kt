@@ -56,7 +56,8 @@ class MicrophoneSourceFallbackTest {
         RecorderBuilder.effectsAtBuild.clear()
         RecorderBuilder.effectsAtFailedStart.clear()
         shadowOf(context).grantPermissions(Manifest.permission.RECORD_AUDIO, Manifest.permission.MODIFY_AUDIO_SETTINGS)
-        context.getSystemService(AudioManager::class.java).mode = AudioManager.MODE_RINGTONE
+        ShadowAudioModeRequests.clearRequests()
+        ShadowAudioModeRequests.otherProcess(AudioManager.MODE_RINGTONE)
         sink = AndroidMediaSink(context = context, onAudioDiagnostic = diagnostics::add)
         ShadowAudioRecord.setSourceProvider { recorder ->
             captured.set(recorder)

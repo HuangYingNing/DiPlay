@@ -1,5 +1,6 @@
 package com.shilapi.xcertplay.network
 
+import com.shilapi.xcertplay.orchestration.ConnectionFailureCause
 import org.junit.Assert.*
 import org.junit.Test
 import java.io.InterruptedIOException

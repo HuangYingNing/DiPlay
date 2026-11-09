@@ -132,7 +132,7 @@ import kotlin.math.roundToInt
  *
  * Apple devices are discovered by vendor ID; CH341 uses the configured VID/PID below.
  */
-class CarPlayHostActivity : ComponentActivity() {
+open class CarPlayHostActivity : ComponentActivity() {
     private val geelyFactory by lazy { GeelyFactoryCarPlay.load(applicationContext) }
     private fun supportsOpusOutput(): Boolean {
         if (!wirelessEnabled) {
