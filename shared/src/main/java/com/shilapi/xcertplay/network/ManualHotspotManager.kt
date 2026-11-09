@@ -190,16 +190,6 @@ class ManualHotspotManager(
         interfaces.close()
     }
 
-    companion object {
-        internal fun isFiveGhzCompanion(apSsid: String?, expectedSsid: String): Boolean {
-            val base = apSsid?.trim()?.trim('"')?.takeIf(String::isNotEmpty) ?: return false
-            val expected = expectedSsid.trim().trim('"')
-            return listOf("_5G", "-5G").any { suffix ->
-                expected.equals(base + suffix, ignoreCase = true)
-            }
-        }
-    }
-
     override fun connectionDiagnosticSnapshot(): String = interfaces.vendorDiagnosticSnapshot()
 
     private fun validateApConfiguration(configuration: ManualApConfiguration?) {
@@ -401,7 +391,11 @@ class ManualHotspotManager(
 
     private companion object {
         const val TAG = "xcertplay-usb"
-
+        internal fun isFiveGhzCompanion(apSsid: String?, expectedSsid: String): Boolean {
+            val base = apSsid?.trim()?.trim('"')?.takeIf(String::isNotEmpty) ?: return false
+            val expected = expectedSsid.trim().trim('"')
+            return listOf("_5G", "-5G").any { suffix -> expected.equals(base + suffix, ignoreCase = true) }
+        }
     }
 }
 

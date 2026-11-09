@@ -45,6 +45,8 @@ internal class MicrophoneCaptureStats(
      */
     fun useSource(source: Int) { metadata = "type=$type source=${sourceName(source)} $format" }
 
+    fun useVoiceCommunicationSource() { metadata = "type=$type source=VOICE_COMMUNICATION $format" }
+
     fun reading() { readStart = nowNs() }
 
     fun read(count: Int) {
