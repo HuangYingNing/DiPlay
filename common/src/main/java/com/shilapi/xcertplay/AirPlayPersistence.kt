@@ -92,12 +92,6 @@ object AirPlayPersistence {
     private const val KEY_LOW_LATENCY_DECODER = "low_latency_decoder"
     private const val KEY_FPS_COUNTER = "fps_counter"
     private const val KEY_CLUSTER_MAP = "cluster_map_enabled"
-    private const val KEY_GEELY_HUD_ENABLED = "geely_hud_enabled"
-    private const val KEY_GEELY_HUD_DISPLAY_ID = "geely_hud_display_id"
-    private const val KEY_GEELY_HUD_DISPLAY_NAME = "geely_hud_display_name"
-    private const val KEY_GEELY_HUD_SCALE_PERCENT = "geely_hud_scale_percent"
-    private const val KEY_GEELY_STEERING_ENABLED = "geely_steering_enabled"
-
 
     /**
      * The Geely cluster projection switch is DiPlay's right now. The switch belongs to the head unit
@@ -325,15 +319,6 @@ object AirPlayPersistence {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putInt(KEY_NAVIGATION_AUDIO_CHANNEL, channel.takeIf { it in AUDIO_CHANNELS } ?: 0)
             .apply()
-    }
-
-    fun loadNavigationOutputDevice(context: Context): AudioOutputDevice? = AudioOutputDevice.decode(
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("navigation_output_device", null),
-    )
-
-    fun saveNavigationOutputDevice(context: Context, device: AudioOutputDevice?) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putString("navigation_output_device", device?.encode()).apply()
     }
 
     fun loadNavigationAudioAttenuationDb(context: Context): Int =
@@ -920,59 +905,6 @@ object AirPlayPersistence {
 
     fun saveClusterMapEnabled(context: Context, enabled: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_CLUSTER_MAP, enabled).apply()
-    }
-
-    fun loadGeelyHudEnabled(context: Context): Boolean =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_GEELY_HUD_ENABLED, false)
-
-    fun saveGeelyHudEnabled(context: Context, enabled: Boolean) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putBoolean(KEY_GEELY_HUD_ENABLED, enabled)
-            .apply()
-    }
-
-    fun loadGeelyHudDisplayId(context: Context): Int =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getInt(KEY_GEELY_HUD_DISPLAY_ID, android.view.Display.INVALID_DISPLAY)
-
-    fun loadGeelyHudDisplayName(context: Context): String? =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_GEELY_HUD_DISPLAY_NAME, null)
-            ?.takeIf { it.isNotBlank() }
-
-    fun saveGeelyHudDisplay(context: Context, displayId: Int, displayName: String?) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putInt(KEY_GEELY_HUD_DISPLAY_ID, displayId)
-            .apply {
-                if (displayName.isNullOrBlank()) remove(KEY_GEELY_HUD_DISPLAY_NAME)
-                else putString(KEY_GEELY_HUD_DISPLAY_NAME, displayName)
-            }
-            .apply()
-    }
-
-    fun loadGeelyHudScalePercent(context: Context): Int =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getInt(KEY_GEELY_HUD_SCALE_PERCENT, 85)
-            .takeIf { it in geelyHudScalePercents } ?: 85
-
-    fun saveGeelyHudScalePercent(context: Context, percent: Int) {
-        require(percent in geelyHudScalePercents)
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putInt(KEY_GEELY_HUD_SCALE_PERCENT, percent)
-            .apply()
-    }
-
-    val geelyHudScalePercents = listOf(70, 85, 100)
-
-    fun loadGeelySteeringEnabled(context: Context): Boolean =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getBoolean(KEY_GEELY_STEERING_ENABLED,
-                com.shilapi.xcertplay.vehicleprobe.VehicleSteeringClient.installed(context) || GeelySteeringKeyCodes.enabledByDefault())
-
-    fun saveGeelySteeringEnabled(context: Context, enabled: Boolean) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putBoolean(KEY_GEELY_STEERING_ENABLED, enabled)
-            .apply()
     }
 
     fun loadClusterProjectionHeld(context: Context): Boolean =

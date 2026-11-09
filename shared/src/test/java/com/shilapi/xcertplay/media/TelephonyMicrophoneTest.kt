@@ -18,7 +18,6 @@ import com.shilapi.xcertplay.airplay.AudioCodecKind
 import com.shilapi.xcertplay.airplay.MicrophoneConfig
 import com.shilapi.xcertplay.hud.BydOutputSettings
 import com.shilapi.xcertplay.telecom.PhoneAudioRoute
-import com.shilapi.xcertplay.vehicle.GeelyFactoryCarPlay
 import java.net.InetAddress
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.CopyOnWriteArrayList
@@ -325,8 +324,8 @@ class TelephonyMicrophoneTest {
 
     @Test fun diagnosticCallbackFailureDoesNotStopCallCaptureOrChangeModeRestoration() {
         sink.close()
-        sink = testSink(context = context, onAudioDiagnostic = { throw IllegalStateException("diagnostic callback failed") })
-        manager.mode = AudioManager.MODE_RINGTONE
+        sink = AndroidMediaSink(context = context, onAudioDiagnostic = { throw IllegalStateException("diagnostic callback failed") })
+        ShadowAudioModeRequests.otherProcess(AudioManager.MODE_RINGTONE)
         sink.onMicrophoneStarted(telephony, config("telephony"))
         val record = awaitCapture()
         assertEquals(AudioRecord.RECORDSTATE_RECORDING, record.recordingState)
@@ -648,6 +647,13 @@ class TelephonyMicrophoneTest {
                 .apply { isAccessible = true }.get(created) as ScheduledExecutorService
             worker.submit {}.get(5, TimeUnit.SECONDS)
         }
+
+    private fun recordDiagnostics(): MutableList<String> {
+        sink.close()
+        val diagnostics = CopyOnWriteArrayList<String>()
+        sink = AndroidMediaSink(context = context, onAudioDiagnostic = diagnostics::add)
+        return diagnostics
+    }
 
     private fun recordDiagnostics(): MutableList<String> {
         sink.close()

@@ -4,6 +4,7 @@ import android.Manifest
 import android.os.Build
 import androidx.annotation.StringRes
 import com.shilapi.xcertplay.host.R
+import com.shilapi.xcertplay.orchestration.WirelessHotspotMode
 
 /**
  * Runtime permissions a wireless CarPlay start needs per Android release. Android 17 requires

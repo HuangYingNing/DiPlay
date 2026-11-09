@@ -711,8 +711,8 @@
     <string name="carplay_rotation_picture">Квадратна картинка</string>
     <string name="carplay_rotation_smoother">Плавніше (1920)</string>
     <string name="carplay_rotation_sharper">Чіткіше (розмір екрана)</string>
-    <string name="carplay_call_controls_experimental">Кнопки викликів CarPlay (експериментально)</string>
-    <string name="carplay_call_controls_experimental_description">Увімкнення керування викликами, голосом і відтворенням у сумісних автомобілях DiLink 3. Типово вимкнено; картки викликів на панелі приладів налаштовуються окремо.</string>
+    <string name="carplay_call_controls_experimental">Кнопки викликів, Siri та мультимедіа CarPlay (експериментально)</string>
+    <string name="carplay_call_controls_experimental_description">Кнопка телефону відповідає на вхідні виклики CarPlay; кнопки завершення виклику/режиму відхиляють або завершують виклик. Під час дзвінка наступний трек також відповідає, а попередній відхиляє; після з’єднання ці кнопки не завершують виклик. Також вмикає спеціальні кнопки Siri та відтворення/паузи DiLink 3. Типово вимкнено; сумісність з автомобілем і прошивкою слід перевірити в машині. Відображення викликів на панелі приладів налаштовується окремо.</string>
     <string name="side_panel">Бічна панель поруч із CarPlay (експериментально)</string>
     <string name="side_panel_description">CarPlay може переходити на дві третини екрана, а DiPlay показує в решті свою панель: з боку пасажира на горизонтальному екрані, знизу на вертикальному (годинник і заряд, якщо його зчитано). Показуйте й ховайте її з меню під час сесії. Застосовується з наступного підключення.</string>
     <string name="side_panel_show">Бічна панель</string>
@@ -761,6 +761,8 @@
     <string name="settings_background_update_checks">Перевіряти оновлення у фоні</string>
     <string name="settings_background_update_checks_description">Раз на добу DiPlay перевіряє GitHub на нову версію і показує її на головному екрані. Завантаження починається лише після вашого дотику.</string>
     <string name="update_failed">Не вдалося оновити</string>
+    <string name="update_available_home">Доступне оновлення</string>
+    <string name="update_saved_to">Збережено в %1$s</string>
     <string name="backup_title">Резервна копія налаштувань</string>
     <string name="backup_open">Резервна копія на телефоні</string>
     <string name="backup_open_description">Показує QR-код, щоб браузер телефона в тій самій мережі міг експортувати або імпортувати налаштування DiPlay. Сервіс зупиняється під час виходу зі сторінки.</string>
@@ -771,6 +773,8 @@
     <string name="backup_code_entry_closed">Введено забагато неправильних кодів, код більше не діє. Закрийте цю сторінку й відкрийте її знову, щоб отримати новий. QR-код і далі працює.</string>
     <string name="backup_summary">Імпортовано налаштувань: %1$d, пропущено: %2$d.</string>
     <string name="backup_import_invalid">Цей файл не є резервною копією налаштувань DiPlay.</string>
+    <string name="settings_background_update_checks">Перевіряти оновлення у фоні</string>
+    <string name="settings_background_update_checks_description">Раз на добу DiPlay перевіряє GitHub на нову версію і показує її на головному екрані. Завантаження починається лише після вашого дотику.</string>
     <string name="setup_guide">Майстер налаштування</string>
     <string name="setup_guide_description">Визначте версію DiLink, оберіть підключення та увімкніть функції, що підходять вашому авто.</string>
     <string name="setup_step_of">КРОК %1$d З %2$d</string>

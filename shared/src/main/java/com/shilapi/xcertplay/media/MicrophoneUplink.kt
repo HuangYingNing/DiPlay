@@ -1,6 +1,7 @@
 package com.shilapi.xcertplay.media
 
 import android.media.AudioFormat as AndroidAudioFormat
+import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.AudioManager
 import android.media.MediaRecorder
@@ -20,6 +21,7 @@ import java.net.InetAddress
 import java.net.Inet6Address
 import java.net.InetSocketAddress
 import java.util.concurrent.atomic.AtomicBoolean
+import com.shilapi.xcertplay.telecom.PhoneAudioRoute
 
 /**
  * Captures one PCM microphone stream and sends it back to the phone as sealed CarPlay RTP.
@@ -50,6 +52,9 @@ internal class MicrophoneUplink(
             },
         )
     },
+    private val noAudioRestartMillis: Long = NO_AUDIO_RESTART_MILLIS,
+    /** Read for a report window that recorded no sound; see [silenceDetail]. */
+    private val audioManager: AudioManager? = null,
 ) : Closeable {
     private val running = AtomicBoolean(false)
     private val stats = MicrophoneCaptureStats(config, report = { message ->
@@ -84,12 +89,14 @@ internal class MicrophoneUplink(
         }
 
         val source = when {
-            isPhoneAudio(config.audioType) -> telephonyMicrophoneSource(
+            config.audioType == "telephony" -> telephonyMicrophoneSource(
                 speakerphoneCall = speakerphoneCall,
                 carPhoneState = PhoneAudioRoute.carPlayCallsUseCarAudio(),
                 geelyHeadUnit = com.shilapi.xcertplay.network.GeelyHeadUnit.detected,
             )
-            config.audioType.equals("speechrecognition", true) ->
+            // The Geely/Lynk head unit only opens the microphone for the voice-communication
+            // source; its voice-recognition source records silence, so Siri never hears.
+            config.audioType == "speechrecognition" ->
                 if (com.shilapi.xcertplay.network.GeelyHeadUnit.detected) {
                     MediaRecorder.AudioSource.VOICE_COMMUNICATION
                 } else {
@@ -97,6 +104,7 @@ internal class MicrophoneUplink(
                 }
             else -> MediaRecorder.AudioSource.MIC
         }
+        stats.useSource(source)
         val nextEncoder = if (config.codec == AudioCodecKind.OPUS) {
             opusEncoderFactory(config.bitrate ?: 48_000)
         } else {
@@ -116,12 +124,12 @@ internal class MicrophoneUplink(
         }
         val bufferSize = maxOf(minBuffer * 2, config.frameBytes * 4)
         // Some head units throw on VOICE_RECOGNITION at build(); VOICE_COMMUNICATION works there.
-        // carlito | Keep a supported factory source first, then the Android source and Siri fallback.
-        val sources = listOfNotNull(factorySource, source,
-            MediaRecorder.AudioSource.VOICE_COMMUNICATION.takeIf { source == MediaRecorder.AudioSource.VOICE_RECOGNITION })
-        val nextRecorder = sources.distinct().firstNotNullOfOrNull { candidate ->
-            createStartedRecorder(candidate, channelMask, bufferSize)?.also {
-                stats.useSource(candidate)
+        val nextRecorder = createRecorder(source, channelMask, bufferSize)
+            ?: if (source == MediaRecorder.AudioSource.VOICE_RECOGNITION) {
+                stats.useSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
+                createRecorder(MediaRecorder.AudioSource.VOICE_COMMUNICATION, channelMask, bufferSize)
+            } else {
+                null
             }
         }
         if (nextRecorder == null) {
@@ -243,6 +251,12 @@ internal class MicrophoneUplink(
     }
 
     private fun voiceEffects(sessionId: Int): List<AudioEffect> {
+        if (PhoneAudioRoute.carPlayCallsUseCarAudio()) {
+            // In the car's phone audio state its own processing handles echo and noise, and was only measured
+            // with the platform effects off.
+            Log.i(TAG, "microphone effects left to the car's phone audio state")
+            return emptyList()
+        }
         var aec: AudioEffect? = null
         if (echoCanceller != null) {
             // VOICE_COMMUNICATION can enable AEC by default. Keep its controller alive and
@@ -310,9 +324,12 @@ internal class MicrophoneUplink(
     }
 
     private fun capture(recorder: AudioRecord, socket: DatagramSocket) {
+        runCatching { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_AUDIO) }
         val frame = ByteArray(config.frameBytes)
         val readBuffer = ByteArray(maxOf(frame.size, MIN_READ_BYTES))
         val routeInfo = { routeType(recorder) }
+        val ownSession = recorder.audioSessionId
+        val silence = audioManager?.let { manager -> { silenceDetail(manager, ownSession) } }
         var canceller = echoCanceller
         val clock = canceller?.let { CaptureClock(config.sampleRate) }
         val reference = canceller?.let { ShortArray(it.frameSamples) }
@@ -331,6 +348,9 @@ internal class MicrophoneUplink(
                         Log.e(TAG, "microphone read failed code=$count")
                         stats.failure(MicrophoneFailureStage.READ, code = count)
                     }
+                    // The first read after a head unit enters call mode can fail with
+                    // ERROR_INVALID_OPERATION, and capture used to end there for the whole call
+                    // (#647). Restart recording a few times before giving up.
                     if (running.get() && count != AudioRecord.ERROR_DEAD_OBJECT &&
                         readRestarts < MAX_READ_RESTARTS && restartRecording(recorder)
                     ) {
@@ -341,7 +361,10 @@ internal class MicrophoneUplink(
                     return
                 }
                 if (count == 0) {
-                    stats.flush(routeType = routeInfo)
+                    stats.flush(routeType = routeInfo, silence = silence)
+                    // A recorder that starts with no input device routed returns 0 bytes at once, for
+                    // as long as it runs: a Leapmotor T03 (Android 7.1) did this for minutes of Siri and
+                    // call capture (#566). Restart it, and pause between empty reads instead of spinning.
                     val now = System.nanoTime()
                     if (running.get() && noAudioRestarts < MAX_NO_AUDIO_RESTARTS &&
                         now - lastAudioNs >= noAudioRestartMillis * 1_000_000L
@@ -388,7 +411,7 @@ internal class MicrophoneUplink(
                         filled = 0
                     }
                 }
-                stats.flush(routeType = routeInfo)
+                stats.flush(routeType = routeInfo, silence = silence)
             }
         } catch (error: Exception) {
             if (running.get()) {
@@ -396,7 +419,7 @@ internal class MicrophoneUplink(
                 stats.failure(MicrophoneFailureStage.CAPTURE, error)
             }
         } finally {
-            stats.flush(ended = true, routeType = routeInfo)
+            stats.flush(ended = true, routeType = routeInfo, silence = silence)
             running.set(false)
             release()
         }
@@ -407,7 +430,7 @@ internal class MicrophoneUplink(
         Thread.sleep(READ_RESTART_PAUSE_MILLIS)
         recorder.startRecording()
         recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING
-    } catch (_: IllegalStateException) {
+    } catch (error: IllegalStateException) {
         false
     }
 
@@ -452,15 +475,17 @@ internal class MicrophoneUplink(
 
     private fun routeType(recorder: AudioRecord): Int? = runCatching { recorder.routedDevice?.type }.getOrNull()
 
-    fun refreshInputDevice() { recorder?.let(::applyInputDevice) }
-
-    private fun applyInputDevice(record: AudioRecord) {
-        runCatching {
-            val device = preferredInput?.resolveInput(audioManager)
-            val accepted = record.setPreferredDevice(device)
-            if (!accepted) record.setPreferredDevice(null)
-            if (preferredInput != null) onDiagnostic("Audio: microphone preferred=${device?.id} accepted=$accepted")
-        }.onFailure { runCatching { record.setPreferredDevice(null) } }
+    /**
+     * The audio mode and the sources of the other recordings running now. A head unit that stays in
+     * communication mode after a call, or another app holding the microphone, can each leave this one silent.
+     * Other apps' recordings carry no package name for a normal app, only their source.
+     */
+    private fun silenceDetail(manager: AudioManager, ownSession: Int): String {
+        val others = manager.activeRecordingConfigurations
+            .filter { it.clientAudioSessionId != ownSession }
+            .map { MicrophoneCaptureStats.sourceName(it.clientAudioSource) }
+        return "audioMode=${manager.mode} otherRecordings=" +
+            if (others.isEmpty()) "none" else others.take(MAX_LISTED_RECORDINGS).joinToString(",", "[", "]")
     }
 
     /** Capture can continue with the same recorder if the optional native processor stops working. */
@@ -550,18 +575,18 @@ internal class MicrophoneUplink(
         const val NO_AUDIO_RESTART_MILLIS = 1_000L
         const val MAX_NO_AUDIO_RESTARTS = 3
         const val EMPTY_READ_PAUSE_MILLIS = 5L
+        const val MAX_LISTED_RECORDINGS = 4
     }
 }
 
 /**
- * Select a CarPlay call input that works with the car's phone audio processing. Geely/Lynk
- * firmware records silence from VOICE_RECOGNITION, so keep its existing source selection there.
+ * The recorder source for a CarPlay call. While DiPlay holds the car's phone audio state the car's call
+ * processing is on for every source, but VOICE_COMMUNICATION then clips (about a fifth of the samples on a
+ * Han) and the plain microphone source is muted. VOICE_RECOGNITION, which is also what the stock CarPlay
+ * service ends up with, gives a normal level with no clipping, and the car still suppresses the far end's
+ * echo on it. Geely/Lynk head units record silence on VOICE_RECOGNITION, so they keep the old choice.
  */
-internal fun telephonyMicrophoneSource(
-    speakerphoneCall: Boolean,
-    carPhoneState: Boolean,
-    geelyHeadUnit: Boolean,
-): Int = when {
+internal fun telephonyMicrophoneSource(speakerphoneCall: Boolean, carPhoneState: Boolean, geelyHeadUnit: Boolean): Int = when {
     carPhoneState && !geelyHeadUnit -> MediaRecorder.AudioSource.VOICE_RECOGNITION
     speakerphoneCall -> MediaRecorder.AudioSource.MIC
     else -> MediaRecorder.AudioSource.VOICE_COMMUNICATION

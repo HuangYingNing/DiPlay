@@ -753,26 +753,18 @@ class AdaptiveSettingsUiTest {
         val audio = visibleIn(R.string.audio)
         val vehicle = visibleIn(R.string.settings_vehicle)
         val advanced = visibleIn(R.string.settings_advanced)
-        val navigation = visibleIn(R.string.settings_navigation)
+        val connection = visibleIn(R.string.connection)
 
-        listOf(R.string.steering_identification, R.string.steering_test, R.string.vehicle_probe).forEach { title ->
-            assertTrue(text(title), text(title) in vehicle)
-            listOf(display, audio, navigation, advanced).forEach { category ->
-                assertFalse(text(title), text(title) in category)
-            }
-        }
-        assertTrue(text(R.string.geely_vehicle) in navigation)
-        listOf(display, audio, vehicle, advanced).forEach { category ->
-            assertFalse(text(R.string.geely_vehicle), text(R.string.geely_vehicle) in category)
-        }
-        assertTrue(text(R.string.settings_vehicle_map_experimental) in advanced)
-        listOf(display, audio, navigation, vehicle).forEach { category ->
-            assertFalse(text(R.string.settings_vehicle_map_experimental), text(R.string.settings_vehicle_map_experimental) in category)
-        }
-        assertTrue(audio.any { it.startsWith(text(R.string.vehicle_audio_output_mode)) })
-        assertFalse(advanced.any { it.startsWith(text(R.string.vehicle_audio_output_mode)) })
-        assertTrue(audio.any { it.startsWith(text(R.string.music_buffer)) })
-        listOf(R.string.main_buffered_audio, R.string.settings_car_bluetooth_audio, R.string.efficient_video, R.string.smooth_video, R.string.settings_direct_video_output, R.string.settings_low_latency_decoder, R.string.call_echo_cancellation, R.string.call_voice_filter, R.string.contrib_audio_home_toggle_audio_focus).forEach {
+        assertTrue(display.any { it.startsWith(text(R.string.carplay_dock)) })
+        assertFalse(vehicle.any { it.startsWith(text(R.string.carplay_dock)) })
+
+        assertTrue(connection.any { it.startsWith(text(R.string.settings_usb_charging)) })
+        assertFalse(advanced.any { it.startsWith(text(R.string.settings_usb_charging)) })
+        assertTrue(audio.any { it.startsWith(text(R.string.settings_navigation_attenuation)) })
+        assertFalse(advanced.any { it.startsWith(text(R.string.settings_navigation_attenuation)) })
+        assertTrue(audio.any { it.startsWith(text(R.string.settings_music_buffer_wireless)) })
+        assertTrue(audio.any { it.startsWith(text(R.string.settings_music_buffer_wired)) })
+        listOf(R.string.main_buffered_audio, R.string.settings_car_bluetooth_audio, R.string.efficient_video, R.string.smooth_video, R.string.settings_direct_video_output, R.string.settings_low_latency_decoder, R.string.call_echo_cancellation, R.string.call_voice_filter, R.string.settings_disable_media_key_audio_focus, R.string.contrib_audio_home_toggle_audio_focus).forEach {
             assertTrue(text(it), text(it) in advanced)
             assertFalse(text(it), text(it) in audio)
         }

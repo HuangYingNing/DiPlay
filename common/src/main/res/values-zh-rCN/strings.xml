@@ -34,10 +34,8 @@
     <string name="marker_up">上</string>
     <string name="marker_down">下</string>
     <string name="marker_centre_default">居中 · 默认</string>
-    <string name="hotspot_mode_auto_desc">自动准备无线连接。使用车机自带热点时，请选择“车机热点”。</string>
-    <string name="hotspot_hint_auto">保持车机 Wi-Fi、蓝牙和手机 Wi-Fi 开启。</string>
-    <string name="hotspot_mode_manual_desc">使用车载热点连接无线 CarPlay。无需在 iPhone 上手动加入热点；DiPlay 会通过蓝牙发送热点信息。如有 5 GHz，请在车机设置中选择。</string>
-    <string name="hotspot_mode_p2p_desc">备选方案。需要打开车机 Wi-Fi 开关；2.4 GHz 连接可能会卡顿。</string>
+    <string name="hotspot_mode_manual_desc">使用车载热点，无线 CarPlay 最流畅。无需在 iPhone 上手动加入热点；DiPlay 会通过蓝牙发送热点信息。如有 5 GHz，请在车机设置中选择。</string>
+    <string name="hotspot_mode_p2p_desc">适用于没有车载热点的车辆。需要打开车机 Wi-Fi 开关。车机搜索 Wi-Fi 网络时，声音和画面可能每隔几秒卡顿一次。</string>
     <string name="hotspot_details_off">热点已关闭 · 请在车机设置中开启。</string>
     <string name="hotspot_details_saved">详情已保存 · 连接前请确认车载热点已开启。</string>
     <string name="permission_enabled_ready">权限已启用 · 可以使用</string>
@@ -953,6 +951,8 @@
     <string name="settings_background_update_checks">在后台检查更新</string>
     <string name="settings_background_update_checks_description">DiPlay 每天会在 GitHub 上检查一次新版本，并显示在主屏幕上。未经你点击，绝不会下载。</string>
     <string name="update_failed">更新失败</string>
+    <string name="update_available_home">有可用更新</string>
+    <string name="update_saved_to">已保存到 %1$s</string>
     <string name="backup_title">备份设置</string>
     <string name="backup_open">在手机上备份或恢复</string>
     <string name="backup_open_description">显示二维码，同一网络内的手机浏览器即可导出或导入 DiPlay 设置。离开页面后服务自动停止。</string>
@@ -963,6 +963,8 @@
     <string name="backup_code_entry_closed">验证码输错次数过多，已停用。请离开此页面后重新打开，以取得新的验证码。扫码仍可使用。</string>
     <string name="backup_summary">已导入 %1$d 项设置，跳过 %2$d 项。</string>
     <string name="backup_import_invalid">这不是 DiPlay 设置备份文件。</string>
+    <string name="settings_background_update_checks">在后台检查更新</string>
+    <string name="settings_background_update_checks_description">DiPlay 每天会在 GitHub 上检查一次新版本，并显示在主屏幕上。未经你点击，绝不会下载。</string>
     <string name="setup_guide">设置向导</string>
     <string name="setup_guide_description">识别 DiLink 版本，选择连接方式，并开启适合你车辆的功能。</string>
     <string name="setup_step_of">第 %1$d 步，共 %2$d 步</string>

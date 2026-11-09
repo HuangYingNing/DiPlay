@@ -329,29 +329,177 @@ class WheelSiriWindowTest {
         assertEquals(joystickKey, WheelZoomSettings.key(settings, WheelZoomSettings.Role.JOYSTICK))
     }
 
-    // carlito | Generic vehicle maps retain volume-key zoom independently of the manufacturer.
-    @Test fun nonBydUnitWithGenericVehicleMapCanEnableZoomForSavedVolumeKeys() {
+    @Test fun nonBydUnitCanAssignPlayPauseWithoutEnablingSiriOrMapZoom() {
         settings.setTheme(android.R.style.Theme_Material_NoActionBar)
         WheelZoomSettings.setSiriKey(settings, false)
-        AirPlayPersistence.saveClusterMapEnabled(settings, false)
-        VehicleMapSettings.setEnabled(settings, true)
-        val zoomIn = WheelKey(KeyEvent.KEYCODE_VOLUME_UP, 0, "external-wheel")
-        val zoomOut = WheelKey(KeyEvent.KEYCODE_VOLUME_DOWN, 0, "external-wheel")
-        WheelZoomSettings.assign(settings, WheelZoomSettings.Role.ZOOM_IN, zoomIn)
-        WheelZoomSettings.assign(settings, WheelZoomSettings.Role.ZOOM_OUT, zoomOut)
-        assertFalse(CarHotspotSetup.isBydHeadUnit(settings))
+        WheelZoomSettings.setEnabled(settings, false)
+        WheelZoomSettings.setMediaPlayPause(settings, true)
+        val key = WheelKey(KeyEvent.KEYCODE_F9, 0, "?")
+        WheelZoomSettings.assign(settings, WheelZoomSettings.Role.MEDIA_PLAY_PAUSE, key)
+        val controls = wheelControls()
+        assertTrue(views(controls).filterIsInstance<Switch>().any {
+            it.contentDescription == settings.getString(R.string.wheel_media_play_pause) && it.isChecked
+        })
+        assertTrue(views(controls).filterIsInstance<TextView>().any {
+            it.text.toString() == settings.getString(R.string.wheel_key_assign,
+                settings.getString(R.string.wheel_key_role_media_play_pause), key.toString())
+        })
+        assertSharedServiceSetupOnce(controls)
+        assertTrue(WheelKeyService.wanted(settings))
+    }
 
-        val zoom = views(wheelControls()).filterIsInstance<Switch>().single {
-            it.contentDescription == settings.getString(R.string.wheel_map_zoom)
+    @Test fun mediaKeyCanBeLearnedInForegroundWithoutAccessibilityService() {
+        WheelZoomSettings.setMediaPlayPause(settings, true)
+        var learned: WheelKey? = null
+        settings.javaClass.getDeclaredMethod("learnInWindow", WheelZoomSettings.Role::class.java,
+            kotlin.jvm.functions.Function0::class.java, kotlin.jvm.functions.Function1::class.java,
+            kotlin.jvm.functions.Function1::class.java).apply { isAccessible = true }
+            .invoke(settings, WheelZoomSettings.Role.MEDIA_PLAY_PAUSE, {},
+                { _: WheelZoomSettings.Role -> fail("unexpected key conflict") },
+                { key: WheelKey -> learned = key })
+        assertTrue(settings.dispatchKeyEvent(key(KeyEvent.KEYCODE_F9, true)))
+        assertTrue(settings.dispatchKeyEvent(key(KeyEvent.KEYCODE_F9, true, repeat = 1)))
+        assertTrue(settings.dispatchKeyEvent(key(KeyEvent.KEYCODE_F9, false)))
+        assertEquals(WheelKey(KeyEvent.KEYCODE_F9, 0, "?"), learned)
+        assertEquals(learned, WheelZoomSettings.key(settings, WheelZoomSettings.Role.MEDIA_PLAY_PAUSE))
+    }
+
+    @Test fun aKeyThatReachesOnlyThisWindowIsLearntWhileTheServiceRuns() {
+        settings.setTheme(android.R.style.Theme_Material_NoActionBar)
+        WheelZoomSettings.setMediaPlayPause(settings, true)
+        val service = boundService()
+        try {
+            for ((role, code) in listOf(WheelZoomSettings.Role.SIRI to KeyEvent.KEYCODE_F7,
+                WheelZoomSettings.Role.MEDIA_PLAY_PAUSE to KeyEvent.KEYCODE_F9)) {
+                val assign = assignButton(role)
+                assign.performClick()
+                assertTrue(WheelKeyService.isLearning())
+                settings.dispatchKeyEvent(key(code, true))
+                settings.dispatchKeyEvent(key(code, false))
+                val learnt = WheelKey(code, 0, "?")
+                assertEquals(learnt, WheelZoomSettings.key(settings, role))
+                assertEquals(assignText(role, learnt), assign.text.toString())
+            }
+        } finally {
+            service.onDestroy()
         }
-        assertFalse(zoom.isChecked)
+    }
 
-        zoom.performClick()
+    @Test fun theFirstSideToLearnAKeyEndsTheOther() {
+        settings.setTheme(android.R.style.Theme_Material_NoActionBar)
+        val siri = WheelZoomSettings.Role.SIRI
+        val service = boundService()
+        try {
+            val assign = assignButton(siri)
+            assign.performClick()
+            assertTrue(serviceKey(service, key(KeyEvent.KEYCODE_F7, true)))
+            assertTrue(serviceKey(service, key(KeyEvent.KEYCODE_F7, false)))
+            settings.dispatchKeyEvent(key(KeyEvent.KEYCODE_F8, true))
+            settings.dispatchKeyEvent(key(KeyEvent.KEYCODE_F8, false))
+            val byService = WheelKey(KeyEvent.KEYCODE_F7, 0, "?")
+            assertEquals(byService, WheelZoomSettings.key(settings, siri))
+            assertEquals(assignText(siri, byService), assign.text.toString())
 
-        assertTrue(WheelZoomSettings.enabled(settings))
-        assertEquals(zoomIn, WheelZoomSettings.key(settings, WheelZoomSettings.Role.ZOOM_IN))
-        assertEquals(zoomOut, WheelZoomSettings.key(settings, WheelZoomSettings.Role.ZOOM_OUT))
-        assertSharedServiceSetupOnce(wheelControls())
+            assignButton(siri).performClick()
+            settings.dispatchKeyEvent(key(KeyEvent.KEYCODE_F9, true))
+            settings.dispatchKeyEvent(key(KeyEvent.KEYCODE_F9, false))
+            serviceKey(service, key(KeyEvent.KEYCODE_F8, true))
+            serviceKey(service, key(KeyEvent.KEYCODE_F8, false))
+            assertEquals(WheelKey(KeyEvent.KEYCODE_F9, 0, "?"), WheelZoomSettings.key(settings, siri))
+        } finally {
+            service.onDestroy()
+        }
+    }
+
+    @Test fun aRefusedKeyShowsOneToastAndEndsBothSides() {
+        settings.setTheme(android.R.style.Theme_Material_NoActionBar)
+        WheelZoomSettings.setMediaPlayPause(settings, true)
+        WheelZoomSettings.assign(settings, WheelZoomSettings.Role.MEDIA_PLAY_PAUSE, WheelKey(KeyEvent.KEYCODE_F7, 0, "?"))
+        val siri = WheelZoomSettings.Role.SIRI
+        val unchanged = WheelZoomSettings.key(settings, siri)
+        val service = boundService()
+        try {
+            val assign = assignButton(siri)
+            assign.performClick()
+            settings.dispatchKeyEvent(key(KeyEvent.KEYCODE_F7, true))
+            settings.dispatchKeyEvent(key(KeyEvent.KEYCODE_F7, false))
+            serviceKey(service, key(KeyEvent.KEYCODE_F8, true))
+            serviceKey(service, key(KeyEvent.KEYCODE_F8, false))
+            assertEquals(1, ShadowToast.shownToastCount())
+            assertEquals(settings.getString(R.string.wheel_key_in_use,
+                settings.getString(R.string.wheel_key_role_media_play_pause)), ShadowToast.getTextOfLatestToast())
+            assertEquals(unchanged, WheelZoomSettings.key(settings, siri))
+            assertEquals(assignText(siri, unchanged), assign.text.toString())
+        } finally {
+            service.onDestroy()
+        }
+    }
+
+    @Test fun aTimeoutResetsTheButtonOnceAndEndsBothSides() {
+        settings.setTheme(android.R.style.Theme_Material_NoActionBar)
+        val siri = WheelZoomSettings.Role.SIRI
+        val unchanged = WheelZoomSettings.key(settings, siri)
+        val service = boundService()
+        try {
+            val assign = assignButton(siri)
+            assign.performClick()
+            val shown = mutableListOf<String>()
+            assign.doAfterTextChanged { shown += it.toString() }
+            shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(WheelKeyService.LEARNING_TIMEOUT_MILLIS))
+            assertEquals(listOf(assignText(siri, unchanged)), shown)
+            settings.dispatchKeyEvent(key(KeyEvent.KEYCODE_F7, true))
+            settings.dispatchKeyEvent(key(KeyEvent.KEYCODE_F7, false))
+            serviceKey(service, key(KeyEvent.KEYCODE_F8, true))
+            serviceKey(service, key(KeyEvent.KEYCODE_F8, false))
+            assertEquals(unchanged, WheelZoomSettings.key(settings, siri))
+        } finally {
+            service.onDestroy()
+        }
+    }
+
+    @Test fun withoutTheServiceSiriStillLearnsHereAndOtherRolesSayTheServiceIsOff() {
+        settings.setTheme(android.R.style.Theme_Material_NoActionBar)
+        WheelZoomSettings.setJoystick(settings, true)
+        val siri = WheelZoomSettings.Role.SIRI
+        val assign = assignButton(siri)
+        assign.performClick()
+        settings.dispatchKeyEvent(key(KeyEvent.KEYCODE_F7, true))
+        settings.dispatchKeyEvent(key(KeyEvent.KEYCODE_F7, false))
+        val learnt = WheelKey(KeyEvent.KEYCODE_F7, 0, "?")
+        assertEquals(learnt, WheelZoomSettings.key(settings, siri))
+        assertEquals(assignText(siri, learnt), assign.text.toString())
+
+        val joystick = WheelZoomSettings.Role.JOYSTICK
+        val unchanged = WheelZoomSettings.key(settings, joystick)
+        val joystickAssign = assignButton(joystick)
+        joystickAssign.performClick()
+        assertEquals(settings.getString(R.string.wheel_keys_service_off), ShadowToast.getTextOfLatestToast())
+        settings.dispatchKeyEvent(key(KeyEvent.KEYCODE_F9, true))
+        settings.dispatchKeyEvent(key(KeyEvent.KEYCODE_F9, false))
+        assertEquals(unchanged, WheelZoomSettings.key(settings, joystick))
+        assertEquals(assignText(joystick, unchanged), joystickAssign.text.toString())
+    }
+
+    @Test fun otherRolesStillLearnOnlyThroughTheService() {
+        settings.setTheme(android.R.style.Theme_Material_NoActionBar)
+        WheelZoomSettings.setJoystick(settings, true)
+        val joystick = WheelZoomSettings.Role.JOYSTICK
+        val unchanged = WheelZoomSettings.key(settings, joystick)
+        val service = boundService()
+        try {
+            val assign = assignButton(joystick)
+            assign.performClick()
+            settings.dispatchKeyEvent(key(KeyEvent.KEYCODE_F9, true))
+            settings.dispatchKeyEvent(key(KeyEvent.KEYCODE_F9, false))
+            assertEquals(unchanged, WheelZoomSettings.key(settings, joystick))
+            assertTrue(serviceKey(service, key(KeyEvent.KEYCODE_F7, true)))
+            assertTrue(serviceKey(service, key(KeyEvent.KEYCODE_F7, false)))
+            val learnt = WheelKey(KeyEvent.KEYCODE_F7, 0, "?")
+            assertEquals(learnt, WheelZoomSettings.key(settings, joystick))
+            assertEquals(assignText(joystick, learnt), assign.text.toString())
+        } finally {
+            service.onDestroy()
+        }
     }
 
     @Test fun nonBydUnitWithThePreviouslySupportedClusterDisplayKeepsWheelControls() {

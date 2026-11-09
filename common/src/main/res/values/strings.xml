@@ -34,10 +34,8 @@
     <string name="marker_up">Up</string>
     <string name="marker_down">Down</string>
     <string name="marker_centre_default">Centre · default</string>
-    <string name="hotspot_mode_auto_desc">Prepares a Wi-Fi Direct connection automatically. For the car hotspot, select Built-in car hotspot.</string>
-    <string name="hotspot_hint_auto">Keep the car Wi-Fi, Bluetooth and iPhone Wi-Fi on.</string>
-    <string name="hotspot_mode_manual_desc">Use the car’s hotspot for wireless CarPlay. You do not need to join it manually on your iPhone; DiPlay sends the hotspot details over Bluetooth. Select 5 GHz in car settings if available.</string>
-    <string name="hotspot_mode_p2p_desc">Alternative setup. Requires the car’s Wi-Fi switch on; a 2.4 GHz connection may stutter.</string>
+    <string name="hotspot_mode_manual_desc">Use the car’s hotspot for the smoothest wireless CarPlay. You do not need to join it manually on your iPhone; DiPlay sends the hotspot details over Bluetooth. Select 5 GHz in car settings if available.</string>
+    <string name="hotspot_mode_p2p_desc">For cars without a hotspot. Requires the car’s Wi-Fi switch on. While the car searches for Wi-Fi networks, sound and picture may stutter every few seconds.</string>
     <string name="hotspot_details_off">Hotspot is off · Turn it on in car settings.</string>
     <string name="hotspot_details_saved">Details saved · Check that the car hotspot is on before connecting.</string>
     <string name="permission_enabled_ready">Permission enabled · ready to use</string>
@@ -877,8 +875,8 @@
     <string name="carplay_rotation_smoother">Smoother (1920)</string>
     <string name="carplay_rotation_sharper">Sharper (the screen\'s size)</string>
     <string name="auto_grant_incomplete">Setup did not verify every requested permission. Check each status below; enable network ADB and retry, or use the manual setup. Existing permissions are kept.</string>
-    <string name="carplay_call_controls_experimental">CarPlay call keys (experimental)</string>
-    <string name="carplay_call_controls_experimental_description">Enable call, voice and playback controls on compatible DiLink 3 vehicles. Disabled by default; dashboard call cards can be configured separately.</string>
+    <string name="carplay_call_controls_experimental">CarPlay call, Siri and media keys (experimental)</string>
+    <string name="carplay_call_controls_experimental_description">The phone key answers incoming CarPlay calls; hang-up/mode keys decline or end calls. While a call rings, next track also answers and previous track declines; neither ends a connected call. Also enables DiLink 3-specific Siri and play/pause keys. Disabled by default; support must be checked on your vehicle and firmware. Dashboard call cards are a separate setting.</string>
     <string name="side_panel">Side panel next to CarPlay (experimental)</string>
     <string name="side_panel_description">CarPlay can move to two thirds of the screen while DiPlay shows a panel in the rest: on the passenger\'s side of a landscape screen, at the bottom of a portrait one (clock and, where it is read, the battery). Show and hide it from the in-session menu. Applies at the next connection.</string>
     <string name="side_panel_show">Side panel</string>
@@ -996,6 +994,8 @@
     <string name="settings_background_update_checks">Check for updates in the background</string>
     <string name="settings_background_update_checks_description">Once a day, DiPlay checks GitHub for a new version and shows it on the home screen. It never downloads without your tap.</string>
     <string name="update_failed">Update failed</string>
+    <string name="update_available_home">Update available</string>
+    <string name="update_saved_to">Saved to %1$s</string>
     <string name="backup_title">Back up settings</string>
     <string name="backup_open">Back up or restore on a phone</string>
     <string name="backup_open_description">Show a QR code so a phone browser on the same network can export or import DiPlay settings. The service stops when you leave the page.</string>
@@ -1006,6 +1006,8 @@
     <string name="backup_code_entry_closed">Too many wrong codes were entered, so the code no longer works. Leave this page and open it again for a new one. The QR code still works.</string>
     <string name="backup_summary">Imported %1$d settings, skipped %2$d.</string>
     <string name="backup_import_invalid">This file is not a DiPlay settings backup.</string>
+    <string name="settings_background_update_checks">Check for updates in the background</string>
+    <string name="settings_background_update_checks_description">Once a day, DiPlay checks GitHub for a new version and shows it on the home screen. It never downloads without your tap.</string>
     <string name="setup_guide">Setup guide</string>
     <string name="setup_guide_description">Find your DiLink version, choose a connection and turn on the features that suit your car.</string>
     <string name="setup_step_of">STEP %1$d OF %2$d</string>
@@ -1135,11 +1137,6 @@
     <string name="wheel_media_play_pause">Play/pause key on the wheel</string>
     <string name="wheel_media_play_pause_description">Assign any available steering-wheel or keyboard key to toggle CarPlay music playback. Works while CarPlay runs, including in the background if the wheel-key service is enabled. During calls or when disconnected, the vehicle keeps the key. A key reserved by firmware may not reach DiPlay.</string>
     <string name="wheel_key_role_media_play_pause">Play/pause</string>
-    <string name="music_buffer">Music buffer</string>
-    <string name="s_500_ms">500 ms</string>
-    <string name="settings_ambient_palette">Factory color numbers (multi-select)</string>
-    <string name="settings_ambient_palette_summary">Colors · %1$d selected</string>
-    <string name="settings_ambient_select_all">Select all</string>
     <string name="wheel_media_navigation_reserved">TV remote navigation, Home, volume, voice-assistant and media buttons keep their original functions. Choose a spare key.</string>
     <string name="black_corner_overlay">Black rounded corners</string>
     <string name="black_corner_overlay_description">Cover CarPlay picture corners in black. Choose Off, a manual radius, or the iPhone mask (experimental). The iPhone mode needs a new connection and falls back to 24 dp if no valid mask arrives. Manual changes preview immediately; Save preserves the selection.</string>

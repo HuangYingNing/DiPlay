@@ -26,6 +26,7 @@ class UpdateInstallCompatibilityTest {
     private val apkType = "application/vnd.android.package-archive"
     private val publicCopy = Uri.parse("content://media/external/downloads/42")
 
+    // Robolectric gives each test a new cache dir; FileProvider keeps the first one in a static cache.
     @Before fun resetFileProviderCache() {
         val cache = FileProvider::class.java.getDeclaredField("sCache").apply { isAccessible = true }
         (cache.get(null) as MutableMap<*, *>).clear()
@@ -39,7 +40,8 @@ class UpdateInstallCompatibilityTest {
             writeBytes(byteArrayOf(1))
         }
         if (publicUriReadable) shadowOf(activity.contentResolver).registerInputStream(publicCopy, ByteArrayInputStream(publicBytes))
-        mapOf("updateFile" to apk, "updateSavedUri" to publicCopy).forEach { (name, value) ->
+        val fields = mapOf("updateFile" to apk, "updateSavedUri" to publicCopy)
+        fields.forEach { (name, value) ->
             DiPlayActivity::class.java.getDeclaredField(name).apply { isAccessible = true }.set(activity, value)
         }
         val query = Intent(Intent.ACTION_VIEW).setDataAndType(if (publicUriReadable) publicCopy else Uri.parse("content://x"), apkType)
@@ -64,14 +66,15 @@ class UpdateInstallCompatibilityTest {
         val started = install(publicUriReadable = true, installers = 1)
         assertEquals(Intent.ACTION_VIEW, started.action)
         assertEquals(publicCopy, started.data)
-        assertEquals(true, UpdateAvailability.report(RuntimeEnvironment.getApplication(), System.currentTimeMillis())
-            .contains("lastInstall=direct uri=public installers=1"))
+        val report = UpdateAvailability.report(RuntimeEnvironment.getApplication(), System.currentTimeMillis())
+        assertEquals(true, report.contains("lastInstall=direct uri=public installers=1"))
     }
 
     @Test fun providerRejectsSiblingDirectoriesWithTheSameUpdatePrefix() {
         val context = RuntimeEnvironment.getApplication()
+        val outside = File(context.cacheDir, "update-other/DiPlay.apk")
         assertThrows(IllegalArgumentException::class.java) {
-            FileProvider.getUriForFile(context, "${context.packageName}.update-apks", File(context.cacheDir, "update-other/DiPlay.apk"))
+            FileProvider.getUriForFile(context, "${context.packageName}.update-apks", outside)
         }
     }
 
@@ -80,10 +83,12 @@ class UpdateInstallCompatibilityTest {
         assertEquals(true, started.data!!.authority!!.endsWith(".update-apks"))
     }
 
+    // Robolectric before API 29 opens unknown content URIs without error, so it cannot model a deleted row.
     @Config(sdk = [33])
     @Test fun deletedPublicCopyFallsBackToTheProviderUri() {
         val started = install(publicUriReadable = false, installers = 0)
         assertEquals(Intent.ACTION_VIEW, started.action)
+        assertEquals("content", started.data!!.scheme)
         assertEquals(true, started.data!!.authority!!.endsWith(".update-apks"))
     }
 }

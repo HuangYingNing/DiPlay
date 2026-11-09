@@ -699,8 +699,8 @@
     <string name="carplay_rotation_picture">الصورة المربعة</string>
     <string name="carplay_rotation_smoother">أكثر سلاسة (1920)</string>
     <string name="carplay_rotation_sharper">أكثر وضوحًا (حجم الشاشة)</string>
-    <string name="carplay_call_controls_experimental">أزرار مكالمات CarPlay (تجريبي)</string>
-    <string name="carplay_call_controls_experimental_description">تفعيل التحكم بالمكالمات والصوت والتشغيل في سيارات DiLink 3 المتوافقة. معطل افتراضيًا؛ يمكن إعداد بطاقات المكالمات في لوحة العدادات بشكل منفصل.</string>
+    <string name="carplay_call_controls_experimental">أزرار مكالمات CarPlay وSiri والوسائط (تجريبي)</string>
+    <string name="carplay_call_controls_experimental_description">يجيب زر الهاتف عن مكالمات CarPlay الواردة؛ ويرفض زر إنهاء المكالمة أو زر الوضع المكالمة أو ينهيها. أثناء الرنين، يجيب زر المقطع التالي أيضًا ويرفض زر المقطع السابق؛ ولا ينهي أي منهما مكالمة متصلة. يفعّل أيضًا أزرار Siri والتشغيل/الإيقاف المؤقت الخاصة بـ DiLink 3. معطل افتراضيًا؛ يجب التحقق من الدعم في سيارتك وإصدار برنامجها الثابت. عرض المكالمات على لوحة العدادات له إعداد منفصل.</string>
     <string name="side_panel">لوحة جانبية بجوار CarPlay (تجريبي)</string>
     <string name="side_panel_description">يمكن نقل CarPlay إلى ثلثي الشاشة بينما يعرض DiPlay لوحة في الباقي: على جانب الراكب في الشاشة الأفقية، وفي الأسفل في الشاشة العمودية (الساعة، والبطارية إذا تمت قراءتها). أظهرها وأخفها من قائمة الجلسة. يُطبَّق عند الاتصال التالي.</string>
     <string name="side_panel_show">اللوحة الجانبية</string>
@@ -749,6 +749,8 @@
     <string name="settings_background_update_checks">التحقق من التحديثات في الخلفية</string>
     <string name="settings_background_update_checks_description">مرة كل يوم، يتحقق DiPlay من GitHub عن إصدار جديد ويعرضه في الشاشة الرئيسية. لا يتم التنزيل أبدًا دون نقرتك.</string>
     <string name="update_failed">فشل التحديث</string>
+    <string name="update_available_home">يتوفر تحديث</string>
+    <string name="update_saved_to">تم الحفظ في %1$s</string>
     <string name="backup_title">نسخة احتياطية من الإعدادات</string>
     <string name="backup_open">نسخ احتياطي أو استعادة عبر هاتف</string>
     <string name="backup_open_description">يعرض رمز QR ليتمكن متصفح الهاتف في نفس الشبكة من تصدير إعدادات DiPlay أو استيرادها. تتوقف الخدمة عند مغادرة الصفحة.</string>
@@ -759,6 +761,8 @@
     <string name="backup_code_entry_closed">أُدخلت رموز غير صحيحة كثيرة، فلم يعد الرمز صالحًا. غادر هذه الصفحة وافتحها مجددًا للحصول على رمز جديد. رمز QR ما زال يعمل.</string>
     <string name="backup_summary">تم استيراد %1$d من الإعدادات، وتجاهل %2$d.</string>
     <string name="backup_import_invalid">هذا الملف ليس نسخة احتياطية لإعدادات DiPlay.</string>
+    <string name="settings_background_update_checks">التحقق من التحديثات في الخلفية</string>
+    <string name="settings_background_update_checks_description">مرة كل يوم، يتحقق DiPlay من GitHub عن إصدار جديد ويعرضه في الشاشة الرئيسية. لا يتم التنزيل أبدًا دون نقرتك.</string>
     <string name="setup_guide">دليل الإعداد</string>
     <string name="setup_guide_description">اعرف إصدار DiLink، واختر طريقة الاتصال، وفعّل الميزات المناسبة لسيارتك.</string>
     <string name="setup_step_of">الخطوة %1$d من %2$d</string>
