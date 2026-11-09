@@ -10,6 +10,9 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 import java.io.Closeable
 import java.io.File
+import java.net.Inet4Address
+import java.net.Inet6Address
+import java.net.InetAddress
 import java.net.NetworkInterface
 import java.util.Collections
 
@@ -25,7 +28,7 @@ internal class ManualHotspotInterfaces(
 
     fun sample(): HotspotNetworkSnapshot {
         val vendorState = vendor.snapshot()
-        val ap = publicTethering?.interfaces ?: legacyApInterfaces()
+        val observed = publicTethering?.interfaces ?: legacyApInterfaces()
         val before = runCatching { connectivity?.activeNetwork }
         val upstreams = runCatching {
             checkNotNull(connectivity)
@@ -48,6 +51,7 @@ internal class ManualHotspotInterfaces(
                 }.getOrNull()
             }
         }.getOrDefault(emptyList())
+        val ap = apInterfaces(observed, interfaces, CarHotspotStatus.androidEnabled(context), upstreams, null)
         val after = runCatching { connectivity?.activeNetwork }
         return HotspotNetworkSnapshot(
             interfaces, ap, upstreams, defaultName,
@@ -59,6 +63,31 @@ internal class ManualHotspotInterfaces(
     }
 
     fun vendorDiagnosticSnapshot(): String = vendor.diagnosticSnapshot()
+
+    private fun apInterfaces(
+        observed: Set<String>?,
+        interfaces: List<HotspotInterfaceSnapshot>,
+        apEnabled: Boolean?,
+        upstreams: Set<String>?,
+        defaultInterface: String?,
+    ): Set<String>? {
+        if (observed?.isNotEmpty() != false || apEnabled != true) return observed
+        val candidates = interfaces.filter { iface ->
+            iface.up && iface.index > 0 && !iface.wireless && iface.name !in upstreams.orEmpty() &&
+                iface.name != defaultInterface && iface.name !in EXCLUDED_INTERFACES &&
+                !mobileDataInterfaceName(iface.name) && iface.addresses.any(::publishesHotspotAddress)
+        }.map { it.name }
+        return when {
+            DEFAULT_CAR_HOTSPOT_INTERFACE in candidates -> setOf(DEFAULT_CAR_HOTSPOT_INTERFACE)
+            candidates.isNotEmpty() -> candidates.toSet()
+            else -> observed
+        }
+    }
+
+    private companion object {
+        const val DEFAULT_CAR_HOTSPOT_INTERFACE = "eth0.3"
+        val EXCLUDED_INTERFACES = setOf("dummy0", "sit0", "bond0", "ip6tnl0", "tunl0", "rmnet0")
+    }
 
     // 旧平台只使用允许读取的结果；接口归属读不到时保持 unknown，不放宽普通网卡资格。
     @SuppressLint("PrivateApi")
@@ -117,3 +146,13 @@ internal fun legacyHotspotInterfaces(tethered: List<String>, wifiRegexes: List<S
 internal fun wirelessInterfaceName(name: String): Boolean =
     name.startsWith("wlan") || name.startsWith("swlan") || name.startsWith("ap") ||
         name.contains("softap", ignoreCase = true) || name.startsWith("wifi") || name.startsWith("p2p")
+
+internal fun publishesHotspotAddress(address: InetAddress): Boolean = when (address) {
+    is Inet4Address -> !address.isLoopbackAddress && !address.isAnyLocalAddress &&
+        !address.isLinkLocalAddress && !address.isMulticastAddress
+    is Inet6Address -> address.isLinkLocalAddress
+    else -> false
+}
+
+internal fun mobileDataInterfaceName(name: String): Boolean =
+    name.startsWith("rmnet") || name.startsWith("r_rmnet") || name.startsWith("ccmni")

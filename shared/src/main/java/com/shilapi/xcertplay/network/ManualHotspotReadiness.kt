@@ -34,8 +34,8 @@ internal data class HotspotSelection(val name: String, val index: Int, val addre
 
 internal fun selectHotspotInterface(
     snapshot: HotspotNetworkSnapshot,
-    log: (String) -> Unit,
     configuredInterface: String? = null,
+    log: (String) -> Unit,
 ): HotspotSelection? {
     if (!snapshot.consistent) {
         log("hotspot sample rejected: network_changed=${!snapshot.consistent} apEnabled=${snapshot.apEnabled}")
@@ -106,7 +106,7 @@ internal class ManualHotspotReadiness(
             if (nowMillis() >= deadline) throw WirelessStartupException(
                 WirelessStartupFailure.HOTSPOT_NOT_READY, "Hotspot network is not ready",
             )
-            val selected = selectHotspotInterface(sample(), log, configuredInterface)
+            val selected = selectHotspotInterface(sample(), configuredInterface, log)
             if (cancelled()) throw InterruptedIOException("Hotspot readiness cancelled")
             stable = if (selected != null && previous?.sameAddress(selected) == true) stable + 1 else 1
             previous = selected

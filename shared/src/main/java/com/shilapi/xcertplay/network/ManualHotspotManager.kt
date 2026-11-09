@@ -77,7 +77,7 @@ class ManualHotspotManager(
             sample = {
                 interfaces.sample().also { snapshot ->
                     val messages = mutableListOf<String>()
-                    selectHotspotInterface(snapshot, messages::add, preferredInterface)
+                    selectHotspotInterface(snapshot, preferredInterface, messages::add)
                     if (messages != lastSampleLog) {
                         messages.forEach(onDiagnostic)
                         lastSampleLog = messages
@@ -177,7 +177,7 @@ class ManualHotspotManager(
         val expected = confirmed ?: throw WirelessStartupException(
             WirelessStartupFailure.HOTSPOT_NOT_READY, "Hotspot network is not ready",
         )
-        val current = selectHotspotInterface(interfaces.sample(), onDiagnostic, preferredInterface)
+        val current = selectHotspotInterface(interfaces.sample(), preferredInterface, onDiagnostic)
         if (closed || isCancelled() || current == null || !expected.sameAddress(current)) {
             throw WirelessStartupException(WirelessStartupFailure.HOTSPOT_NOT_READY,
                 "Hotspot interface or address changed before publication")
@@ -188,6 +188,16 @@ class ManualHotspotManager(
         closed = true
         synchronized(waitLock) { waitLock.notifyAll() }
         interfaces.close()
+    }
+
+    companion object {
+        internal fun isFiveGhzCompanion(apSsid: String?, expectedSsid: String): Boolean {
+            val base = apSsid?.trim()?.trim('"')?.takeIf(String::isNotEmpty) ?: return false
+            val expected = expectedSsid.trim().trim('"')
+            return listOf("_5G", "-5G").any { suffix ->
+                expected.equals(base + suffix, ignoreCase = true)
+            }
+        }
     }
 
     override fun connectionDiagnosticSnapshot(): String = interfaces.vendorDiagnosticSnapshot()
