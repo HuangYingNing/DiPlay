@@ -108,10 +108,9 @@ jobs:
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           MFI_IDENTITY_BASE64: ${{ secrets.DIPLAY_AUTH_IDENTITY_BASE64 }}
           MFI_CERTIFICATE_BASE64: ${{ secrets.DIPLAY_AUTH_CERTIFICATE_BASE64 }}
-          PASTEDB_KEY_ENDPOINT: ${{ secrets.PASTEDB_KEY_ENDPOINT }}
         run: |
-          if [[ -z "$KEYSTORE_BASE64" || -z "$KEYSTORE_PASSWORD" || -z "$KEY_ALIAS" || -z "$KEY_PASSWORD" || -z "$MFI_IDENTITY_BASE64" || -z "$MFI_CERTIFICATE_BASE64" || "$PASTEDB_KEY_ENDPOINT" != https://* ]]; then
-            echo "::error::Release is not configured. Add the signing secrets, both DIPLAY_AUTH_* secrets, and the HTTPS PASTEDB_KEY_ENDPOINT secret."
+          if [[ -z "$KEYSTORE_BASE64" || -z "$KEYSTORE_PASSWORD" || -z "$KEY_ALIAS" || -z "$KEY_PASSWORD" || -z "$MFI_IDENTITY_BASE64" || -z "$MFI_CERTIFICATE_BASE64" ]]; then
+            echo "::error::Release is not configured. Add the signing secrets and both DIPLAY_AUTH_* secrets."
             exit 1
           fi
           echo "available=true" >> "$GITHUB_OUTPUT"
@@ -164,7 +163,6 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           DIPLAY_AUTH_ASSETS_DIR: ${{ runner.temp }}/diplay-auth-assets
-          PASTEDB_KEY_ENDPOINT: ${{ secrets.PASTEDB_KEY_ENDPOINT }}
           RELEASE_VERSION: ${{ steps.release_metadata.outputs.version }}
         run: ./gradlew :mobile:assembleRelease -PDIPLAY_RELEASE_VERSION="$RELEASE_VERSION" --stacktrace
       - name: Upload signed release APK
