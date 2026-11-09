@@ -4879,6 +4879,8 @@ open class CarPlayHostActivity : ComponentActivity() {
                 null -> if (description.contains("socket", ignoreCase = true) ||
                     description.contains("RFCOMM", ignoreCase = true)) {
                     getString(R.string.your_iphone_isn_t_available_unlock_it_and_check_bluetooth)
+                } else if (description.contains(BluetoothRadioCheck.RADIO_OFF_MARK, ignoreCase = true)) {
+                    getString(R.string.turn_on_bluetooth_in_the_head_unit_s_settings_to_connect)
                 } else {
                     getString(R.string.connection_interrupted_retrying)
                 }
@@ -5407,13 +5409,28 @@ open class CarPlayHostActivity : ComponentActivity() {
             reconnectRecoverableBySession = reconnectRecoverableBySession && recoverableBySession
             return
         }
-        val startupDelay = if (startupFailure != null && startupFailure != WirelessStartupFailure.HOTSPOT_CONFIGURATION)
+        val startupDelay = if (startupFailure?.retryable == true)
             startupRetryBudget.nextDelayMillis() else null
         if (startupFailure != null && startupDelay == null) {
             startupRetryStopped = true
             startupRetryButton?.visibility = View.VISIBLE
-            setConnectionStage(if (startupFailure == WirelessStartupFailure.HOTSPOT_CONFIGURATION) reason
-                else "$reason\n${getString(R.string.wireless_startup_retries_exhausted)}")
+            val stage = when (startupFailure) {
+                WirelessStartupFailure.HOTSPOT_NOT_READY -> getString(R.string.hotspot_network_not_ready)
+                WirelessStartupFailure.FIRST_TCP_TIMEOUT -> getString(R.string.first_tcp_timeout)
+                WirelessStartupFailure.HOTSPOT_CONFIGURATION -> getString(R.string.hotspot_network_not_ready)
+                WirelessStartupFailure.BLUETOOTH_UNUSABLE -> getString(R.string.connection_help_bluetooth_unusable)
+                WirelessStartupFailure.WIFI_DIRECT_BESIDE_HOTSPOT ->
+                    getString(R.string.wifi_direct_refused_beside_hotspot)
+                null -> reason
+            }
+            val stoppedStage = if (startupFailure.retryable) {
+                "$stage\n${getString(R.string.wireless_startup_retries_exhausted)}"
+            } else if (startupFailure == WirelessStartupFailure.HOTSPOT_CONFIGURATION) {
+                "$stage\n${getString(R.string.wireless_startup_retries_exhausted)}"
+            } else {
+                stage
+            }
+            setConnectionStage(stoppedStage)
             appendLog("wireless startup recovery stopped generation=$restartGeneration reason=$startupFailure retries=${startupRetryBudget.retries}")
             return
         }
