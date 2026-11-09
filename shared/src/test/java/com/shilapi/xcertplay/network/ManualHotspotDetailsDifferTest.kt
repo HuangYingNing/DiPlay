@@ -5,7 +5,6 @@ import android.net.wifi.WifiManager
 import com.shilapi.xcertplay.orchestration.ConnectionFailureCause
 import com.shilapi.xcertplay.orchestration.ManualHotspotBand
 import com.shilapi.xcertplay.orchestration.ManualHotspotSecurity
-import kotlin.concurrent.thread
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -30,18 +29,19 @@ class ManualHotspotDetailsDifferTest {
             .invoke(context.getSystemService(WifiManager::class.java), config)
     }
 
-    private fun startFailure(band: ManualHotspotBand = ManualHotspotBand.AUTO): WirelessStartupException {
+    private fun validationFailure(band: ManualHotspotBand = ManualHotspotBand.AUTO): WirelessStartupException {
         val manager = ManualHotspotManager(context, "Car", "12345678", band, 0, ManualHotspotSecurity.WPA2)
-        var failure: Throwable? = null
         try {
-            thread { failure = runCatching { manager.start(1_000) }.exceptionOrNull() }.join()
+            return runCatching {
+                manager.validateApConfiguration(requireNotNull(manager.readLegacyApConfiguration()))
+                throw AssertionError("The different hotspot configuration was accepted")
+            }.exceptionOrNull() as WirelessStartupException
         } finally { manager.close() }
-        return failure as WirelessStartupException
     }
 
     @Test fun aCarHotspotWithAnotherNameIsNamed() {
         carHotspot("Other")
-        val failure = startFailure()
+        val failure = validationFailure()
         assertEquals(WirelessStartupFailure.HOTSPOT_CONFIGURATION, failure.reason)
         assertEquals("Manual hotspot SSID does not match the active local AP configuration: 'Other'", failure.message)
         assertEquals(ConnectionFailureCause.CAR_HOTSPOT_DETAILS_DIFFER, failure.knownCause)
@@ -49,7 +49,7 @@ class ManualHotspotDetailsDifferTest {
 
     @Test fun aCarHotspotOnAnotherBandIsNamed() {
         carHotspot("Car", legacyBand = 1)
-        val failure = startFailure(ManualHotspotBand.GHZ_2_4)
+        val failure = validationFailure(ManualHotspotBand.GHZ_2_4)
         assertEquals(WirelessStartupFailure.HOTSPOT_CONFIGURATION, failure.reason)
         assertEquals("Manual hotspot band 5 GHz does not match configured band 2.4 GHz", failure.message)
         assertEquals(ConnectionFailureCause.CAR_HOTSPOT_DETAILS_DIFFER, failure.knownCause)

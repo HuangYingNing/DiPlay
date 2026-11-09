@@ -50,7 +50,7 @@ class PasteDbDiagnosticUploadTest {
             exchange.responseBody.use { it.write(response) }
         }
 
-        val receipt = PasteDbDiagnosticUpload.upload(
+        val receipt = PasteDbDiagnosticUpload.uploadWithApiKey(
             appVersion = "v0.2.16-b261108-002",
             sourceRevision = "abc123def456",
             fileName = "DiPlay-20261108-120000-123.txt",
@@ -58,6 +58,7 @@ class PasteDbDiagnosticUploadTest {
             report = "first log line\nlast log line",
             endpoint = "$root/api/paste/diplay-geely-xingyuan",
             submittedAt = 0,
+            apiKey = "pdb_${"a".repeat(64)}",
         )
 
         assertEquals("mongo-id", receipt)

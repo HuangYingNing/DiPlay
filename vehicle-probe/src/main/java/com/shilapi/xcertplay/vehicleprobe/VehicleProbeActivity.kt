@@ -29,7 +29,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
-import com.shilapi.xcertplay.DiagnosticExportStore
+import com.shilapi.xcertplay.ProbeDiagnosticExportStore
 import com.shilapi.xcertplay.EXTRA_HIDE_TOP_BAR
 import com.shilapi.xcertplay.EXTRA_HIDE_BOTTOM_BAR
 import com.shilapi.xcertplay.applyVehicleSystemBars
@@ -314,7 +314,7 @@ class VehicleProbeActivity : Activity() {
         io.execute {
             val result = runCatching {
                 val report = ProbeReports.open(applicationContext).bufferedReader(Charsets.UTF_8).use { it.readText() }
-                DiagnosticExportStore.saveWithoutPicker(applicationContext, filename, report, shareable = false)
+                ProbeDiagnosticExportStore.saveWithoutPicker(applicationContext, filename, report, shareable = false)
             }
             main.post {
                 exporting = false

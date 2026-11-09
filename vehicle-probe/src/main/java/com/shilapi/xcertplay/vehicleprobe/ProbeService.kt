@@ -18,7 +18,7 @@ import android.util.Log
 import java.io.File
 import java.io.InputStream
 import java.util.concurrent.Executors
-import com.shilapi.xcertplay.DiagnosticExportStore
+import com.shilapi.xcertplay.ProbeDiagnosticExportStore
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -114,7 +114,7 @@ class ProbeService : Service() {
                         }
                     progress("正在保存报告")
                     val filename = VehicleScanReport.fileName(time)
-                    val exported = runCatching { DiagnosticExportStore.saveWithoutPicker(applicationContext, filename, text, shareable = false) }
+                    val exported = runCatching { ProbeDiagnosticExportStore.saveWithoutPicker(applicationContext, filename, text, shareable = false) }
                         .onFailure { Log.w("DiPlayVehicleProbe", "Public vehicle report export failed", it) }.getOrNull()
                     Log.i("DiPlayVehicleProbe", "Vehicle report export downloads=${exported?.savedToDownloads == true} " +
                         "file=${exported?.savedPath ?: "app_storage"}")

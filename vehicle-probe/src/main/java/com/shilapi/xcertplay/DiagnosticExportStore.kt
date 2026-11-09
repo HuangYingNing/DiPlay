@@ -16,7 +16,7 @@ import java.io.IOException
 
 /** Saves an app-owned report without depending on an OEM's document-picker activity. */
 // carlito | Share the existing provider-free exporter with the vehicle scan process.
-object DiagnosticExportStore {
+object ProbeDiagnosticExportStore {
     data class SavedReport(
         val uri: Uri,
         val savedToDownloads: Boolean = false,

@@ -1,6 +1,7 @@
 package com.shilapi.xcertplay
 
 import com.shilapi.xcertplay.vehicleprobe.BuildConfig
+import androidx.annotation.VisibleForTesting
 import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
@@ -31,6 +32,22 @@ object PasteDbDiagnosticUpload {
         report: String,
         endpoint: String = API_URL,
         submittedAt: Long = System.currentTimeMillis(),
+    ): String = uploadWithApiKey(
+        appVersion, sourceRevision, fileName, issueDescription, report,
+        endpoint, submittedAt, decryptBundledApiKey(),
+    )
+
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    @JvmSynthetic
+    fun uploadWithApiKey(
+        appVersion: String,
+        sourceRevision: String,
+        fileName: String,
+        issueDescription: String,
+        report: String,
+        endpoint: String = API_URL,
+        submittedAt: Long = System.currentTimeMillis(),
+        apiKey: String,
     ): String {
         require(appVersion.isNotBlank())
         require(sourceRevision.matches(Regex("(?:[0-9a-f]{7,40}|unknown)(?:-dirty)?")))
@@ -40,8 +57,6 @@ object PasteDbDiagnosticUpload {
         val reportBytes = report.toByteArray(Charsets.UTF_8)
         if (reportBytes.size > MAX_REPORT_BYTES) throw DiagnosticReportTooLargeException()
         require(reportBytes.isNotEmpty())
-        val apiKey = decryptBundledApiKey()
-
         val content = buildString {
             appendLine("DiPlay version: $appVersion")
             appendLine("Source commit: $sourceRevision")
@@ -85,6 +100,7 @@ object PasteDbDiagnosticUpload {
 
     private fun decryptBundledApiKey(): String {
         val payload = Base64.getDecoder().decode(BuildConfig.PASTEDB_API_KEY_CIPHERTEXT)
+        check(payload.size >= 28) { "PasteDB credentials are not configured for this build" }
         val nonce = payload.copyOfRange(0, 12)
         val ciphertext = payload.copyOfRange(12, payload.size)
         val key = Base64.getDecoder().decode(BuildConfig.PASTEDB_API_KEY_DECRYPTION_KEY)

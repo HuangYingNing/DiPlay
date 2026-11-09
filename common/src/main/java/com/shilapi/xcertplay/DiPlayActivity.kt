@@ -172,7 +172,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         com.shilapi.xcertplay.hud.BydCarMusicRhythm::checkSupport
     internal var selectedMtkDecoderName: (String) -> String? = MtkDecoderTuning::selectedDecoderName
     internal var ambientSupportCheck: (Context) -> java.util.concurrent.CompletableFuture<Boolean> = AmbientMusicController::checkSupport
-    private var settingsCategory = SettingsCategory.OVERVIEW
+    private var settingsMenuCategoryKey = SettingsCategory.OVERVIEW
     private var connectionSettingsReturnCategory: SettingsCategory? = null
     private var setupStep = SetupGuide.STEP_CAR
     private var setupFromSettings = false
@@ -392,7 +392,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         pendingCarHotspotSetup = savedInstanceState?.getBoolean("pending_car_hotspot") ?: false
         reportIssueDescription = savedInstanceState?.getString("report_issue_description").orEmpty()
         bydVehicleAdvancedExpanded = savedInstanceState?.getBoolean("byd_vehicle_advanced") ?: false
-        settingsCategory = savedInstanceState?.getString("settings_category")
+        settingsMenuCategoryKey = savedInstanceState?.getString("settings_category")
             ?.let { runCatching { SettingsCategory.valueOf(it) }.getOrNull() }
             ?: SettingsCategory.OVERVIEW
         connectionSettingsReturnCategory = savedInstanceState?.getString("connection_settings_return_category")
@@ -451,7 +451,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         reportIssueDescription = reportIssueInput?.text?.toString() ?: reportIssueDescription
         outState.putString("report_issue_description", reportIssueDescription)
         outState.putString("page", page)
-        outState.putString("settings_category", settingsCategory.name)
+        outState.putString("settings_category", settingsMenuCategoryKey.name)
         connectionSettingsReturnCategory?.let { outState.putString("connection_settings_return_category", it.name) }
         outState.putBoolean("pending_car_hotspot", pendingCarHotspotSetup)
         outState.putBoolean("byd_vehicle_advanced", bydVehicleAdvancedExpanded)
@@ -650,7 +650,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         } else null
         // A restore still waiting for layout keeps its target: the old page was never laid out.
         val sameDestination = renderedPage == page &&
-            (page != "settings" || renderedSettingsCategory == settingsCategory)
+            (page != "settings" || renderedSettingsCategory == settingsMenuCategoryKey)
         val previousScrollY = (pendingScrollY ?: rootScroll?.scrollY)?.takeIf { sameDestination }
         // The rail is one destination even when its selected category changes.
         val keepRailPosition = renderedPage == "settings" && page == "settings"
@@ -723,7 +723,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         setContentView(root)
         ViewCompat.requestApplyInsets(root)
         renderedPage = page
-        renderedSettingsCategory = settingsCategory.takeIf { page == "settings" }
+        renderedSettingsCategory = settingsMenuCategoryKey.takeIf { page == "settings" }
         refreshStatus()
         focusSnapshot?.let { snapshot ->
             root.doOnLayout {
@@ -798,7 +798,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         when {
             page == "about" -> {
                 page = "settings"
-                settingsCategory = SettingsCategory.OVERVIEW
+                settingsMenuCategoryKey = SettingsCategory.OVERVIEW
             }
             page == "setup" && setupStep > SetupGuide.STEP_CAR -> setupStep--
             page == "setup" -> {
@@ -807,11 +807,11 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             }
             page == "connection" && returnCategory != null -> {
                 page = "settings"
-                settingsCategory = returnCategory
+                settingsMenuCategoryKey = returnCategory
                 connectionSettingsReturnCategory = null
             }
-            page == "settings" && !isExpandedSettingsLayout && settingsCategory != SettingsCategory.OVERVIEW -> {
-                settingsCategory = SettingsCategory.OVERVIEW
+            page == "settings" && !isExpandedSettingsLayout && settingsMenuCategoryKey != SettingsCategory.OVERVIEW -> {
+                settingsMenuCategoryKey = SettingsCategory.OVERVIEW
             }
             else -> {
                 page = "home"
@@ -822,7 +822,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     }
 
     private fun openConnectionSetupFromSettings() {
-        connectionSettingsReturnCategory = settingsCategory
+        connectionSettingsReturnCategory = settingsMenuCategoryKey
         page = "connection"
         render()
     }
@@ -1015,7 +1015,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     }
 
     private fun settingsRailDestination(category: SettingsCategory): View {
-        val selected = settingsCategory == category
+        val selected = settingsMenuCategoryKey == category
         val title = settingsCategoryTitle(category)
         return row().apply {
             gravity = Gravity.CENTER_VERTICAL
@@ -1082,7 +1082,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     })
 
     private fun settingsCategoryContent(content: LinearLayout) {
-        when (settingsCategory) {
+        when (settingsMenuCategoryKey) {
             SettingsCategory.OVERVIEW -> settingsOverview(content)
             SettingsCategory.CONNECTION -> connectionSettings(content)
             SettingsCategory.DISPLAY -> displaySettings(content)
@@ -1228,7 +1228,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
 
     private fun openSettingsCategory(category: SettingsCategory) {
         if (category == SettingsCategory.ABOUT) page = "about"
-        else settingsCategory = category
+        else settingsMenuCategoryKey = category
         render()
     }
 
@@ -1315,7 +1315,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         section(content, getString(R.string.settings_advanced), R.drawable.ic_dp_advanced) { card ->
             card.addView(label(getString(R.string.settings_vehicle_description), 16, MUTED))
             card.addView(button(getString(R.string.settings_open_advanced), false) {
-                settingsCategory = SettingsCategory.ADVANCED
+                settingsMenuCategoryKey = SettingsCategory.ADVANCED
                 render()
             }, matchButton(14, 56))
         }
@@ -1332,12 +1332,12 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     // render() afterwards replaces every widget reference those detached builds assigned.
     // ponytail: indexes the default state only; controls behind an expander (vehicle data) are not found.
     private fun buildSettingsSearchIndex(): List<SettingsSearchResult> {
-        val selected = settingsCategory
+        val selected = settingsMenuCategoryKey
         // Category names first, so a card that only links to a category cannot claim its name.
         val index = SettingsCategory.entries.associateByTo(linkedMapOf(), ::settingsCategoryTitle)
         try {
             for (category in SettingsCategory.entries.filter { it != SettingsCategory.OVERVIEW } + SettingsCategory.OVERVIEW) {
-                settingsCategory = category
+                settingsMenuCategoryKey = category
                 val titles = mutableListOf(settingsCategoryTitle(category))
                 searchIndexSink = titles
                 settingsCategoryContent(column())
@@ -1345,7 +1345,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             }
         } finally {
             searchIndexSink = null
-            settingsCategory = selected
+            settingsMenuCategoryKey = selected
         }
         render()
         return index.map { SettingsSearchResult(it.key, it.value) }
@@ -1898,11 +1898,9 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             navigationOutputControl(card)
             navigationOutputControl(card, VehicleAudioRole.MEDIA)
             val bufferPresets = com.shilapi.xcertplay.media.MediaAudioBuffer.presets
-            choice(card, getString(R.string.settings_music_buffer_wired), listOf(
-                getString(R.string.settings_music_buffer_ms, 300),
-                getString(R.string.settings_music_buffer_ms, 500),
-                getString(R.string.settings_music_buffer_ms, 1000),
-            ),
+            choice(card, getString(R.string.settings_music_buffer_wired), bufferPresets.map {
+                getString(R.string.settings_music_buffer_ms, it)
+            },
                 bufferPresets.indexOf(AirPlayPersistence.loadMediaBufferMillis(
                     this, wireless = AirPlayPersistence.loadWirelessEnabled(this),
                 )).coerceAtLeast(0)) {
@@ -5093,14 +5091,63 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     }
 
     private fun carPlaySizeControl(parent: LinearLayout) {
-        val sizes = com.shilapi.xcertplay.airplay.CarPlaySize.entries
-        val current = com.shilapi.xcertplay.airplay.CarPlaySize.fromWidthMillimeters(AirPlayPersistence.loadWidthPhysicalMm(this))
-        choice(parent, getString(R.string.carplay_size), sizes.map { it.localizedLabel(this) }, sizes.indexOf(current)) {
-            AirPlayPersistence.saveWidthPhysicalMm(this, sizes[it].widthMillimeters)
+        val title = getString(R.string.carplay_size)
+        val savedWidth = AirPlayPersistence.loadWidthPhysicalMm(this)
+        val choices = carPlaySizeChoices(this, savedWidth)
+        val control = button("$title · ${choices.lastOrNull { it.widthMillimeters == savedWidth }?.label ?: choices[1].label}", false) {}
+        control.setOnClickListener {
+            var selected = choices.indexOfFirst { it.widthMillimeters == savedWidth }.coerceAtLeast(0)
+            appDialogBuilder().setTitle(title)
+                .setSingleChoiceItems(choices.map { it.label }.toTypedArray(), selected) { _, index -> selected = index }
+                .setPositiveButton(getString(R.string.save)) { _, _ ->
+                    val choice = choices[selected]
+                    if (choice.custom) {
+                        showCarPlaySizeLengthDialog(savedWidth) { width ->
+                            AirPlayPersistence.saveWidthPhysicalMm(this, width)
+                            control.text = "$title · ${getString(R.string.option_size_custom)} · $width mm"
+                            markReconnectNeeded()
+                        }
+                    } else {
+                        AirPlayPersistence.saveWidthPhysicalMm(this, choice.widthMillimeters)
+                        control.text = "$title · ${choice.label}"
+                        markReconnectNeeded()
+                    }
+                }.setNegativeButton(getString(R.string.cancel), null).show()
         }
+        parent.addView(control, matchButton(0, 60))
         parent.addView(label(getString(R.string.changes_the_size_of_carplay_icons_and_text_applying_a_size), 14, MUTED).apply {
             setPadding(0, 0, 0, dp(18))
         })
+    }
+
+    private fun showCarPlaySizeLengthDialog(initialMillimeters: Int, save: (Int) -> Unit) {
+        val currentLabel = label(getString(R.string.size_option_millimeters,
+            getString(R.string.option_size_custom), initialMillimeters), 16, TEXT)
+        val slider = SeekBar(this).apply {
+            max = 60
+            progress = ((initialMillimeters - 100) / 5).coerceIn(0, max)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                    currentLabel.text = getString(R.string.size_option_millimeters,
+                        getString(R.string.option_size_custom), 100 + progress * 5)
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar) = Unit
+            })
+        }
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(12), dp(24), dp(8))
+            addView(currentLabel, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+            ))
+            addView(slider, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+            ))
+        }
+        appDialogBuilder().setTitle(getString(R.string.physical_length)).setView(content)
+            .setPositiveButton(getString(R.string.save)) { _, _ -> save(100 + slider.progress * 5) }
+            .setNegativeButton(getString(R.string.cancel), null).show()
     }
 
     private fun scheduleTimeControl(parent: LinearLayout, start: Boolean) {

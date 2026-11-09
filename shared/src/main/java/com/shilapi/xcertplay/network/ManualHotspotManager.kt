@@ -102,12 +102,6 @@ class ManualHotspotManager(
         // carlito | The separate factory AP must not inherit the other Android AP's SSID or
         // security. Use one saved credential pair; require validation for ordinary Android APs.
         val apConfiguration = if (factoryRoute) null else readApConfiguration()
-        if (apConfiguration != null && apConfiguration.ssid != expectedSsid) {
-            throw configurationMismatch(
-                "Manual hotspot SSID does not match the active local AP configuration: " +
-                    "'${apConfiguration.ssid}'",
-            )
-        }
         validateApConfiguration(apConfiguration)
         confirmed = selected
         onDiagnostic("hotspot interface confirmed iface=${selected.name} index=${selected.index} atNs=${System.nanoTime()}")
@@ -199,8 +193,13 @@ class ManualHotspotManager(
         ConnectionFailureCause.CAR_HOTSPOT_DETAILS_DIFFER,
     )
 
-    private fun validateApConfiguration(configuration: ManualApConfiguration?) {
+    internal fun validateApConfiguration(configuration: ManualApConfiguration?) {
         configuration ?: return
+        if (configuration.ssid != expectedSsid) {
+            throw configurationMismatch(
+                "Manual hotspot SSID does not match the active local AP configuration: '${configuration.ssid}'",
+            )
+        }
         if (expectedChannel > 0 && configuration.channel > 0 &&
             configuration.channel != expectedChannel
         ) {
@@ -304,7 +303,7 @@ class ManualHotspotManager(
     }
 
     @SuppressLint("PrivateApi")
-    private fun readLegacyApConfiguration(): ManualApConfiguration? {
+    internal fun readLegacyApConfiguration(): ManualApConfiguration? {
         return try {
             val method = runCatching { WifiManager::class.java.getMethod("getWifiApConfiguration") }
                 .getOrElse { WifiManager::class.java.getDeclaredMethod("getWifiApConfiguration") }
@@ -379,7 +378,7 @@ class ManualHotspotManager(
     private fun ByteArray.toMacAddressString(): String =
         joinToString(":") { byte -> "%02x".format(byte.toInt() and 0xff) }
 
-    private class ManualApConfiguration(
+    internal class ManualApConfiguration(
         val ssid: String,
         val band: Int?,
         val channel: Int,
