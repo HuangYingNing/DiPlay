@@ -296,6 +296,8 @@ internal object CarPlayMediaKeys {
         appContext = context.applicationContext
         endBridgeZoom()
         syncGeelyInputLocked()
+        refreshZoomEligibility()
+        updateBridgeKeys()
     }
 
     fun learnBridgeZoom(context: Context, owner: Any, role: WheelZoomSettings.Role, done: (WheelKey?) -> Unit) {
@@ -485,12 +487,6 @@ internal object CarPlayMediaKeys {
     internal fun onExternalSiriKey(): Boolean = synchronized(this) { controller }?.requestSiri() == true
 
     internal fun onExternalMediaKey(index: Int) = send(index, "geely-wheel")
-
-    internal fun refreshWheelZoom(context: Context) = synchronized(this) {
-        if (appContext == null) appContext = context.applicationContext
-        refreshZoomEligibility()
-        updateBridgeKeys()
-    }
 
     // Another car app (its own Spotify, the radio) took audio focus and with it the steering-wheel
     // keys. When CarPlay starts playing again it becomes the car's media source again, as any player

@@ -54,6 +54,7 @@ object AirPlayPersistence {
     private const val KEY_DISABLE_MEDIA_KEY_AUDIO_FOCUS = "disable_media_key_audio_focus"
     private const val KEY_MEDIA_AUDIO_CHANNEL = "media_audio_channel"
     private const val KEY_NAVIGATION_AUDIO_CHANNEL = "navigation_audio_channel"
+    private const val KEY_NAVIGATION_OUTPUT_DEVICE = "navigation_output_device"
     private const val KEY_NAVIGATION_AUDIO_ATTENUATION = "navigation_audio_attenuation_db"
     private const val KEY_NAVIGATION_STREAM_TYPE = "navigation_stream_type"
     private const val KEY_WIRELESS_ENABLED = "wireless_enabled"
@@ -324,6 +325,15 @@ object AirPlayPersistence {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putInt(KEY_NAVIGATION_AUDIO_CHANNEL, channel.takeIf { it in AUDIO_CHANNELS } ?: 0)
             .apply()
+    }
+
+    fun loadNavigationOutputDevice(context: Context): AudioOutputDevice? =
+        AudioOutputDevice.decode(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_NAVIGATION_OUTPUT_DEVICE, null))
+
+    fun saveNavigationOutputDevice(context: Context, device: AudioOutputDevice?) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(KEY_NAVIGATION_OUTPUT_DEVICE, device?.encode()).apply()
     }
 
     fun loadNavigationAudioAttenuationDb(context: Context): Int =

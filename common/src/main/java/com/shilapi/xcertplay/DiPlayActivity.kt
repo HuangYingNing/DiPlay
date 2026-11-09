@@ -1899,8 +1899,11 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 getString(R.string.settings_music_buffer_ms, 500),
                 getString(R.string.settings_music_buffer_ms, 1000),
             ),
-                bufferPresets.indexOf(AirPlayPersistence.loadMediaBufferMillis(this)).coerceAtLeast(0)) {
-                AirPlayPersistence.saveMediaBufferMillis(this, bufferPresets[it])
+                bufferPresets.indexOf(AirPlayPersistence.loadMediaBufferMillis(
+                    this, wireless = AirPlayPersistence.loadWirelessEnabled(this),
+                )).coerceAtLeast(0)) {
+                AirPlayPersistence.saveMediaBufferMillis(this,
+                    wireless = AirPlayPersistence.loadWirelessEnabled(this), millis = bufferPresets[it])
             }
         }
         filteredSection(content, SettingsSection.NAVIGATION_WHEEL,

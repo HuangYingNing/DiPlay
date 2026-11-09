@@ -4703,7 +4703,7 @@ open class CarPlayHostActivity : ComponentActivity() {
             onScreenStreamActiveChanged = { type, active ->
                 onScreenStreamStateChanged(controllerGeneration, type, active)
             },
-            mediaBufferMillis = AirPlayPersistence.loadMediaBufferMillis(this),
+            mediaBufferMillis = AirPlayPersistence.loadMediaBufferMillis(this, wireless = wirelessEnabled),
             onAudioDiagnostic = { message ->
                 if (message.startsWith("Microphone: ")) {
                     AsyncDiagnosticLog.append(diagnosticLog, message)
