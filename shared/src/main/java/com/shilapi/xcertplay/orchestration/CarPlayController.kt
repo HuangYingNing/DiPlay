@@ -2933,6 +2933,12 @@ class CarPlayController(
             "STEP iap2/wired: wired iAP2 control loop running"
         CarPlayStatus.ControlEnded ->
             "STEP control/end: the control window ended"
+        is CarPlayStatus.IphoneNotListed ->
+            if (nonHubDeviceListed) {
+                "STEP usb/discover: USB device is present but is not recognized as an iPhone"
+            } else {
+                "STEP usb/discover: no USB device is currently listed by the head unit"
+            }
         is CarPlayStatus.Failed ->
             "ERROR $message"
     }
