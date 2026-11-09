@@ -172,7 +172,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         com.shilapi.xcertplay.hud.BydCarMusicRhythm::checkSupport
     internal var selectedMtkDecoderName: (String) -> String? = MtkDecoderTuning::selectedDecoderName
     internal var ambientSupportCheck: (Context) -> java.util.concurrent.CompletableFuture<Boolean> = AmbientMusicController::checkSupport
-    private var settingsMenuCategoryKey = SettingsCategory.OVERVIEW
+    private var settingsCategory = SettingsCategory.OVERVIEW
     private var connectionSettingsReturnCategory: SettingsCategory? = null
     private var setupStep = SetupGuide.STEP_CAR
     private var setupFromSettings = false
@@ -202,6 +202,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     private var exportButton: Button? = null
     private var reportUploadButton: Button? = null
     private var reportIssueInput: EditText? = null
+    private var lastConnectionProblemView: TextView? = null
     private var developerVersionTaps = 0
     private var rootScroll: ScrollView? = null
     private var settingsRailScroll: ScrollView? = null
@@ -392,7 +393,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         pendingCarHotspotSetup = savedInstanceState?.getBoolean("pending_car_hotspot") ?: false
         reportIssueDescription = savedInstanceState?.getString("report_issue_description").orEmpty()
         bydVehicleAdvancedExpanded = savedInstanceState?.getBoolean("byd_vehicle_advanced") ?: false
-        settingsMenuCategoryKey = savedInstanceState?.getString("settings_category")
+        settingsCategory = savedInstanceState?.getString("settings_category")
             ?.let { runCatching { SettingsCategory.valueOf(it) }.getOrNull() }
             ?: SettingsCategory.OVERVIEW
         connectionSettingsReturnCategory = savedInstanceState?.getString("connection_settings_return_category")
@@ -459,7 +460,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         reportIssueDescription = reportIssueInput?.text?.toString() ?: reportIssueDescription
         outState.putString("report_issue_description", reportIssueDescription)
         outState.putString("page", page)
-        outState.putString("settings_category", settingsMenuCategoryKey.name)
+        outState.putString("settings_category", settingsCategory.name)
         connectionSettingsReturnCategory?.let { outState.putString("connection_settings_return_category", it.name) }
         outState.putBoolean("pending_car_hotspot", pendingCarHotspotSetup)
         outState.putBoolean("byd_vehicle_advanced", bydVehicleAdvancedExpanded)
@@ -658,7 +659,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         } else null
         // A restore still waiting for layout keeps its target: the old page was never laid out.
         val sameDestination = renderedPage == page &&
-            (page != "settings" || renderedSettingsCategory == settingsMenuCategoryKey)
+            (page != "settings" || renderedSettingsCategory == settingsCategory)
         val previousScrollY = (pendingScrollY ?: rootScroll?.scrollY)?.takeIf { sameDestination }
         // The rail is one destination even when its selected category changes.
         val keepRailPosition = renderedPage == "settings" && page == "settings"
@@ -731,7 +732,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         setContentView(root)
         ViewCompat.requestApplyInsets(root)
         renderedPage = page
-        renderedSettingsCategory = settingsMenuCategoryKey.takeIf { page == "settings" }
+        renderedSettingsCategory = settingsCategory.takeIf { page == "settings" }
         refreshStatus()
         focusSnapshot?.let { snapshot ->
             root.doOnLayout {
@@ -806,7 +807,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         when {
             page == "about" -> {
                 page = "settings"
-                settingsMenuCategoryKey = SettingsCategory.OVERVIEW
+                settingsCategory = SettingsCategory.OVERVIEW
             }
             page == "setup" && setupStep > SetupGuide.STEP_CAR -> setupStep--
             page == "setup" -> {
@@ -815,11 +816,11 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             }
             page == "connection" && returnCategory != null -> {
                 page = "settings"
-                settingsMenuCategoryKey = returnCategory
+                settingsCategory = returnCategory
                 connectionSettingsReturnCategory = null
             }
-            page == "settings" && !isExpandedSettingsLayout && settingsMenuCategoryKey != SettingsCategory.OVERVIEW -> {
-                settingsMenuCategoryKey = SettingsCategory.OVERVIEW
+            page == "settings" && !isExpandedSettingsLayout && settingsCategory != SettingsCategory.OVERVIEW -> {
+                settingsCategory = SettingsCategory.OVERVIEW
             }
             else -> {
                 page = "home"
@@ -830,7 +831,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     }
 
     private fun openConnectionSetupFromSettings() {
-        connectionSettingsReturnCategory = settingsMenuCategoryKey
+        connectionSettingsReturnCategory = settingsCategory
         page = "connection"
         render()
     }
@@ -879,6 +880,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         card.addView(label(getString(R.string.wireless_carplay), 12, ACCENT, true).apply { letterSpacing = .12f })
         status = label(getString(R.string.ready_when_you_are), 24, TEXT, true).apply { setPadding(0, dp(10), 0, dp(16)) }
         card.addView(status)
+        lastConnectionProblemView = label("", 14, WARNING).apply { visibility = View.GONE }
+        card.addView(lastConnectionProblemView)
         connectButton = homeButton(getString(R.string.connect_phone), true) {
             if (CarPlayBackgroundSession.hasSession()) openProjection()
             else connect(true)
@@ -1023,7 +1026,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     }
 
     private fun settingsRailDestination(category: SettingsCategory): View {
-        val selected = settingsMenuCategoryKey == category
+        val selected = settingsCategory == category
         val title = settingsCategoryTitle(category)
         return row().apply {
             gravity = Gravity.CENTER_VERTICAL
@@ -1090,7 +1093,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     })
 
     private fun settingsCategoryContent(content: LinearLayout) {
-        when (settingsMenuCategoryKey) {
+        when (settingsCategory) {
             SettingsCategory.OVERVIEW -> settingsOverview(content)
             SettingsCategory.CONNECTION -> connectionSettings(content)
             SettingsCategory.DISPLAY -> displaySettings(content)
@@ -1236,7 +1239,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
 
     private fun openSettingsCategory(category: SettingsCategory) {
         if (category == SettingsCategory.ABOUT) page = "about"
-        else settingsMenuCategoryKey = category
+        else settingsCategory = category
         render()
     }
 
@@ -1323,7 +1326,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         section(content, getString(R.string.settings_advanced), R.drawable.ic_dp_advanced) { card ->
             card.addView(label(getString(R.string.settings_vehicle_description), 16, MUTED))
             card.addView(button(getString(R.string.settings_open_advanced), false) {
-                settingsMenuCategoryKey = SettingsCategory.ADVANCED
+                settingsCategory = SettingsCategory.ADVANCED
                 render()
             }, matchButton(14, 56))
         }
@@ -1340,12 +1343,12 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     // render() afterwards replaces every widget reference those detached builds assigned.
     // ponytail: indexes the default state only; controls behind an expander (vehicle data) are not found.
     private fun buildSettingsSearchIndex(): List<SettingsSearchResult> {
-        val selected = settingsMenuCategoryKey
+        val selected = settingsCategory
         // Category names first, so a card that only links to a category cannot claim its name.
         val index = SettingsCategory.entries.associateByTo(linkedMapOf(), ::settingsCategoryTitle)
         try {
             for (category in SettingsCategory.entries.filter { it != SettingsCategory.OVERVIEW } + SettingsCategory.OVERVIEW) {
-                settingsMenuCategoryKey = category
+                settingsCategory = category
                 val titles = mutableListOf(settingsCategoryTitle(category))
                 searchIndexSink = titles
                 settingsCategoryContent(column())
@@ -1353,7 +1356,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             }
         } finally {
             searchIndexSink = null
-            settingsMenuCategoryKey = selected
+            settingsCategory = selected
         }
         render()
         return index.map { SettingsSearchResult(it.key, it.value) }
@@ -5314,6 +5317,15 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
 
     private fun refreshStatus() {
         val running = CarPlayBackgroundSession.hasSession()
+        val lastProblem = if (!running && !CarPlayBackgroundSession.active && !carHotspotOff()) {
+            LastConnectionProblem.homeLine(this)
+        } else {
+            null
+        }
+        lastConnectionProblemView?.apply {
+            text = lastProblem.orEmpty()
+            visibility = if (lastProblem == null) View.GONE else View.VISIBLE
+        }
         status?.text = when {
             setupError != null -> getString(R.string.setup_needs_attention)
             CarPlayBackgroundSession.active -> getString(R.string.carplay_connected)
@@ -5360,6 +5372,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
 
     private fun buildDiagnosticReport(appContext: Context): String = buildString {
         appendLine("DiPlay ${version()} · private beta diagnostic report")
+        appendLine(LastConnectionProblem.report(appContext))
         appendLine("Android ${Build.VERSION.RELEASE} / API ${Build.VERSION.SDK_INT}")
         appendLine("Head unit: ${Build.MANUFACTURER} ${Build.MODEL}")
         appendLine("Connection: ${if (AirPlayPersistence.loadWirelessEnabled(appContext)) "wireless" else "USB"}")
@@ -5548,16 +5561,39 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     }
 
     private fun showDiagnosticReport(report: String) {
-        if (!SteeringProfiles.developerUnlocked(this)) return
         val body = column().apply { setPadding(dp(24), dp(12), dp(24), dp(12)) }
         body.addView(label(getString(R.string.diagnostic_report_copy_hint), 14, MUTED))
-        body.addView(label(report, 13, TEXT).apply {
+        body.addView(label(reportTail(report), 13, TEXT).apply {
             typeface = Typeface.MONOSPACE
             setTextIsSelectable(true)
         })
         appDialogBuilder().setTitle(getString(R.string.view_diagnostic_report))
             .setView(ScrollView(appDialogContext()).apply { addView(body) })
             .setPositiveButton(getString(R.string.close), null).show()
+    }
+
+    private fun diagnosticReportText(appContext: Context): String = buildDiagnosticReport(appContext)
+
+    /** Keep report viewing responsive; save, share and upload paths continue to use the full report. */
+    private fun reportTail(report: String): String {
+        if (report.length <= REPORT_VIEW_MAX_CHARS) return report
+        val cut = report.length - REPORT_VIEW_MAX_CHARS
+        val logMarker = report.indexOf("--- ")
+        if (logMarker >= cut) return report
+
+        val head = if (logMarker > 0) {
+            val cap = minOf(logMarker, REPORT_VIEW_HEADER_MAX_CHARS)
+            val newline = report.lastIndexOf('\n', cap - 1)
+            var end = if (newline >= 0) newline + 1 else cap
+            if (end > 0 && end < report.length && Character.isHighSurrogate(report[end - 1])) end--
+            report.substring(0, end)
+        } else {
+            ""
+        }
+        val newline = report.indexOf('\n', cut - 1) + 1
+        var start = if (newline > cut && report.length - newline >= REPORT_VIEW_MAX_CHARS / 2) newline else cut
+        if (start > 0 && start < report.length && Character.isLowSurrogate(report[start])) start++
+        return head + "…\n" + report.substring(start)
     }
     private fun permissionHelp(title: String, body: String) {
         appDialogBuilder().setTitle(title).setMessage(body).setPositiveButton(getString(R.string.app_settings)) { _, _ ->
@@ -6224,6 +6260,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         private const val BYD_VEHICLE_TAG = "DiPlay-BYD13"
         private const val VEHICLE_VALIDATION_RETRY_MILLIS = 500L
         private const val ADB_KEY_SAVE_WAIT_MILLIS = 500L
+        private const val REPORT_VIEW_MAX_CHARS = 200_000
+        private const val REPORT_VIEW_HEADER_MAX_CHARS = 20_000
         private const val APPEARANCE_POLL_MILLIS = 2_000L
         private const val APPEARANCE_BUTTON_TAG = "app_appearance_button"
         private const val VALUE_SEPARATOR = " · "

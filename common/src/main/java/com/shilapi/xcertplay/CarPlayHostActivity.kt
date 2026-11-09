@@ -4876,7 +4876,12 @@ open class CarPlayHostActivity : ComponentActivity() {
                     getString(R.string.wifi_direct_refused_beside_hotspot)
                 WirelessStartupFailure.BLUETOOTH_UNUSABLE ->
                     getString(R.string.connection_help_bluetooth_unusable)
-                null -> friendlyStage(description)
+                null -> if (description.contains("socket", ignoreCase = true) ||
+                    description.contains("RFCOMM", ignoreCase = true)) {
+                    getString(R.string.your_iphone_isn_t_available_unlock_it_and_check_bluetooth)
+                } else {
+                    getString(R.string.connection_interrupted_retrying)
+                }
             }
             is CarPlayStatus.IphoneNotListed -> getString(
                 if (status.nonHubDeviceListed) R.string.car_sees_usb_device_not_iphone
