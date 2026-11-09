@@ -1895,8 +1895,12 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             navigationOutputControl(card, VehicleAudioRole.MEDIA)
             val bufferPresets = com.shilapi.xcertplay.media.MediaAudioBuffer.presets
             choice(card, getString(R.string.music_buffer), listOf(getString(R.string.s_300_ms_default), getString(R.string.s_500_ms), getString(R.string.s_1000_ms_most_stable)),
-                bufferPresets.indexOf(AirPlayPersistence.loadMediaBufferMillis(this)).coerceAtLeast(0)) {
-                AirPlayPersistence.saveMediaBufferMillis(this, bufferPresets[it])
+                bufferPresets.indexOf(AirPlayPersistence.loadMediaBufferMillis(
+                    this, wireless = AirPlayPersistence.loadWirelessEnabled(this),
+                )).coerceAtLeast(0)) {
+                AirPlayPersistence.saveMediaBufferMillis(
+                    this, wireless = AirPlayPersistence.loadWirelessEnabled(this), millis = bufferPresets[it],
+                )
             }
         }
         filteredSection(content, SettingsSection.NAVIGATION_WHEEL,

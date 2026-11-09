@@ -4703,7 +4703,7 @@ open class CarPlayHostActivity : ComponentActivity() {
             onScreenStreamActiveChanged = { type, active ->
                 onScreenStreamStateChanged(controllerGeneration, type, active)
             },
-            mediaBufferMillis = AirPlayPersistence.loadMediaBufferMillis(this),
+            mediaBufferMillis = AirPlayPersistence.loadMediaBufferMillis(this, wireless = wirelessEnabled),
             onAudioDiagnostic = { message ->
                 if (message.startsWith("Microphone: ")) {
                     AsyncDiagnosticLog.append(diagnosticLog, message)
@@ -5953,6 +5953,9 @@ open class CarPlayHostActivity : ComponentActivity() {
         CarPlayStatus.WirelessActive, CarPlayStatus.WirelessActiveFallback -> getString(R.string.wireless_carplay_active)
         CarPlayStatus.DiscoveringIphone -> getString(R.string.discovering_iphone)
         CarPlayStatus.WaitingForIphone -> getString(R.string.waiting_for_iphone_over_usb)
+        is CarPlayStatus.IphoneNotListed -> getString(
+            if (nonHubDeviceListed) R.string.car_sees_usb_device_not_iphone else R.string.car_sees_no_usb_device,
+        )
         CarPlayStatus.RequestingIphonePermission -> getString(R.string.requesting_iphone_usb_permission)
         CarPlayStatus.WaitingForReenumeration -> getString(R.string.status_waiting_reenumeration)
         CarPlayStatus.SelectingConfiguration -> getString(R.string.selecting_carplay_configuration)
