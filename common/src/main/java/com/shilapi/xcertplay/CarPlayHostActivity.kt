@@ -4923,6 +4923,7 @@ open class CarPlayHostActivity : ComponentActivity() {
                 if (status.nonHubDeviceListed) R.string.car_sees_usb_device_not_iphone
                 else R.string.car_sees_no_usb_device,
             )
+            CarPlayStatus.WaitingForIphone -> getString(R.string.connect_your_iphone_with_a_usb_cable)
             else -> friendlyStage(description)
         }
         val stoppedStage = if (startupRetryStopped && status is CarPlayStatus.Failed &&
