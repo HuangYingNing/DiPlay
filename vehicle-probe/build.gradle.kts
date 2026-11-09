@@ -22,8 +22,8 @@ android {
         buildConfig = true
     }
     defaultConfig {
-        // carlito | The client follows DiPlay; the separately installed GD bridge still needs Android 9.
-        minSdk = 25
+        // carlito | Match DiPlay; APIs newer than Android 7 are guarded at their call sites.
+        minSdk = 24
         consumerProguardFiles("consumer-rules.pro")
         buildConfigField("String", "PASTEDB_API_KEY_CIPHERTEXT", quoted(pasteDbCiphertext))
         buildConfigField("String", "PASTEDB_API_KEY_DECRYPTION_KEY", quoted(pasteDbDecryptKey))

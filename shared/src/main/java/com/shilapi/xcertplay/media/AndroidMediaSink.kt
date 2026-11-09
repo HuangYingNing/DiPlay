@@ -131,7 +131,7 @@ internal class AudioFocusCoordinator(
         manager?.let { request?.abandon(it) }
         val gain = when (primary.channel) {
             AudioChannel.MEDIA -> AudioManager.AUDIOFOCUS_GAIN
-            AudioChannel.PHONE -> AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
+            AudioChannel.PHONE, AudioChannel.RINGTONE -> AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
             AudioChannel.ASSISTANT -> AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
             AudioChannel.NAVIGATION -> return
         }
@@ -161,7 +161,7 @@ internal class AudioFocusCoordinator(
 
     private fun AudioChannel.focusPriority(): Int = when (this) {
         AudioChannel.MEDIA -> 3
-        AudioChannel.PHONE -> 2
+        AudioChannel.PHONE, AudioChannel.RINGTONE -> 2
         AudioChannel.ASSISTANT -> 1
         AudioChannel.NAVIGATION -> 0
     }
@@ -2204,6 +2204,7 @@ private class AudioRenderer(
     private fun usageFor(channel: AudioChannel): Int = when (channel) {
         AudioChannel.MEDIA -> AudioAttributes.USAGE_MEDIA
         AudioChannel.PHONE -> AudioAttributes.USAGE_VOICE_COMMUNICATION
+        AudioChannel.RINGTONE -> AudioAttributes.USAGE_NOTIFICATION_RINGTONE
         // Android 7.x has no assistant usage and would record the track as an unknown usage.
         AudioChannel.ASSISTANT -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             AudioAttributes.USAGE_ASSISTANT
