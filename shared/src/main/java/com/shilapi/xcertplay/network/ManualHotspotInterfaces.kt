@@ -10,6 +10,9 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 import java.io.Closeable
 import java.io.File
+import java.net.Inet4Address
+import java.net.Inet6Address
+import java.net.InetAddress
 import java.net.NetworkInterface
 import java.util.Collections
 
@@ -117,3 +120,13 @@ internal fun legacyHotspotInterfaces(tethered: List<String>, wifiRegexes: List<S
 internal fun wirelessInterfaceName(name: String): Boolean =
     name.startsWith("wlan") || name.startsWith("swlan") || name.startsWith("ap") ||
         name.contains("softap", ignoreCase = true) || name.startsWith("wifi") || name.startsWith("p2p")
+
+internal fun publishesHotspotAddress(address: InetAddress): Boolean = when (address) {
+    is Inet4Address -> !address.isLoopbackAddress && !address.isAnyLocalAddress &&
+        !address.isLinkLocalAddress && !address.isMulticastAddress
+    is Inet6Address -> address.isLinkLocalAddress
+    else -> false
+}
+
+internal fun mobileDataInterfaceName(name: String): Boolean =
+    name.startsWith("rmnet") || name.startsWith("r_rmnet") || name.startsWith("ccmni")

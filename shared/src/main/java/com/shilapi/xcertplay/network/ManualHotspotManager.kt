@@ -387,8 +387,14 @@ class ManualHotspotManager(
         val hardwareAddress: String?,
     )
 
-    private companion object {
+    internal companion object {
         const val TAG = "xcertplay-usb"
+        private val FIVE_GHZ_SUFFIXES = listOf("_5G", "-5G")
+
+        fun isFiveGhzCompanion(apSsid: String, expectedSsid: String): Boolean =
+            apSsid.isNotEmpty() && FIVE_GHZ_SUFFIXES.any {
+                expectedSsid.equals(apSsid + it, ignoreCase = true)
+            }
 
     }
 }

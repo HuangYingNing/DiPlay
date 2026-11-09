@@ -3684,7 +3684,9 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 WheelZoomSettings.Role.MODE -> R.string.wheel_key_role_mode
                 WheelZoomSettings.Role.ZOOM_IN -> R.string.wheel_key_role_zoom_in
                 WheelZoomSettings.Role.ZOOM_OUT -> R.string.wheel_key_role_zoom_out
-                else -> null
+                WheelZoomSettings.Role.MEDIA_PLAY_PAUSE, WheelZoomSettings.Role.JOYSTICK,
+                WheelZoomSettings.Role.SELECT, WheelZoomSettings.Role.PREVIOUS,
+                WheelZoomSettings.Role.NEXT, WheelZoomSettings.Role.SIRI -> null
             }.takeIf { zoom }
             val joystickName = when (role) {
                 WheelZoomSettings.Role.MODE -> R.string.wheel_key_role_back
@@ -3692,6 +3694,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 WheelZoomSettings.Role.ZOOM_OUT, WheelZoomSettings.Role.NEXT -> R.string.wheel_key_role_next
                 WheelZoomSettings.Role.JOYSTICK -> R.string.wheel_key_role_joystick
                 WheelZoomSettings.Role.SELECT -> R.string.wheel_key_role_select
+                WheelZoomSettings.Role.MEDIA_PLAY_PAUSE -> R.string.wheel_key_role_media_play_pause
                 WheelZoomSettings.Role.SIRI -> null
             }.takeIf { joystick }
             val names = listOfNotNull(zoomName, joystickName)
@@ -3799,6 +3802,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         WheelZoomSettings.Role.PREVIOUS -> R.string.wheel_key_role_previous
         WheelZoomSettings.Role.NEXT -> R.string.wheel_key_role_next
         WheelZoomSettings.Role.SELECT -> R.string.wheel_key_role_select
+        WheelZoomSettings.Role.MEDIA_PLAY_PAUSE -> R.string.wheel_key_role_media_play_pause
         WheelZoomSettings.Role.SIRI -> R.string.wheel_key_role_siri
     }
 

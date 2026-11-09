@@ -39,6 +39,7 @@ internal class MicrophoneUplink(
     // carlito | Per-role input routing and counters survive focus-related capture restarts.
     private val preferredInput: AudioOutputDevice? = null,
     private val audioManager: AudioManager? = null,
+    private val noAudioRestartMillis: Long = NO_AUDIO_RESTART_MILLIS,
     private val counters: MicrophoneCounters = MicrophoneCounters(),
     private val opusEncoderFactory: (Int) -> MicrophoneOpusEncoder? = { bitrate ->
         MicrophoneOpusEncoders.create(
@@ -307,6 +308,9 @@ internal class MicrophoneUplink(
         val clock = canceller?.let { CaptureClock(config.sampleRate) }
         val reference = canceller?.let { ShortArray(it.frameSamples) }
         var filled = 0
+        var readRestarts = 0
+        var noAudioRestarts = 0
+        var lastAudioNs = System.nanoTime()
         try {
             while (running.get()) {
                 stats.reading()
@@ -318,12 +322,34 @@ internal class MicrophoneUplink(
                         Log.e(TAG, "microphone read failed code=$count")
                         stats.failure(MicrophoneFailureStage.READ, code = count)
                     }
+                    if (running.get() && count != AudioRecord.ERROR_DEAD_OBJECT &&
+                        readRestarts < MAX_READ_RESTARTS && restartRecording(recorder)
+                    ) {
+                        readRestarts++
+                        stats.restarted(readRestarts, "read-error", routeType(recorder))
+                        continue
+                    }
                     return
                 }
                 if (count == 0) {
                     stats.flush(routeType = routeInfo)
+                    val now = System.nanoTime()
+                    if (running.get() && noAudioRestarts < MAX_NO_AUDIO_RESTARTS &&
+                        now - lastAudioNs >= noAudioRestartMillis * 1_000_000L
+                    ) {
+                        noAudioRestarts++
+                        lastAudioNs = now
+                        if (restartRecording(recorder)) {
+                            stats.restarted(noAudioRestarts, "no-audio", routeType(recorder))
+                        } else {
+                            stats.failure(MicrophoneFailureStage.RECORDING, code = recorder.recordingState)
+                        }
+                    } else {
+                        Thread.sleep(EMPTY_READ_PAUSE_MILLIS)
+                    }
                     continue
                 }
+                lastAudioNs = System.nanoTime()
                 var offset = 0
                 while (offset < count && running.get()) {
                     val copied = minOf(frame.size - filled, count - offset)
@@ -348,6 +374,7 @@ internal class MicrophoneUplink(
                                 canceller = null
                             }
                         }
+                        stats.level(frame)
                         sendFrame(socket, counters, frame)
                         filled = 0
                     }
@@ -364,6 +391,15 @@ internal class MicrophoneUplink(
             running.set(false)
             release()
         }
+    }
+
+    private fun restartRecording(recorder: AudioRecord): Boolean = try {
+        runCatching { recorder.stop() }
+        Thread.sleep(READ_RESTART_PAUSE_MILLIS)
+        recorder.startRecording()
+        recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING
+    } catch (_: IllegalStateException) {
+        false
     }
 
     private fun sendFrame(socket: DatagramSocket, counters: MicrophoneCounters, frame: ByteArray) {
@@ -500,6 +536,11 @@ internal class MicrophoneUplink(
         const val CLOSE_JOIN_MILLIS = 500L
         const val ECHO_TAIL_MILLIS = 250
         const val ECHO_REFERENCE_LEAD_NS = 30_000_000L
+        const val MAX_READ_RESTARTS = 3
+        const val READ_RESTART_PAUSE_MILLIS = 50L
+        const val NO_AUDIO_RESTART_MILLIS = 1_000L
+        const val MAX_NO_AUDIO_RESTARTS = 3
+        const val EMPTY_READ_PAUSE_MILLIS = 5L
     }
 }
 

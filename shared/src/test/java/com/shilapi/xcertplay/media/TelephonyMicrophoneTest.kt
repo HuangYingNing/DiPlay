@@ -16,6 +16,8 @@ import com.shilapi.xcertplay.airplay.AudioStreamId
 import com.shilapi.xcertplay.airplay.AudioFormat as AirPlayAudioFormat
 import com.shilapi.xcertplay.airplay.AudioCodecKind
 import com.shilapi.xcertplay.airplay.MicrophoneConfig
+import com.shilapi.xcertplay.hud.BydOutputSettings
+import com.shilapi.xcertplay.telecom.PhoneAudioRoute
 import com.shilapi.xcertplay.vehicle.GeelyFactoryCarPlay
 import java.net.InetAddress
 import java.util.concurrent.CountDownLatch

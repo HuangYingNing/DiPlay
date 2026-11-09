@@ -60,6 +60,7 @@ class AndroidMediaSink(
     private val audioFocusAutoYield: Boolean = true,
     private val mediaChannel: Int = 0,
     private val navigationChannel: Int = 0,
+    navigationAttenuationDb: Int = 0,
     context: Context? = null,
     private val navigationStreamType: Int = AudioChannelMapper.DEFAULT_NAVIGATION_STREAM_TYPE,
     onScreenStreamActiveChanged: ((Int, Boolean) -> Unit)? = null,
@@ -78,6 +79,7 @@ class AndroidMediaSink(
     private val callEchoCancellation: Boolean = false,
     /** Cut the bass that head units add when they play a call as music. */
     private val callVoiceFilter: Boolean = false,
+    private val callSpeakerphone: () -> Boolean = { false },
     /**
      * Smooth video: show main-screen frames at the iPhone's frame time plus a delay that starts here and
      * then follows how late the decoder releases frames ([PacingDelay]); 0 shows each as soon as it is
@@ -91,7 +93,15 @@ class AndroidMediaSink(
      * and hand decoded frames to the screen from a thread of their own.
      */
     private val vendorLowLatencyDecoder: Boolean = false,
+    private val mtkDecoderTuningEnabled: Boolean = false,
+    navigationPromptAudioFocus: Boolean = false,
 ) : MediaSink {
+    @Volatile private var navigationAttenuationDb = NavigationAudioGain.clamp(navigationAttenuationDb)
+
+    fun setNavigationAttenuationDb(db: Int) {
+        navigationAttenuationDb = NavigationAudioGain.clamp(db)
+        audioRenderers.values.forEach { it.setNavigationAttenuationDb(navigationAttenuationDb) }
+    }
     // Each downlink publishes its own reference; a mic must match that stream and sample rate.
     private val callEchoReferences = ConcurrentHashMap<AudioStreamId, EchoReference>()
     private val appContext = context?.applicationContext
@@ -99,6 +109,13 @@ class AndroidMediaSink(
     private val vehicleAudioRouting = unifiedMediaOutput || bluetoothOutput || factoryAudio != null
     private val ambientSinkToken = AmbientMusicController.openSink(appContext)
     private val audioManager = appContext?.getSystemService(AudioManager::class.java)
+    private val navigationPromptFocus = NavigationPromptFocus(
+        appContext,
+        promptFocusEnabled = navigationPromptAudioFocus,
+        audioFocusEnabled = audioFocusEnabled,
+        attributes = { navigationRouteAttributes(navigationChannel) },
+        report = onAudioDiagnostic,
+    )
     @Volatile private var audioOwnershipListener: ((Boolean) -> Unit)? = onAudioOwnershipChanged
     @Volatile private var ownsAudio = false
     // carlito | Rebind the live controller when an Activity adopts a background session.
@@ -119,6 +136,10 @@ class AndroidMediaSink(
     /** The media-key session may own Android's current focus request for this same sink. */
     fun onMediaAudioFocusChanged(change: Int) {
         audioFocusCoordinator.onExternalFocusChange(change)
+    }
+
+    override fun onAudioDuck(ducked: Boolean) {
+        if (ducked) navigationPromptFocus.onDuck() else navigationPromptFocus.onUnduck()
     }
 
     private val screenStateLock = Any()
@@ -474,7 +495,8 @@ class AndroidMediaSink(
             try {
                 // carlito | Preserve upstream cabin capture while DiPlay has suspended the car radio.
                 val speakerphoneCall = config.audioType == TELEPHONY_AUDIO_TYPE &&
-                    appContext != null && BydBluetoothSuspend.isSuspendedByUs(appContext)
+                    (runCatching(callSpeakerphone).getOrDefault(false) ||
+                        appContext != null && BydBluetoothSuspend.isSuspendedByUs(appContext))
                 if (config.audioType == TELEPHONY_AUDIO_TYPE && !speakerphoneCall) enterCommunicationMode(id)
                 val active = microphoneUplinks.computeIfAbsent(id) {
                     val pending = PendingMicrophone(config)
@@ -654,6 +676,7 @@ class AndroidMediaSink(
         runCatching { audioManager?.unregisterAudioDeviceCallback(audioDeviceCallback) }
         if (scoRegistered) runCatching { appContext?.unregisterReceiver(scoReceiver) }
         audioFocusCoordinator.close()
+        navigationPromptFocus.close()
         audioOwnershipListener = null
         AmbientMusicController.closeSink(ambientSinkToken)
         synchronized(videoOwnershipLock) {
@@ -753,7 +776,9 @@ class AndroidMediaSink(
             },
             ambientSinkToken = ambientSinkToken,
             speakerphoneCall = format.audioType == "telephony" &&
-                appContext != null && BydBluetoothSuspend.isSuspendedByUs(appContext),
+                (runCatching(callSpeakerphone).getOrDefault(false) ||
+                    appContext != null && BydBluetoothSuspend.isSuspendedByUs(appContext)),
+            navigationAttenuationDb = navigationAttenuationDb,
         ).also { audioRenderers[id] = it }
     }
 
@@ -833,7 +858,12 @@ internal class ParkingOutput(width: Int, height: Int) {
 internal fun videoOperatingRate(type: Int, statsLabel: String?, frameRate: Int): Int =
     if (type == MAIN_SCREEN_TYPE && statsLabel == null && frameRate > 0) frameRate else 0
 
-internal data class DecoderAttempt(val codecName: String?, val tuned: Boolean, val operatingRate: Int = 0)
+internal data class DecoderAttempt(
+    val codecName: String?,
+    val tuned: Boolean,
+    val operatingRate: Int = 0,
+    val mtkMode: MtkDecoderMode = MtkDecoderMode.NONE,
+)
 
 /**
  * Configure attempts in order. Some vendor decoders (e.g. MediaTek c2.mtk.avc.decoder) reject the tuned
@@ -845,14 +875,18 @@ internal fun videoDecoderAttempts(
     operatingRate: Int,
     softwareDecoder: String?,
     lowLatencyDecoder: String? = null,
-): List<DecoderAttempt> = listOfNotNull(
-    lowLatencyDecoder?.let { DecoderAttempt(it, tuned = true, operatingRate = operatingRate).takeIf { operatingRate > 0 } },
-    lowLatencyDecoder?.let { DecoderAttempt(it, tuned = true) },
-    DecoderAttempt(codecName = null, tuned = true, operatingRate = operatingRate).takeIf { operatingRate > 0 },
-    DecoderAttempt(codecName = null, tuned = true),
-    DecoderAttempt(codecName = null, tuned = false),
-    softwareDecoder?.let { DecoderAttempt(it, tuned = false) },
-)
+    maximumMtkMode: MtkDecoderMode = MtkDecoderMode.NONE,
+): List<DecoderAttempt> = buildList {
+    if (operatingRate > 0) lowLatencyDecoder?.let { add(DecoderAttempt(it, tuned = true, operatingRate)) }
+    lowLatencyDecoder?.let { add(DecoderAttempt(it, tuned = true)) }
+    val modes = maximumMtkMode.attempts()
+    if (operatingRate > 0) modes.forEach { add(DecoderAttempt(null, tuned = true, operatingRate, it)) }
+    modes.forEach { add(DecoderAttempt(null, tuned = true, mtkMode = it)) }
+    if (operatingRate > 0) add(DecoderAttempt(codecName = null, tuned = true, operatingRate = operatingRate))
+    add(DecoderAttempt(codecName = null, tuned = true))
+    add(DecoderAttempt(codecName = null, tuned = false))
+    softwareDecoder?.let { add(DecoderAttempt(it, tuned = false)) }
+}
 
 /**
  * The operating rate to ask for at the next configure: none once a later attempt ([used]) worked after
@@ -1694,10 +1728,16 @@ private class AudioRenderer(
     private val onReleased: (AudioRenderer) -> Unit,
     private val ambientSinkToken: Long,
     private val speakerphoneCall: Boolean = false,
+    navigationAttenuationDb: Int = 0,
     /** Receives the played call audio so the call microphone can cancel its echo. */
     private val echoReference: EchoReference? = null,
     voiceFilter: Boolean = false,
 ) : Closeable {
+    @Volatile private var navigationAttenuationDb = NavigationAudioGain.clamp(navigationAttenuationDb)
+
+    fun setNavigationAttenuationDb(db: Int) {
+        navigationAttenuationDb = NavigationAudioGain.clamp(db)
+    }
     private data class AudioPacket(val rtp: ByteArray, val sample: Int)
 
     private val pcmChannels = if (format.channels >= 2) 2 else 1
@@ -2348,6 +2388,9 @@ private class AudioRenderer(
             )
         }
         voiceFilter?.process(data, offset, length)
+        if (mappedChannel == AudioChannel.NAVIGATION) {
+            NavigationAudioGain.scalePcm16(data, offset, length, navigationAttenuationDb)
+        }
         if (!fadeApplied) {
             applyFadeIn(data, offset, length)
             fadeApplied = true

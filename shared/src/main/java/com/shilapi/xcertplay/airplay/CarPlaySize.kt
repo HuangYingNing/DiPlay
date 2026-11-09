@@ -15,5 +15,9 @@ enum class CarPlaySize(val label: String, val widthMillimeters: Int) {
 
         /** The preset that sends exactly this width, or null for a length set in the CarPlay menu. */
         fun exact(millimeters: Int): CarPlaySize? = entries.firstOrNull { it.widthMillimeters == millimeters }
+
+        /** Maps a stored/custom physical width to the nearest named size for diagnostic display. */
+        fun fromWidthMillimeters(millimeters: Int): CarPlaySize =
+            exact(millimeters) ?: entries.minBy { kotlin.math.abs(it.widthMillimeters - millimeters) }
     }
 }

@@ -140,8 +140,13 @@ sealed class CarPlayStatus {
     data object AttachingNetwork : CarPlayStatus()
     data object RunningControl : CarPlayStatus()
     data object ControlEnded : CarPlayStatus()
-    data class Failed(val message: String, val wifiResetRequired: Boolean = false,
-        val startupFailure: WirelessStartupFailure? = null) : CarPlayStatus()
+    data class Failed(
+        val message: String,
+        val wifiResetRequired: Boolean = false,
+        val startupFailure: WirelessStartupFailure? = null,
+        val knownCause: ConnectionFailureCause? = null,
+    ) : CarPlayStatus()
+    data class IphoneNotListed(val nonHubDeviceListed: Boolean) : CarPlayStatus()
 }
 
 internal fun isWirelessHandoffInProgress(

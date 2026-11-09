@@ -414,6 +414,15 @@ internal object CarPlayMediaKeys {
 
     fun steeringDirectReady(): Boolean = synchronized(this) { bridgeInput?.ready() == true }
 
+    /** Media key delivered by the vehicle bridge outside Android's normal key event stream. */
+    internal fun onExternalMediaKey(index: Int) = send(index, "geely-wheel")
+
+    /** Siri key delivered by the vehicle bridge outside Android's normal key event stream. */
+    internal fun onExternalSiriKey(): Boolean {
+        val active = synchronized(this) { controller } ?: return false
+        return runCatching { active.requestSiri() }.getOrDefault(false)
+    }
+
     private fun onObservedKey(key: SteeringObservedKey) {
         val learner = synchronized(this) {
             if (observedKeys.size >= 40) observedKeys.removeFirst()
