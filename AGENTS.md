@@ -7,10 +7,13 @@ Instructions for coding agents that work on DiPlay.
 When a user prompt explicitly asks the agent to "请记住" a rule, record that rule in
 this project-level `AGENTS.md` so that future AI agents follow it.
 
-PasteDB credentials must never be embedded in the APK, tracked source, documentation,
-tests, Gradle properties, or commits. Keep the HTTPS key endpoint only in the Git-ignored
-`.private/PASTEDB_KEY_ENDPOINT.txt` file or the matching GitHub Actions secret; Gradle
-injects it at build time, and the client retrieves the key only when uploading a log.
+PasteDB is used for public diagnostic logs. The user accepts that the API key can be
+recovered from the APK. Include only the AES-GCM encrypted key and its decryption key
+in the APK through build-time injection. Keep both source values in Git-ignored
+`.private/PASTEDB_API_KEY_CIPHERTEXT.txt` and
+`.private/PASTEDB_API_KEY_DECRYPTION_KEY.txt`, or matching GitHub Actions Secrets.
+Never commit either material or plaintext API keys. The client decrypts locally when
+uploading a log; do not fetch the key from the HTTPS endpoint.
 
 After each feature is complete, commit its tracked source changes and push the commit
 to the configured Git remote. Write commit messages in Chinese, separate modification
@@ -33,6 +36,22 @@ Run the CI command from `.github/workflows/android.yml` before you report a chan
 ```
 
 Set `ANDROID_HOME` or `local.properties` if Gradle cannot find the SDK.
+
+### JDK 25, Robolectric and ChaCha20
+
+Robolectric 4.17 enables its Conscrypt provider by default. On JDK 25, initializing
+`javax.crypto.Cipher` after Robolectric installs Conscrypt can fail while JDK 25
+verifies its signed framework jars (`JarVerifier` / `DIGEST_AND_KEY_TYPE_NOT_SUPPORTED`).
+This is a host test environment conflict, not evidence that Android's device-side
+Conscrypt implementation is broken. A failed `Cipher.getInstance(...)` is currently
+handled as an unavailable platform cipher, so related tests may then fail with null
+platform state or misleading BouncyCastle fallback assertions.
+
+For Robolectric tests that verify Android-version buffer behavior while using the host
+JDK cipher, annotate the test with `@ConscryptMode(ConscryptMode.Mode.OFF)`. Keep
+platform-vs-BouncyCastle cryptographic interoperability checks and authentication-tag
+failure checks; do not weaken or skip them to make CI pass. Re-run the full CI command
+above after changing the test provider setup.
 
 ## Adding or moving a setting
 
