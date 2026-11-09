@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_ambient_palette">Цвета автомобиля (множественный выбор)</string>
+    <string name="settings_ambient_palette_summary">Цвета · выбрано: %1$d</string>
+    <string name="settings_ambient_select_all">Выбрать все</string>
+</resources>

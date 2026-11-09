@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_ambient_palette">ألوان السيارة (اختيار متعدد)</string>
+    <string name="settings_ambient_palette_summary">الألوان · تم تحديد %1$d</string>
+    <string name="settings_ambient_select_all">تحديد الكل</string>
+</resources>

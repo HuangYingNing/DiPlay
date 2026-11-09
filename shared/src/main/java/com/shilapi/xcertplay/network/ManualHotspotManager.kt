@@ -389,7 +389,7 @@ class ManualHotspotManager(
         val hardwareAddress: String?,
     )
 
-    private companion object {
+    companion object {
         const val TAG = "xcertplay-usb"
         internal fun isFiveGhzCompanion(apSsid: String?, expectedSsid: String): Boolean {
             val base = apSsid?.trim()?.trim('"')?.takeIf(String::isNotEmpty) ?: return false

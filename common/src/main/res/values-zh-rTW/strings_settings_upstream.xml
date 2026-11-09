@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_ambient_palette">原車顏色編號（多選）</string>
+    <string name="settings_ambient_palette_summary">顏色 · 已選%1$d種</string>
+    <string name="settings_ambient_select_all">全選</string>
+</resources>

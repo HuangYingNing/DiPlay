@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_ambient_palette">차량 색상(다중 선택)</string>
+    <string name="settings_ambient_palette_summary">색상 · %1$d개 선택됨</string>
+    <string name="settings_ambient_select_all">모두 선택</string>
+</resources>

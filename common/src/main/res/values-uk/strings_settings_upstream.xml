@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_ambient_palette">Кольори автомобіля (множинний вибір)</string>
+    <string name="settings_ambient_palette_summary">Кольори · вибрано %1$d</string>
+    <string name="settings_ambient_select_all">Вибрати все</string>
+</resources>

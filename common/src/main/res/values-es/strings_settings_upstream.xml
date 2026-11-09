@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_ambient_palette">Colores del vehículo (selección múltiple)</string>
+    <string name="settings_ambient_palette_summary">Colores · %1$d seleccionados</string>
+    <string name="settings_ambient_select_all">Seleccionar todo</string>
+</resources>

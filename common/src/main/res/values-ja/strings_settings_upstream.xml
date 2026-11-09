@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_ambient_palette">車両の色（複数選択）</string>
+    <string name="settings_ambient_palette_summary">色 · %1$d 個選択</string>
+    <string name="settings_ambient_select_all">すべて選択</string>
+</resources>

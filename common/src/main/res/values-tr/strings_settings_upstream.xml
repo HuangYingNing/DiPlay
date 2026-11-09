@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_ambient_palette">Araç renkleri (çoklu seçim)</string>
+    <string name="settings_ambient_palette_summary">Renkler · %1$d seçildi</string>
+    <string name="settings_ambient_select_all">Tümünü seç</string>
+</resources>

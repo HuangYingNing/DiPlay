@@ -132,7 +132,7 @@ import kotlin.math.roundToInt
  *
  * Apple devices are discovered by vendor ID; CH341 uses the configured VID/PID below.
  */
-class CarPlayHostActivity : ComponentActivity() {
+open class CarPlayHostActivity : ComponentActivity() {
     private val geelyFactory by lazy { GeelyFactoryCarPlay.load(applicationContext) }
     private fun supportsOpusOutput(): Boolean {
         if (!wirelessEnabled) {
@@ -5948,6 +5948,7 @@ class CarPlayHostActivity : ComponentActivity() {
             R.string.existing_wifi_attaching else R.string.starting_wireless_hotspot)
         is CarPlayStatus.HotspotReady -> getString(R.string.status_wireless_ready, ssid)
         CarPlayStatus.WaitingForPairedIphone -> getString(R.string.waiting_for_paired_iphone)
+        is CarPlayStatus.IphoneNotListed -> getString(R.string.use_a_usb_data_cable_and_unlock_your_iphone_allow_trust_an)
         CarPlayStatus.ConnectingBluetooth -> getString(R.string.connecting_bluetooth)
         CarPlayStatus.RunningWireless -> getString(R.string.wireless_carplay_control_running)
         CarPlayStatus.WirelessActive, CarPlayStatus.WirelessActiveFallback -> getString(R.string.wireless_carplay_active)
