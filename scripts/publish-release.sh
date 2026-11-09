@@ -175,7 +175,8 @@ if [[ "$skip_build" != true ]]; then
   read_secret_file ANDROID_KEYSTORE_PASSWORD .private/ANDROID_KEYSTORE_PASSWORD.txt
   read_secret_file ANDROID_KEY_ALIAS .private/ANDROID_KEY_ALIAS.txt
   read_secret_file ANDROID_KEY_PASSWORD .private/ANDROID_KEY_PASSWORD.txt
-  read_secret_file PASTEDB_KEY_ENDPOINT .private/PASTEDB_KEY_ENDPOINT.txt
+  read_secret_file PASTEDB_API_KEY_CIPHERTEXT .private/PASTEDB_API_KEY_CIPHERTEXT.txt
+  read_secret_file PASTEDB_API_KEY_DECRYPTION_KEY .private/PASTEDB_API_KEY_DECRYPTION_KEY.txt
   if [[ -z "${ANDROID_KEYSTORE_PATH:-}" && -s .private/ANDROID_KEYSTORE_BASE64.txt ]]; then
     ANDROID_KEYSTORE_PATH="$temporary_directory/diplay-release.jks"
     decode_base64_file .private/ANDROID_KEYSTORE_BASE64.txt "$ANDROID_KEYSTORE_PATH"
@@ -189,7 +190,7 @@ if [[ "$skip_build" != true ]]; then
   [[ -n "${ANDROID_KEY_PASSWORD:-}" ]] || fail "缺少 Android 签名私钥密码"
   [[ -s "$DIPLAY_AUTH_ASSETS_DIR/offline-mfi/identity.pk8" ]] || fail "缺少 CarPlay identity.pk8"
   [[ -s "$DIPLAY_AUTH_ASSETS_DIR/offline-mfi/certificate.p7b" ]] || fail "缺少 CarPlay certificate.p7b"
-  [[ "$PASTEDB_KEY_ENDPOINT" == https://* ]] || fail "缺少 HTTPS PasteDB 取钥地址"
+  [[ -n "$PASTEDB_API_KEY_CIPHERTEXT" && -n "$PASTEDB_API_KEY_DECRYPTION_KEY" ]] || fail "缺少 PasteDB 加密密文或解密密钥"
   gradle_user_home="${GRADLE_USER_HOME:-$project_root/.gradle}"
   GRADLE_USER_HOME="$gradle_user_home" ./gradlew \
     :mobile:assembleRelease \

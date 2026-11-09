@@ -2,13 +2,17 @@ package com.shilapi.xcertplay
 
 import com.shilapi.xcertplay.vehicleprobe.BuildConfig
 import java.io.ByteArrayOutputStream
-import java.net.InetAddress
 import java.net.HttpURLConnection
 import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import java.util.Base64
+import org.bouncycastle.crypto.engines.AESEngine
+import org.bouncycastle.crypto.modes.GCMBlockCipher
+import org.bouncycastle.crypto.params.AEADParameters
+import org.bouncycastle.crypto.params.KeyParameter
 
 /** Uploads the complete redacted diagnostic report to the project's fixed PasteDB paste. */
 object PasteDbDiagnosticUpload {
@@ -16,7 +20,6 @@ object PasteDbDiagnosticUpload {
     private const val API_URL = "https://pastedb-rw62.onrender.com/api/paste/$PASTE_ID"
     const val MAX_DESCRIPTION_LENGTH = 2_000
     private const val MAX_REPORT_BYTES = 1024 * 1024
-    private const val MAX_API_KEY_BYTES = 256
     private const val MAX_RESPONSE_BYTES = 32 * 1024
     private val API_KEY_FORMAT = Regex("pdb_[0-9a-fA-F]{64}")
 
@@ -26,7 +29,6 @@ object PasteDbDiagnosticUpload {
         fileName: String,
         issueDescription: String,
         report: String,
-        apiKeyEndpoint: String = BuildConfig.PASTEDB_KEY_ENDPOINT,
         endpoint: String = API_URL,
         submittedAt: Long = System.currentTimeMillis(),
     ): String {
@@ -38,7 +40,7 @@ object PasteDbDiagnosticUpload {
         val reportBytes = report.toByteArray(Charsets.UTF_8)
         if (reportBytes.size > MAX_REPORT_BYTES) throw DiagnosticReportTooLargeException()
         require(reportBytes.isNotEmpty())
-        val apiKey = fetchApiKey(apiKeyEndpoint)
+        val apiKey = decryptBundledApiKey()
 
         val content = buildString {
             appendLine("DiPlay version: $appVersion")
@@ -81,30 +83,22 @@ object PasteDbDiagnosticUpload {
         }
     }
 
-    private fun fetchApiKey(endpoint: String): String {
-        require(endpoint.isNotBlank()) { "PasteDB API key endpoint is not configured" }
-        val url = URL(endpoint)
-        require(url.protocol.equals("https", ignoreCase = true) || InetAddress.getByName(url.host).isLoopbackAddress) {
-            "PasteDB API key endpoint must use HTTPS"
-        }
-        val connection = url.openConnection() as HttpURLConnection
-        try {
-            connection.requestMethod = "GET"
-            connection.instanceFollowRedirects = false
-            connection.connectTimeout = 10_000
-            connection.readTimeout = 10_000
-            connection.setRequestProperty("Accept", "text/plain")
-            val status = connection.responseCode
-            check(status in 200..299) { "PasteDB API key HTTP $status" }
-            val apiKey = connection.inputStream.use { readBounded(it, MAX_API_KEY_BYTES) }
-                .toString(Charsets.UTF_8)
-                .trim()
-            check(API_KEY_FORMAT.matches(apiKey)) { "PasteDB API key response is invalid" }
-            return apiKey
-        } finally {
-            connection.disconnect()
-        }
+    private fun decryptBundledApiKey(): String {
+        val payload = Base64.getDecoder().decode(BuildConfig.PASTEDB_API_KEY_CIPHERTEXT)
+        val nonce = payload.copyOfRange(0, 12)
+        val ciphertext = payload.copyOfRange(12, payload.size)
+        val key = Base64.getDecoder().decode(BuildConfig.PASTEDB_API_KEY_DECRYPTION_KEY)
+        val cipher = GCMBlockCipher(AESEngine.newInstance())
+        cipher.init(false, AEADParameters(KeyParameter(key), 128, nonce))
+        val plaintext = ByteArray(cipher.getOutputSize(ciphertext.size))
+        val processed = cipher.processBytes(ciphertext, 0, ciphertext.size, plaintext, 0)
+        val written = processed + cipher.doFinal(plaintext, processed)
+        val apiKey = plaintext.copyOf(written).toString(Charsets.UTF_8)
+        check(API_KEY_FORMAT.matches(apiKey)) { "Bundled PasteDB API key is invalid" }
+        return apiKey
     }
+
+    // HTTPS key retrieval was removed; the public PasteDB key is decrypted from build-injected data.
 
     private fun readBounded(input: java.io.InputStream, maximumBytes: Int): ByteArray {
         val output = ByteArrayOutputStream()

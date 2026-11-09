@@ -10,16 +10,17 @@ The GitHub Actions workflow can build and sign a release APK when all required r
 | `ANDROID_KEY_PASSWORD` | `.private/ANDROID_KEY_PASSWORD.txt` |
 | `DIPLAY_AUTH_IDENTITY_BASE64` | Base64 of `.private/runtime-assets/offline-mfi/identity.pk8` |
 | `DIPLAY_AUTH_CERTIFICATE_BASE64` | Base64 of `.private/runtime-assets/offline-mfi/certificate.p7b` |
-| `PASTEDB_KEY_ENDPOINT` | HTTPS URL from `.private/PASTEDB_KEY_ENDPOINT.txt` |
+| `PASTEDB_API_KEY_CIPHERTEXT` | `.private/PASTEDB_API_KEY_CIPHERTEXT.txt` |
+| `PASTEDB_API_KEY_DECRYPTION_KEY` | `.private/PASTEDB_API_KEY_DECRYPTION_KEY.txt` |
 
 In GitHub, open **Settings → Secrets and variables → Actions**, then add each file's value under its matching secret name. The `.private` folder and keystore are ignored by Git; never commit or publish them.
 
-The APK does not embed the PasteDB API key. The key endpoint is a private build input,
-injected from `PASTEDB_KEY_ENDPOINT` and used only when the driver uploads a diagnostic report.
+The APK contains the encrypted PasteDB API key and its build-injected AES decryption key.
+Both source values are kept in GitHub Actions Secrets or ignored `.private` files. The
+APK can be reverse engineered to recover the key; this is accepted for the public log paste.
 
 For a local release, provide the same values through environment variables or the local
-files in the table. `DIPLAY_AUTH_ASSETS_DIR` defaults to `.private/runtime-assets`, and
-the PasteDB endpoint defaults to `.private/PASTEDB_KEY_ENDPOINT.txt`.
+files in the table. `DIPLAY_AUTH_ASSETS_DIR` defaults to `.private/runtime-assets`.
 
 Use the release script from a clean, committed and pushed `main` branch. Publishing is
 the default behavior:

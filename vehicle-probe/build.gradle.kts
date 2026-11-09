@@ -1,19 +1,16 @@
 // carlito | DiPlay property client; vehicle implementation is in a separate GD bridge APK.
 plugins { id("com.android.library") }
 
-val localPasteDbKeyEndpoint = rootProject.file(".private/PASTEDB_KEY_ENDPOINT.txt")
-    .takeIf { it.isFile }
-    ?.readText()
-    ?.trim()
-    .orEmpty()
-val pasteDbKeyEndpoint = providers.gradleProperty("PASTEDB_KEY_ENDPOINT")
-    .orElse(providers.environmentVariable("PASTEDB_KEY_ENDPOINT"))
-    .orElse(localPasteDbKeyEndpoint)
-val escapedPasteDbKeyEndpoint = pasteDbKeyEndpoint.get()
-    .replace("\\", "\\\\")
-    .replace("\"", "\\\"")
+fun privateBuildValue(name: String): String = providers.environmentVariable(name).orNull
+    ?: rootProject.file(".private/$name.txt").takeIf { it.isFile }?.readText()?.trim().orEmpty()
+fun quoted(value: String) = "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+val pasteDbCiphertext = privateBuildValue("PASTEDB_API_KEY_CIPHERTEXT")
+val pasteDbDecryptKey = privateBuildValue("PASTEDB_API_KEY_DECRYPTION_KEY")
 
-dependencies { implementation(libs.androidx.core.ktx) }
+dependencies {
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.bouncycastle)
+}
 
 android {
     namespace = "com.shilapi.xcertplay.vehicleprobe"
@@ -28,7 +25,8 @@ android {
         // carlito | The client follows DiPlay; the separately installed GD bridge still needs Android 9.
         minSdk = 25
         consumerProguardFiles("consumer-rules.pro")
-        buildConfigField("String", "PASTEDB_KEY_ENDPOINT", "\"$escapedPasteDbKeyEndpoint\"")
+        buildConfigField("String", "PASTEDB_API_KEY_CIPHERTEXT", quoted(pasteDbCiphertext))
+        buildConfigField("String", "PASTEDB_API_KEY_DECRYPTION_KEY", quoted(pasteDbDecryptKey))
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

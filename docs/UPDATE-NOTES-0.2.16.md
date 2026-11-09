@@ -9,7 +9,7 @@
 - 更新检查在 GitHub API 限流时自动切换到公开 Releases 订阅源，避免匿名请求返回 403 后无法发现新版本。
 - “关于”页面增加 HuangYingNing 修改版源码入口，并提供 GitHub Sponsors 项目支持入口。
 - 高级车辆功能在“检查 ADB 访问”下增加“允许ABD”实验按钮；按安全的标准 Android、localhost 授权和系统设置顺序尝试 Flyme Auto ADB，并记录完整诊断步骤。
-- 增加 PasteDB 日志上传；上传时通过 HTTPS 动态获取认证信息，APK 不再内嵌 PasteDB API Key。
+- 增加 PasteDB 日志上传；API Key 以 AES-GCM 密文随 APK 打包，构建解密材料仅保存在本地忽略文件或 GitHub Actions Secrets。
 - 发布版本采用 `v0.2.16-bYYMMDD-nnn` 格式；源码提交号不再显示在版本号中，仅随诊断日志上传。
 
 支持 Android 7.1 及以上；车辆功能需另装 Android 9 及以上版本的车桥。
