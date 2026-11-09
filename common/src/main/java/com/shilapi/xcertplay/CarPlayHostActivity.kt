@@ -149,6 +149,8 @@ open class CarPlayHostActivity : ComponentActivity() {
     )
 
     private var connectionPanel: View? = null
+    private var connectionInstructionsView: TextView? = null
+    private var connectionHelpView: TextView? = null
     private var wifiRecoveryButton: View? = null
     private var reconnectAttempts = 0
     private val siriKey = WheelSiriKey()
@@ -1657,6 +1659,11 @@ open class CarPlayHostActivity : ComponentActivity() {
             gravity = Gravity.CENTER
         }
         panel.addView(instructions)
+        val help = TextView(this).apply {
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+        }
+        panel.addView(help)
         val recovery = Button(this).apply {
             text = getString(R.string.reset_carplay_wi_fi)
             isAllCaps = false
@@ -1698,6 +1705,7 @@ open class CarPlayHostActivity : ComponentActivity() {
             title.setTextColor(colors.text)
             stage.setTextColor(colors.text)
             instructions.setTextColor(colors.secondary)
+            help.setTextColor(colors.secondary)
             gestureHint.setTextColor(colors.secondary)
             val buttonPalette = DiPlayPalette.of(darkMode)
             back.setTextColor(buttonPalette.onAccent)
@@ -1786,6 +1794,8 @@ open class CarPlayHostActivity : ComponentActivity() {
         gestureOverlay = gestureLayer
         settingsGestureHint = gestureHint
         stageStatusView = stage
+        connectionInstructionsView = instructions
+        connectionHelpView = help
         connectionPanel = viewport
         updateDebugOverlays()
         return root
@@ -4740,6 +4750,8 @@ open class CarPlayHostActivity : ComponentActivity() {
                     }
                     activeAirPlaySession = session
                     CarPlayBackgroundSession.active = true
+                    LastConnectionProblem.clear(this@CarPlayHostActivity)
+                    showConnectionHelp(null)
                     // carlito | RECORD can recover an ended AirPlay session, but it cannot
                     // restart a failed iAP2 control loop. Preserve mandatory transport recovery.
                     if (reconnectRecoverableBySession) cancelReconnect()
@@ -4837,13 +4849,43 @@ open class CarPlayHostActivity : ComponentActivity() {
         controllerGeneration: Int,
     ): (CarPlayStatus) -> Unit = report@{ status ->
         if (controllerGeneration != restartGeneration) return@report
+        if (!(startupRetryStopped && status is CarPlayStatus.Failed &&
+                status.knownCause == null && status.startupFailure == null)) {
+            LastConnectionProblem.follow(this, status)
+        }
+        if (status is CarPlayStatus.RunningControl || status is CarPlayStatus.RunningWireless) {
+            LastConnectionProblem.clear(this)
+            showConnectionHelp(null)
+        } else if (status is CarPlayStatus.Failed) {
+            showConnectionHelp(status)
+        }
         if (menuOpen) {
             if (status is CarPlayStatus.Failed) failurePendingAfterMenu = status
             return@report
         }
         updateHotspotStatus(status)
         val description = status.describe()
-        setConnectionStage(description)
+        val stage = when (status) {
+            is CarPlayStatus.Failed -> when {
+                status.knownCause != null -> getString(ConnectionFailureGuidance.stage(status.knownCause))
+                status.startupFailure == WirelessStartupFailure.HOTSPOT_NOT_READY ||
+                    status.startupFailure == WirelessStartupFailure.HOTSPOT_CONFIGURATION ->
+                    getString(R.string.hotspot_network_not_ready)
+                status.startupFailure == WirelessStartupFailure.FIRST_TCP_TIMEOUT ->
+                    getString(R.string.first_tcp_timeout)
+                status.startupFailure == WirelessStartupFailure.WIFI_DIRECT_BESIDE_HOTSPOT ->
+                    getString(R.string.wifi_direct_refused_beside_hotspot)
+                status.startupFailure == WirelessStartupFailure.BLUETOOTH_UNUSABLE ->
+                    getString(R.string.connection_help_bluetooth_unusable)
+                else -> friendlyStage(description)
+            }
+            is CarPlayStatus.IphoneNotListed -> getString(
+                if (status.nonHubDeviceListed) R.string.car_sees_usb_device_not_iphone
+                else R.string.car_sees_no_usb_device,
+            )
+            else -> friendlyStage(description)
+        }
+        if (!startupRetryStopped || status !is CarPlayStatus.Failed) setConnectionStage(stage)
         when (status) {
             is CarPlayStatus.Failed -> if (status.wifiResetRequired) {
                 wifiRecoveryButton?.visibility = View.VISIBLE
@@ -5858,6 +5900,16 @@ open class CarPlayHostActivity : ComponentActivity() {
         latestStage = message
         stageStatusView?.text = friendlyStage(message)
         updateDebugOverlays()
+    }
+
+    private fun showConnectionHelp(failure: CarPlayStatus.Failed?) {
+        connectionInstructionsView?.visibility = if (failure == null) View.VISIBLE else View.GONE
+        connectionHelpView?.apply {
+            visibility = if (failure == null) View.GONE else View.VISIBLE
+            if (failure != null) {
+                text = getString(ConnectionFailureGuidance.message(failure, wirelessEnabled, wirelessHotspotMode))
+            }
+        }
     }
 
     private fun updateDebugOverlays() {
