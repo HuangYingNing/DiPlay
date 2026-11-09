@@ -5971,6 +5971,8 @@ open class CarPlayHostActivity : ComponentActivity() {
         updateDebugOverlays()
     }
 
+    private fun setConnectionStage(messageResId: Int) = setConnectionStage(getString(messageResId))
+
     private fun showConnectionHelp(failure: CarPlayStatus.Failed?) {
         connectionInstructionsView?.visibility = if (failure == null) View.VISIBLE else View.GONE
         connectionHelpView?.apply {
@@ -6008,6 +6010,9 @@ open class CarPlayHostActivity : ComponentActivity() {
             R.string.connection_interrupted_retrying,
             R.string.iphone_usb_mode_rejected,
             R.string.connect_your_iphone_with_a_usb_cable,
+            R.string.allow_precise_location_for_diplay_in_the_head_unit_s_app_p,
+            R.string.allow_nearby_devices_for_diplay_in_the_head_unit_s_app_per,
+            R.string.could_not_start_carplay_return_to_diplay_and_check_app_per,
             R.string.turn_on_bluetooth_in_the_head_unit_s_settings_to_connect,
         ).any { message == getString(it) } -> message
         message == getString(R.string.vpn_authorization_unavailable) -> message
