@@ -3,7 +3,6 @@ package com.shilapi.xcertplay.media
 import android.media.AudioFormat as AndroidAudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
-import android.media.AudioManager
 import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
 import android.media.audiofx.AudioEffect
@@ -13,12 +12,10 @@ import com.shilapi.xcertplay.airplay.AudioCodecKind
 import com.shilapi.xcertplay.airplay.MicrophoneConfig
 import com.shilapi.xcertplay.airplay.MicrophoneCounters
 import com.shilapi.xcertplay.airplay.MicrophonePacketizer
-import com.shilapi.xcertplay.telecom.PhoneAudioRoute
 import java.io.Closeable
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
-import java.net.Inet6Address
 import java.net.InetSocketAddress
 import java.util.concurrent.atomic.AtomicBoolean
 import com.shilapi.xcertplay.telecom.PhoneAudioRoute
@@ -38,12 +35,6 @@ internal class MicrophoneUplink(
     private val echoCancellerFactory: (Int, Int, Int) -> CallEchoCanceller? = { frame, rate, tail ->
         SpeexEchoCanceller.create(frame, rate, tail)
     },
-    private val factorySource: Int? = null,
-    // carlito | Per-role input routing and counters survive focus-related capture restarts.
-    private val preferredInput: AudioOutputDevice? = null,
-    private val audioManager: AudioManager? = null,
-    private val noAudioRestartMillis: Long = NO_AUDIO_RESTART_MILLIS,
-    private val counters: MicrophoneCounters = MicrophoneCounters(),
     private val opusEncoderFactory: (Int) -> MicrophoneOpusEncoder? = { bitrate ->
         MicrophoneOpusEncoders.create(
             bitrate = bitrate,
@@ -131,7 +122,6 @@ internal class MicrophoneUplink(
             } else {
                 null
             }
-        }
         if (nextRecorder == null) {
             nextEncoder?.close()
             running.set(false)
@@ -141,14 +131,11 @@ internal class MicrophoneUplink(
         val nextSocket = try {
             DatagramSocket(null).apply {
                 reuseAddress = true
-                // carlito | Match the negotiated peer: IPv4 capture must not require an IPv6 socket.
-                val wildcard = if (config.host is Inet6Address) "::" else "0.0.0.0"
-                bind(InetSocketAddress(InetAddress.getByName(wildcard), 0))
+                bind(InetSocketAddress(InetAddress.getByName("::"), 0))
             }
         } catch (error: Exception) {
             Log.e(TAG, "microphone socket creation failed", error)
             stats.failure(MicrophoneFailureStage.SOCKET_CREATION, error)
-            releaseCaptureEffects()
             nextRecorder.release()
             nextEncoder?.close()
             running.set(false)
@@ -159,6 +146,14 @@ internal class MicrophoneUplink(
         socket = nextSocket
         opusEncoder = nextEncoder
         return try {
+            if (config.audioType == "telephony") {
+                echoCanceller = createEchoCanceller()
+                if (!speakerphoneCall) effects = voiceEffects(nextRecorder.audioSessionId)
+                if (echoReference != null) {
+                    Log.i(TAG, "microphone echo canceller enabled=${echoCanceller != null} tail=${ECHO_TAIL_MILLIS}ms")
+                }
+            }
+            nextRecorder.startRecording()
             stats.started(routeType(nextRecorder))
             thread = Thread({ capture(nextRecorder, nextSocket) }, "carplay-mic").apply {
                 isDaemon = true
@@ -170,47 +165,6 @@ internal class MicrophoneUplink(
             stats.failure(MicrophoneFailureStage.RECORDING, error)
             release()
             false
-        }
-    }
-
-    // carlito | A source is usable only after recording starts; vendor HALs can initialize
-    // a recorder that then throws or silently remains stopped. Release it before trying Siri's
-    // fallback or the ordinary Android source after a factory source.
-    private fun createStartedRecorder(source: Int, channelMask: Int, bufferSize: Int): AudioRecord? {
-        val candidate = createRecorder(source, channelMask, bufferSize) ?: return null
-        return try {
-            if (config.audioType == "telephony") {
-                echoCanceller = createEchoCanceller()
-                // carlito | Cabin capture keeps the upstream MIC path without communication effects.
-                if (!speakerphoneCall) effects = voiceEffects(candidate.audioSessionId)
-                if (echoReference != null) {
-                    Log.i(TAG, "microphone echo canceller enabled=${echoCanceller != null} tail=${ECHO_TAIL_MILLIS}ms")
-                }
-            }
-            applyInputDevice(candidate)
-            candidate.startRecording()
-            check(candidate.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
-                "Microphone source $source did not enter the recording state"
-            }
-            candidate
-        } catch (error: Exception) {
-            Log.e(TAG, "microphone recording failed source=$source", error)
-            stats.failure(MicrophoneFailureStage.RECORDING, error,
-                code = runCatching { candidate.recordingState }.getOrNull())
-            releaseCaptureEffects()
-            runCatching { candidate.release() }
-            null
-        }
-    }
-
-    private fun releaseCaptureEffects() {
-        val currentEffects = effects
-        effects = emptyList()
-        currentEffects.forEach(::releaseEffect)
-        val currentCanceller = echoCanceller
-        echoCanceller = null
-        runCatching { currentCanceller?.close() }.onFailure {
-            Log.w(TAG, "microphone echo canceller release failed", it)
         }
     }
 
@@ -327,6 +281,7 @@ internal class MicrophoneUplink(
         runCatching { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_AUDIO) }
         val frame = ByteArray(config.frameBytes)
         val readBuffer = ByteArray(maxOf(frame.size, MIN_READ_BYTES))
+        val counters = MicrophoneCounters()
         val routeInfo = { routeType(recorder) }
         val ownSession = recorder.audioSessionId
         val silence = audioManager?.let { manager -> { silenceDetail(manager, ownSession) } }
@@ -457,13 +412,13 @@ internal class MicrophoneUplink(
         body: ByteArray,
         samples: Int,
     ) {
-        val packet = synchronized(counters) { MicrophonePacketizer.sealPacket(
+        val packet = MicrophonePacketizer.sealPacket(
             key = config.key,
             payloadType = config.payloadType,
             counters = counters,
             body = body,
             samples = samples,
-        ) }
+        )
         try {
             socket.send(DatagramPacket(packet, packet.size, config.host, config.port))
             stats.sent()
@@ -544,7 +499,11 @@ internal class MicrophoneUplink(
     @Synchronized
     private fun release() {
         running.set(false)
-        releaseCaptureEffects()
+        val currentEffects = effects
+        effects = emptyList()
+        currentEffects.forEach(::releaseEffect)
+        echoCanceller?.close()
+        echoCanceller = null
         val currentRecorder = recorder
         recorder = null
         try {
