@@ -4924,6 +4924,14 @@ open class CarPlayHostActivity : ComponentActivity() {
                 else R.string.car_sees_no_usb_device,
             )
             CarPlayStatus.WaitingForIphone -> getString(R.string.connect_your_iphone_with_a_usb_cable)
+            CarPlayStatus.RequestingIphonePermission -> getString(R.string.allow_the_connection_permission_to_continue)
+            CarPlayStatus.WaitingForPairedIphone -> getString(R.string.looking_for_your_paired_iphone)
+            CarPlayStatus.ConnectingBluetooth -> getString(R.string.connecting_to_your_iphone)
+            is CarPlayStatus.RunningControl -> getString(R.string.opening_carplay)
+            CarPlayStatus.ControlEnded -> getString(R.string.reconnecting_to_your_iphone)
+            CarPlayStatus.WaitingForMfi -> getString(R.string.waiting_for_mfi_coprocessor)
+            CarPlayStatus.WaitingForReenumeration,
+            CarPlayStatus.OpeningDataPaths -> getString(R.string.getting_carplay_ready)
             else -> friendlyStage(description)
         }
         val stoppedStage = if (startupRetryStopped && status is CarPlayStatus.Failed &&
@@ -4934,7 +4942,7 @@ open class CarPlayHostActivity : ComponentActivity() {
             stage
         }
         if (!startupRetryStopped || status !is CarPlayStatus.Failed || status.startupFailure != null ||
-            status.knownCause != null) setConnectionStage(stoppedStage)
+            status.knownCause != null) setConnectionStage(stoppedStage, alreadyFriendly = true)
         when (status) {
             is CarPlayStatus.Failed -> if (status.wifiResetRequired) {
                 wifiRecoveryButton?.visibility = View.VISIBLE
@@ -5474,7 +5482,7 @@ open class CarPlayHostActivity : ComponentActivity() {
             } else {
                 stage
             }
-            setConnectionStage(stoppedStage)
+            setConnectionStage(stoppedStage, alreadyFriendly = true)
             appendLog("wireless startup recovery stopped generation=$restartGeneration reason=$startupFailure retries=${startupRetryBudget.retries}")
             return
         }
@@ -5965,13 +5973,13 @@ open class CarPlayHostActivity : ComponentActivity() {
         }
     }
 
-    private fun setConnectionStage(message: String) {
+    private fun setConnectionStage(message: String, alreadyFriendly: Boolean = false) {
         latestStage = message
-        stageStatusView?.text = friendlyStage(message)
+        stageStatusView?.text = if (alreadyFriendly) message else friendlyStage(message)
         updateDebugOverlays()
     }
 
-    private fun setConnectionStage(messageResId: Int) = setConnectionStage(getString(messageResId))
+    private fun setConnectionStage(messageResId: Int) = setConnectionStage(getString(messageResId), alreadyFriendly = true)
 
     private fun showConnectionHelp(failure: CarPlayStatus.Failed?) {
         connectionInstructionsView?.visibility = if (failure == null) View.VISIBLE else View.GONE
