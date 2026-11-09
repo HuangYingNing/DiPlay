@@ -4892,7 +4892,14 @@ open class CarPlayHostActivity : ComponentActivity() {
             )
             else -> friendlyStage(description)
         }
-        if (!startupRetryStopped || status !is CarPlayStatus.Failed) setConnectionStage(stage)
+        val stoppedStage = if (startupRetryStopped && status is CarPlayStatus.Failed &&
+            status.startupFailure?.retryable == true) {
+            "$stage\n${getString(R.string.wireless_startup_retries_exhausted)}"
+        } else {
+            stage
+        }
+        if (!startupRetryStopped || status !is CarPlayStatus.Failed || status.startupFailure != null ||
+            status.knownCause != null) setConnectionStage(stoppedStage)
         when (status) {
             is CarPlayStatus.Failed -> if (status.wifiResetRequired) {
                 wifiRecoveryButton?.visibility = View.VISIBLE
@@ -4902,7 +4909,7 @@ open class CarPlayHostActivity : ComponentActivity() {
                     if (startupFailureGeneration == controllerGeneration) return@report
                     startupFailureGeneration = controllerGeneration
                 }
-                reconnectAfterLoss(description, status.startupFailure)
+                reconnectAfterLoss(description, status.startupFailure, failureStage = stage)
             }
             else -> Unit
         }
@@ -5401,6 +5408,7 @@ open class CarPlayHostActivity : ComponentActivity() {
         reason: String,
         startupFailure: WirelessStartupFailure? = null,
         recoverableBySession: Boolean = false,
+        failureStage: String? = null,
     ) {
         if (!CarPlayBackgroundSession.isOwner(this)) return
         if (menuOpen) recoveryPendingAfterMenu = true
@@ -5415,7 +5423,7 @@ open class CarPlayHostActivity : ComponentActivity() {
         if (startupFailure != null && startupDelay == null) {
             startupRetryStopped = true
             startupRetryButton?.visibility = View.VISIBLE
-            val stage = when (startupFailure) {
+            val stage = failureStage ?: when (startupFailure) {
                 WirelessStartupFailure.HOTSPOT_NOT_READY -> getString(R.string.hotspot_network_not_ready)
                 WirelessStartupFailure.FIRST_TCP_TIMEOUT -> getString(R.string.first_tcp_timeout)
                 WirelessStartupFailure.HOTSPOT_CONFIGURATION -> getString(R.string.hotspot_network_not_ready)
@@ -5940,6 +5948,25 @@ open class CarPlayHostActivity : ComponentActivity() {
     }
 
     private fun friendlyStage(message: String): String = when {
+        listOf(
+            R.string.hotspot_network_not_ready,
+            R.string.first_tcp_timeout,
+            R.string.wifi_direct_refused_beside_hotspot,
+            R.string.connection_help_bluetooth_unusable,
+            R.string.chosen_iphone_not_paired,
+            R.string.pair_your_iphone,
+            R.string.choose_your_iphone,
+            R.string.wifi_direct_channel_unavailable,
+            R.string.car_hotspot_is_off,
+            R.string.car_hotspot_details_differ,
+            R.string.hotspot_interface_not_found,
+            R.string.hotspot_control_timeout,
+            R.string.hotspot_control_failed,
+            R.string.car_sees_usb_device_not_iphone,
+            R.string.car_sees_no_usb_device,
+            R.string.connection_interrupted_retrying,
+            R.string.turn_on_bluetooth_in_the_head_unit_s_settings_to_connect,
+        ).any { message == getString(it) } -> message
         message == getString(R.string.vpn_authorization_unavailable) -> message
         message == getString(R.string.waiting_for_mfi_coprocessor) ||
             message == getString(R.string.requesting_mfi_usb_permission) -> message
