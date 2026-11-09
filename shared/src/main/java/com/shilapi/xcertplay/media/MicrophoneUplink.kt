@@ -123,14 +123,10 @@ internal class MicrophoneUplink(
             runCatching { onDiagnostic(message) }
         }
         val bufferSize = maxOf(minBuffer * 2, config.frameBytes * 4)
-        // Some head units throw on VOICE_RECOGNITION at build(); VOICE_COMMUNICATION works there.
-        val nextRecorder = createRecorder(source, channelMask, bufferSize)
-            ?: if (source == MediaRecorder.AudioSource.VOICE_RECOGNITION) {
-                stats.useSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
-                createRecorder(MediaRecorder.AudioSource.VOICE_COMMUNICATION, channelMask, bufferSize)
-            } else {
-                null
-            }
+        val nextRecorder = microphoneSourceCandidates(source).firstNotNullOfOrNull { candidate ->
+            stats.useSource(candidate)
+            createStartedRecorder(candidate, channelMask, bufferSize)
+        }
         if (nextRecorder == null) {
             nextEncoder?.close()
             running.set(false)
@@ -146,6 +142,7 @@ internal class MicrophoneUplink(
         } catch (error: Exception) {
             Log.e(TAG, "microphone socket creation failed", error)
             stats.failure(MicrophoneFailureStage.SOCKET_CREATION, error)
+            releaseCaptureEffects()
             nextRecorder.release()
             nextEncoder?.close()
             running.set(false)
@@ -156,14 +153,6 @@ internal class MicrophoneUplink(
         socket = nextSocket
         opusEncoder = nextEncoder
         return try {
-            if (config.audioType == "telephony") {
-                echoCanceller = createEchoCanceller()
-                if (!speakerphoneCall) effects = voiceEffects(nextRecorder.audioSessionId)
-                if (echoReference != null) {
-                    Log.i(TAG, "microphone echo canceller enabled=${echoCanceller != null} tail=${ECHO_TAIL_MILLIS}ms")
-                }
-            }
-            nextRecorder.startRecording()
             stats.started(routeType(nextRecorder))
             thread = Thread({ capture(nextRecorder, nextSocket) }, "carplay-mic").apply {
                 isDaemon = true
@@ -175,6 +164,53 @@ internal class MicrophoneUplink(
             stats.failure(MicrophoneFailureStage.RECORDING, error)
             release()
             false
+        }
+    }
+
+    private fun microphoneSourceCandidates(source: Int): List<Int> {
+        val fallback = when {
+            source == MediaRecorder.AudioSource.VOICE_RECOGNITION -> MediaRecorder.AudioSource.VOICE_COMMUNICATION
+            factorySource != null && config.audioType == "telephony" -> MediaRecorder.AudioSource.VOICE_COMMUNICATION
+            factorySource != null && config.audioType == "speechrecognition" -> MediaRecorder.AudioSource.VOICE_COMMUNICATION
+            factorySource != null -> MediaRecorder.AudioSource.MIC
+            else -> source
+        }
+        return listOf(source, fallback).distinct()
+    }
+
+    private fun createStartedRecorder(source: Int, channelMask: Int, bufferSize: Int): AudioRecord? {
+        val candidate = createRecorder(source, channelMask, bufferSize) ?: return null
+        try {
+            if (config.audioType == "telephony") {
+                echoCanceller = createEchoCanceller()
+                if (!speakerphoneCall) effects = voiceEffects(candidate.audioSessionId)
+                if (echoReference != null) {
+                    Log.i(TAG, "microphone echo canceller enabled=${echoCanceller != null} tail=${ECHO_TAIL_MILLIS}ms")
+                }
+            }
+            candidate.startRecording()
+            check(candidate.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+                "Microphone source $source did not enter the recording state"
+            }
+            return candidate
+        } catch (error: Exception) {
+            Log.w(TAG, "microphone source failed to start source=$source", error)
+            stats.failure(MicrophoneFailureStage.RECORDING, error,
+                code = runCatching { candidate.recordingState }.getOrNull())
+            releaseCaptureEffects()
+            runCatching { candidate.release() }
+            return null
+        }
+    }
+
+    private fun releaseCaptureEffects() {
+        val currentEffects = effects
+        effects = emptyList()
+        currentEffects.forEach(::releaseEffect)
+        val currentCanceller = echoCanceller
+        echoCanceller = null
+        runCatching { currentCanceller?.close() }.onFailure {
+            Log.w(TAG, "microphone echo canceller release failed", it)
         }
     }
 

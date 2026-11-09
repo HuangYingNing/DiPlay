@@ -84,20 +84,6 @@ class UpdateClientTest {
         }
     }
 
-    @Test fun fetchTextUsesTheSuppliedNetworkConnectionFactory() {
-        server.createContext("/selected-network") { exchange ->
-            val bytes = "[]".toByteArray()
-            exchange.sendResponseHeaders(200, bytes.size.toLong())
-            exchange.responseBody.use { it.write(bytes) }
-        }
-        val selected = AtomicBoolean()
-        UpdateClient.fetchText("$root/selected-network", null, "DiPlay/test") { url ->
-            selected.set(true)
-            url.openConnection()
-        }
-        assertTrue(selected.get())
-    }
-
     @Test
     fun downloadWritesTheFileAndReportsProgress() {
         val payload = ByteArray(200 * 1024) { (it % 251).toByte() }

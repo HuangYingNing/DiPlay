@@ -523,7 +523,7 @@ class AndroidMediaSink(
             }
             return
         } catch (error: Exception) {
-            Log.w("xcertplay-usb", "Microphone start failed", error)
+            Log.w("xcertplay-usb", "microphone start failed", error)
             MicrophoneCaptureStats.reportStartFailure(config, error, onAudioDiagnostic)
             return
         }

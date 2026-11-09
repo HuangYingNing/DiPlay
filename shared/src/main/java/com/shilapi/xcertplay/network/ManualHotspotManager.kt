@@ -10,6 +10,7 @@ import android.os.Looper
 import android.util.Log
 import com.shilapi.xcertplay.orchestration.ManualHotspotBand
 import com.shilapi.xcertplay.orchestration.ManualHotspotSecurity
+import com.shilapi.xcertplay.orchestration.ConnectionFailureCause
 import com.shilapi.xcertplay.transport.Iap2WirelessSecurity
 import java.net.Inet6Address
 import java.net.InetAddress
@@ -102,9 +103,10 @@ class ManualHotspotManager(
         // security. Use one saved credential pair; require validation for ordinary Android APs.
         val apConfiguration = if (factoryRoute) null else readApConfiguration()
         if (apConfiguration != null && apConfiguration.ssid != expectedSsid) {
-            throw WirelessStartupException(WirelessStartupFailure.HOTSPOT_CONFIGURATION,
+            throw configurationMismatch(
                 "Manual hotspot SSID does not match the active local AP configuration: " +
-                    "'${apConfiguration.ssid}'")
+                    "'${apConfiguration.ssid}'",
+            )
         }
         validateApConfiguration(apConfiguration)
         confirmed = selected
@@ -192,15 +194,17 @@ class ManualHotspotManager(
 
     override fun connectionDiagnosticSnapshot(): String = interfaces.vendorDiagnosticSnapshot()
 
+    private fun configurationMismatch(message: String) = WirelessStartupException(
+        WirelessStartupFailure.HOTSPOT_CONFIGURATION, message,
+        ConnectionFailureCause.CAR_HOTSPOT_DETAILS_DIFFER,
+    )
+
     private fun validateApConfiguration(configuration: ManualApConfiguration?) {
         configuration ?: return
         if (expectedChannel > 0 && configuration.channel > 0 &&
             configuration.channel != expectedChannel
         ) {
-            throw WirelessStartupException(WirelessStartupFailure.HOTSPOT_CONFIGURATION,
-                "Manual hotspot channel ${configuration.channel} does not match configured " +
-                "channel $expectedChannel",
-            )
+            throw configurationMismatch("Manual hotspot channel ${configuration.channel} does not match configured channel $expectedChannel")
         }
         val actualBand = when (configuration.band) {
             1 -> ManualHotspotBand.GHZ_2_4
@@ -210,7 +214,7 @@ class ManualHotspotManager(
         if (actualBand != null && expectedBand != ManualHotspotBand.AUTO &&
             actualBand != expectedBand
         ) {
-            throw WirelessStartupException(WirelessStartupFailure.HOTSPOT_CONFIGURATION,
+            throw configurationMismatch(
                 "Manual hotspot band ${wifiBandLabel(configuration.band)} does not match " +
                     "configured band ${wifiBandLabel(if (expectedBand == ManualHotspotBand.GHZ_2_4) 1 else 2)}",
             )
@@ -218,18 +222,15 @@ class ManualHotspotManager(
         // WPA2 vs WPA3 variants are fine: the live security is what the iPhone is told (see start()).
         // Only an open/secured mismatch means the saved password cannot be right.
         if ((configuration.security == Iap2WirelessSecurity.NONE) != (expectedSecurity == Iap2WirelessSecurity.NONE)) {
-            throw WirelessStartupException(WirelessStartupFailure.HOTSPOT_CONFIGURATION,
-                "Manual hotspot security ${configuration.security} does not match configured " +
-                    "security $expectedSecurity",
-            )
+            throw configurationMismatch("Manual hotspot security ${configuration.security} does not match configured security $expectedSecurity")
         }
         val frequency = configuration.frequencyMHz ?: return
         when (expectedBand) {
             ManualHotspotBand.GHZ_2_4 -> if (frequency !in 2_400..2_500) {
-                throw WirelessStartupException(WirelessStartupFailure.HOTSPOT_CONFIGURATION, "Manual hotspot is not running on 2.4 GHz")
+                throw configurationMismatch("Manual hotspot is not running on 2.4 GHz")
             }
             ManualHotspotBand.GHZ_5 -> if (frequency !in 5_150..5_895) {
-                throw WirelessStartupException(WirelessStartupFailure.HOTSPOT_CONFIGURATION, "Manual hotspot is not running on 5 GHz")
+                throw configurationMismatch("Manual hotspot is not running on 5 GHz")
             }
             ManualHotspotBand.AUTO -> Unit
         }
@@ -305,7 +306,9 @@ class ManualHotspotManager(
     @SuppressLint("PrivateApi")
     private fun readLegacyApConfiguration(): ManualApConfiguration? {
         return try {
-            val method = WifiManager::class.java.getMethod("getWifiApConfiguration")
+            val method = runCatching { WifiManager::class.java.getMethod("getWifiApConfiguration") }
+                .getOrElse { WifiManager::class.java.getDeclaredMethod("getWifiApConfiguration") }
+                .apply { isAccessible = true }
             val configuration = method.invoke(wifiManager) as? WifiConfiguration
                 ?: return null
             val ssid = unquote(configuration.SSID) ?: return null
@@ -326,7 +329,8 @@ class ManualHotspotManager(
                 frequencyMHz = wifiChannelToFrequencyMhz(channel, band),
                 security = mapWifiConfigurationSecurity(configuration),
             )
-        } catch (_: Throwable) {
+        } catch (error: Throwable) {
+            Log.i(TAG, "Legacy hotspot configuration is unavailable: ${error.javaClass.simpleName}")
             null
         }
     }

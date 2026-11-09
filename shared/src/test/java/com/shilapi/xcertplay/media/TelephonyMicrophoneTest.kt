@@ -571,8 +571,10 @@ class TelephonyMicrophoneTest {
         assertNotSame(firstReference, references.getValue(second))
         sink.onMicrophoneStarted(telephony, config("telephony"))
         awaitCapture()
-        val uplinks = org.robolectric.util.ReflectionHelpers.getField<Map<AudioStreamId, Any>>(sink, "microphoneUplinks")
-        val uplink = org.robolectric.util.ReflectionHelpers.getField<MicrophoneUplink>(uplinks.getValue(telephony), "uplink")
+        val uplinks = org.robolectric.util.ReflectionHelpers.getField<Map<AudioStreamId, MicrophoneUplink>>(
+            sink, "directMicrophoneUplinks",
+        )
+        val uplink = uplinks.getValue(telephony)
         assertSame(firstReference, org.robolectric.util.ReflectionHelpers.getField<EchoReference>(uplink, "echoReference"))
 
         sink.onAudioStopped(second)

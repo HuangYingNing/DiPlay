@@ -4,6 +4,7 @@ import java.io.InterruptedIOException
 import java.net.Inet4Address
 import java.net.Inet6Address
 import java.net.InetAddress
+import com.shilapi.xcertplay.orchestration.ConnectionFailureCause
 
 internal data class HotspotInterfaceSnapshot(
     val name: String,
@@ -100,13 +101,25 @@ internal class ManualHotspotReadiness(
     fun await(timeoutMillis: Long): HotspotSelection {
         val deadline = nowMillis() + timeoutMillis
         var previous: HotspotSelection? = null
+        var lastSnapshot: HotspotNetworkSnapshot? = null
         var stable = 0
         while (true) {
             if (cancelled()) throw InterruptedIOException("Hotspot readiness cancelled")
-            if (nowMillis() >= deadline) throw WirelessStartupException(
-                WirelessStartupFailure.HOTSPOT_NOT_READY, "Hotspot network is not ready",
-            )
-            val selected = selectHotspotInterface(sample(), configuredInterface, log)
+            if (nowMillis() >= deadline) {
+                val preferred = configuredInterface?.trim()?.takeIf(String::isNotEmpty)
+                val snapshot = lastSnapshot
+                val missingConfiguredInterface = preferred != null && snapshot != null && snapshot.consistent &&
+                    snapshot.apEnabled == true && snapshot.interfaces.isNotEmpty() &&
+                    snapshot.interfaces.none { it.name == preferred } &&
+                    snapshot.apInterfaces?.contains(preferred) == true
+                throw WirelessStartupException(
+                    WirelessStartupFailure.HOTSPOT_NOT_READY,
+                    "Hotspot network is not ready",
+                    if (missingConfiguredInterface) ConnectionFailureCause.HOTSPOT_INTERFACE_NOT_FOUND else null,
+                )
+            }
+            val snapshot = sample().also { lastSnapshot = it }
+            val selected = selectHotspotInterface(snapshot, configuredInterface, log)
             if (cancelled()) throw InterruptedIOException("Hotspot readiness cancelled")
             stable = if (selected != null && previous?.sameAddress(selected) == true) stable + 1 else 1
             previous = selected
