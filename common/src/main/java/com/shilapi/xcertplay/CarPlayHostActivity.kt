@@ -5,8 +5,11 @@ import android.Manifest
 import android.content.ActivityNotFoundException
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
+import android.bluetooth.BluetoothAdapter
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.content.res.ColorStateList
@@ -483,6 +486,18 @@ open class CarPlayHostActivity : ComponentActivity() {
     @Volatile private var adbNaviMode: com.shilapi.xcertplay.hud.BydClusterNaviMode? = null
     // carlito | One cancellable retry per Activity; stale callbacks must not own a new attempt.
     private var reconnectTask: Runnable? = null
+    private var pendingReconnect: Runnable? = null
+    private var reconnectWaitsForBluetooth = false
+    private val bluetoothOnReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR) != BluetoothAdapter.STATE_ON) return
+            val retry = pendingReconnect ?: return
+            if (!reconnectScheduled || !reconnectWaitsForBluetooth) return
+            appendLog("Bluetooth turned on; retrying now")
+            mainHandler.removeCallbacks(retry)
+            mainHandler.post(retry)
+        }
+    }
     private var reconnectRecoverableBySession = false
     private var sessionLog: SessionLogFile? = null
     private var gestureFingerCount = 3
@@ -661,6 +676,12 @@ open class CarPlayHostActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val bluetoothState = IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(bluetoothOnReceiver, bluetoothState, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(bluetoothOnReceiver, bluetoothState)
+        }
         NavigationWidgetUpdater.attach(applicationContext)
         CarPlayCallKeys.install(applicationContext)
         CenterMapOverlay.requestShow = ::showCenterMap
@@ -1565,6 +1586,7 @@ open class CarPlayHostActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        runCatching { unregisterReceiver(bluetoothOnReceiver) }
         // carlito | A background session deliberately retains its owner after the view is gone.
         // Preserve that owner's recovery; shutdown and ownership transfer cancel obsolete work.
         if (!CarPlayBackgroundSession.isOwner(this) || shuttingDown.get()) cancelReconnect()
@@ -5475,6 +5497,8 @@ open class CarPlayHostActivity : ComponentActivity() {
             }
         }
         reconnectTask = task
+        pendingReconnect = task
+        reconnectWaitsForBluetooth = reason.contains(BluetoothRadioCheck.RADIO_OFF_MARK, ignoreCase = true)
         if (!mainHandler.postDelayed(task, delayMillis)) cancelReconnect()
     }
 
@@ -5482,6 +5506,8 @@ open class CarPlayHostActivity : ComponentActivity() {
     private fun cancelReconnect() {
         reconnectTask?.let(mainHandler::removeCallbacks)
         reconnectTask = null
+        pendingReconnect = null
+        reconnectWaitsForBluetooth = false
         reconnectScheduled = false
         reconnectRecoverableBySession = false
     }
