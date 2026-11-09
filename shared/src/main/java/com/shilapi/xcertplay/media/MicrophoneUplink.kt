@@ -12,6 +12,7 @@ import com.shilapi.xcertplay.airplay.AudioCodecKind
 import com.shilapi.xcertplay.airplay.MicrophoneConfig
 import com.shilapi.xcertplay.airplay.MicrophoneCounters
 import com.shilapi.xcertplay.airplay.MicrophonePacketizer
+import com.shilapi.xcertplay.telecom.PhoneAudioRoute
 import java.io.Closeable
 import java.net.DatagramPacket
 import java.net.DatagramSocket
@@ -83,9 +84,17 @@ internal class MicrophoneUplink(
         }
 
         val source = when {
-            isPhoneAudio(config.audioType) && speakerphoneCall -> MediaRecorder.AudioSource.MIC
-            isPhoneAudio(config.audioType) -> MediaRecorder.AudioSource.VOICE_COMMUNICATION
-            config.audioType.equals("speechrecognition", true) -> MediaRecorder.AudioSource.VOICE_RECOGNITION
+            isPhoneAudio(config.audioType) -> telephonyMicrophoneSource(
+                speakerphoneCall = speakerphoneCall,
+                carPhoneState = PhoneAudioRoute.carPlayCallsUseCarAudio(),
+                geelyHeadUnit = com.shilapi.xcertplay.network.GeelyHeadUnit.detected,
+            )
+            config.audioType.equals("speechrecognition", true) ->
+                if (com.shilapi.xcertplay.network.GeelyHeadUnit.detected) {
+                    MediaRecorder.AudioSource.VOICE_COMMUNICATION
+                } else {
+                    MediaRecorder.AudioSource.VOICE_RECOGNITION
+                }
             else -> MediaRecorder.AudioSource.MIC
         }
         val nextEncoder = if (config.codec == AudioCodecKind.OPUS) {
@@ -542,6 +551,20 @@ internal class MicrophoneUplink(
         const val MAX_NO_AUDIO_RESTARTS = 3
         const val EMPTY_READ_PAUSE_MILLIS = 5L
     }
+}
+
+/**
+ * Select a CarPlay call input that works with the car's phone audio processing. Geely/Lynk
+ * firmware records silence from VOICE_RECOGNITION, so keep its existing source selection there.
+ */
+internal fun telephonyMicrophoneSource(
+    speakerphoneCall: Boolean,
+    carPhoneState: Boolean,
+    geelyHeadUnit: Boolean,
+): Int = when {
+    carPhoneState && !geelyHeadUnit -> MediaRecorder.AudioSource.VOICE_RECOGNITION
+    speakerphoneCall -> MediaRecorder.AudioSource.MIC
+    else -> MediaRecorder.AudioSource.VOICE_COMMUNICATION
 }
 
 /**

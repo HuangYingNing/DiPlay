@@ -334,6 +334,7 @@ object AirPlayPersistence {
     fun saveNavigationOutputDevice(context: Context, device: AudioOutputDevice?) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putString("navigation_output_device", device?.encode()).apply()
+    }
 
     fun loadNavigationAudioAttenuationDb(context: Context): Int =
         com.shilapi.xcertplay.media.NavigationAudioGain.clamp(
@@ -972,6 +973,7 @@ object AirPlayPersistence {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putBoolean(KEY_GEELY_STEERING_ENABLED, enabled)
             .apply()
+    }
 
     fun loadClusterProjectionHeld(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_CLUSTER_PROJECTION_HELD, false)
