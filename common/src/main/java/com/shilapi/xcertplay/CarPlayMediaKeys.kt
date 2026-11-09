@@ -515,7 +515,8 @@ internal object CarPlayMediaKeys {
 
     private fun start(context: Context) {
         val expectedController = controller ?: return
-        val owner = Any().also { focusOwner = it }
+        val owner = Any()
+        focusOwner = owner.takeIf { manageAudioFocus }
         focusEventRevision = 0L
         val audio = context.getSystemService(AudioManager::class.java)
         val request = AudioFocusRequestCompat(
