@@ -4866,18 +4866,17 @@ open class CarPlayHostActivity : ComponentActivity() {
         updateHotspotStatus(status)
         val description = status.describe()
         val stage = when (status) {
-            is CarPlayStatus.Failed -> when {
-                status.knownCause != null -> getString(ConnectionFailureGuidance.stage(status.knownCause))
-                status.startupFailure == WirelessStartupFailure.HOTSPOT_NOT_READY ||
-                    status.startupFailure == WirelessStartupFailure.HOTSPOT_CONFIGURATION ->
-                    getString(R.string.hotspot_network_not_ready)
-                status.startupFailure == WirelessStartupFailure.FIRST_TCP_TIMEOUT ->
-                    getString(R.string.first_tcp_timeout)
-                status.startupFailure == WirelessStartupFailure.WIFI_DIRECT_BESIDE_HOTSPOT ->
+            is CarPlayStatus.Failed -> status.knownCause?.let {
+                getString(ConnectionFailureGuidance.stage(it))
+            } ?: when (status.startupFailure) {
+                WirelessStartupFailure.HOTSPOT_NOT_READY,
+                WirelessStartupFailure.HOTSPOT_CONFIGURATION -> getString(R.string.hotspot_network_not_ready)
+                WirelessStartupFailure.FIRST_TCP_TIMEOUT -> getString(R.string.first_tcp_timeout)
+                WirelessStartupFailure.WIFI_DIRECT_BESIDE_HOTSPOT ->
                     getString(R.string.wifi_direct_refused_beside_hotspot)
-                status.startupFailure == WirelessStartupFailure.BLUETOOTH_UNUSABLE ->
+                WirelessStartupFailure.BLUETOOTH_UNUSABLE ->
                     getString(R.string.connection_help_bluetooth_unusable)
-                else -> friendlyStage(description)
+                null -> friendlyStage(description)
             }
             is CarPlayStatus.IphoneNotListed -> getString(
                 if (status.nonHubDeviceListed) R.string.car_sees_usb_device_not_iphone
