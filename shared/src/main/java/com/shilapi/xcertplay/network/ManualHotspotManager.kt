@@ -32,6 +32,7 @@ class ManualHotspotManager(
     security: ManualHotspotSecurity,
     private val onDiagnostic: (String) -> Unit = {},
     private val isCancelled: () -> Boolean = { false },
+    private val preferredInterface: String? = null,
 ) : WirelessHotspotManager {
     private val appContext = context.applicationContext
     private val interfaces = ManualHotspotInterfaces(appContext, onDiagnostic)
@@ -76,7 +77,7 @@ class ManualHotspotManager(
             sample = {
                 interfaces.sample().also { snapshot ->
                     val messages = mutableListOf<String>()
-                    selectHotspotInterface(snapshot, messages::add)
+                    selectHotspotInterface(snapshot, messages::add, preferredInterface)
                     if (messages != lastSampleLog) {
                         messages.forEach(onDiagnostic)
                         lastSampleLog = messages
@@ -86,6 +87,7 @@ class ManualHotspotManager(
             cancelled = { closed || isCancelled() },
             pause = { millis -> synchronized(waitLock) { if (!closed && !isCancelled()) waitLock.wait(millis) } },
             log = {},
+            configuredInterface = preferredInterface,
         ).let { readiness ->
             try {
                 readiness.await(timeoutMillis)
@@ -175,7 +177,7 @@ class ManualHotspotManager(
         val expected = confirmed ?: throw WirelessStartupException(
             WirelessStartupFailure.HOTSPOT_NOT_READY, "Hotspot network is not ready",
         )
-        val current = selectHotspotInterface(interfaces.sample(), onDiagnostic)
+        val current = selectHotspotInterface(interfaces.sample(), onDiagnostic, preferredInterface)
         if (closed || isCancelled() || current == null || !expected.sameAddress(current)) {
             throw WirelessStartupException(WirelessStartupFailure.HOTSPOT_NOT_READY,
                 "Hotspot interface or address changed before publication")
