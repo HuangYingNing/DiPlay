@@ -994,7 +994,6 @@
     <string name="settings_background_update_checks">Check for updates in the background</string>
     <string name="settings_background_update_checks_description">Once a day, DiPlay checks GitHub for a new version and shows it on the home screen. It never downloads without your tap.</string>
     <string name="update_failed">Update failed</string>
-    <string name="update_available_home">Update available</string>
     <string name="update_saved_to">Saved to %1$s</string>
     <string name="backup_title">Back up settings</string>
     <string name="backup_open">Back up or restore on a phone</string>
