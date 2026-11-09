@@ -6007,6 +6007,7 @@ open class CarPlayHostActivity : ComponentActivity() {
             R.string.car_sees_no_usb_device,
             R.string.connection_interrupted_retrying,
             R.string.iphone_usb_mode_rejected,
+            R.string.connect_your_iphone_with_a_usb_cable,
             R.string.turn_on_bluetooth_in_the_head_unit_s_settings_to_connect,
         ).any { message == getString(it) } -> message
         message == getString(R.string.vpn_authorization_unavailable) -> message
