@@ -818,6 +818,8 @@ class AndroidMediaSink(
             navigationOutputDevice,
             audioOutputRoutes,
             unifiedMediaOutput,
+            onReleased = { released -> audioRenderers.entries.removeIf { it.value === released } },
+            ambientSinkToken = ambientSinkToken,
             echoReference = echoReference,
             voiceFilter = callVoiceFilter && format.audioType == TELEPHONY_AUDIO_TYPE,
         ).also {
