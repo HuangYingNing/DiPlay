@@ -4898,7 +4898,7 @@ open class CarPlayHostActivity : ComponentActivity() {
                 WirelessStartupFailure.WIFI_DIRECT_BESIDE_HOTSPOT ->
                     getString(R.string.wifi_direct_refused_beside_hotspot)
                 WirelessStartupFailure.BLUETOOTH_UNUSABLE ->
-                    getString(R.string.connection_help_bluetooth_unusable)
+                    getString(R.string.bluetooth_cannot_open_connections)
                 null -> if (description.contains("socket", ignoreCase = true) ||
                     description.contains("RFCOMM", ignoreCase = true)) {
                     getString(R.string.your_iphone_isn_t_available_unlock_it_and_check_bluetooth)
@@ -5449,7 +5449,7 @@ open class CarPlayHostActivity : ComponentActivity() {
                 WirelessStartupFailure.HOTSPOT_NOT_READY -> getString(R.string.hotspot_network_not_ready)
                 WirelessStartupFailure.FIRST_TCP_TIMEOUT -> getString(R.string.first_tcp_timeout)
                 WirelessStartupFailure.HOTSPOT_CONFIGURATION -> getString(R.string.hotspot_network_not_ready)
-                WirelessStartupFailure.BLUETOOTH_UNUSABLE -> getString(R.string.connection_help_bluetooth_unusable)
+                WirelessStartupFailure.BLUETOOTH_UNUSABLE -> getString(R.string.bluetooth_cannot_open_connections)
                 WirelessStartupFailure.WIFI_DIRECT_BESIDE_HOTSPOT ->
                     getString(R.string.wifi_direct_refused_beside_hotspot)
                 null -> reason
@@ -5974,11 +5974,13 @@ open class CarPlayHostActivity : ComponentActivity() {
     }
 
     private fun friendlyStage(message: String): String = when {
+        message.endsWith("\n${getString(R.string.wireless_startup_retries_exhausted)}") -> message
         listOf(
             R.string.hotspot_network_not_ready,
             R.string.first_tcp_timeout,
             R.string.wifi_direct_refused_beside_hotspot,
             R.string.connection_help_bluetooth_unusable,
+            R.string.bluetooth_cannot_open_connections,
             R.string.chosen_iphone_not_paired,
             R.string.pair_your_iphone,
             R.string.choose_your_iphone,
