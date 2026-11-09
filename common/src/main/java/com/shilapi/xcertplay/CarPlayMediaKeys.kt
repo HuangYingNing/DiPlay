@@ -226,7 +226,12 @@ internal object CarPlayMediaKeys {
     }
 
     private fun syncGeelyInputLocked() {
-        bridgeZoomKeys = appContext?.takeIf { WheelZoomSettings.enabled(it) }?.let(WheelZoomSettings::bridgeKeys).orEmpty()
+        bridgeZoomKeys = appContext?.takeIf(WheelZoomSettings::enabled)?.let { context ->
+            WheelZoomSettings.Role.entries
+                .filter { it != WheelZoomSettings.Role.SIRI && it != WheelZoomSettings.Role.MEDIA_PLAY_PAUSE }
+                .mapNotNull { role -> WheelZoomSettings.key(context, role)?.let { role to it.code } }
+                .toMap()
+        }.orEmpty()
         if (controller != null && bridgeZoomKeys.isNotEmpty() && instrumentStatus == null)
             instrumentStatus = VehicleProjectionClient(appContext!!)
         if (controller == null || bridgeZoomKeys.isEmpty()) { instrumentStatus?.close(); instrumentStatus = null; endBridgeZoom() }

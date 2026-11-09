@@ -1101,6 +1101,9 @@ object WheelZoomSettings {
     fun key(context: Context, role: Role): WheelKey? =
         WheelKey.decode(prefs(context).getString("key_${role.name}", null)) ?: role.defaultKey
 
+    fun assigned(context: Context, role: Role): Boolean =
+        prefs(context).contains("key_${role.name}")
+
     fun assign(context: Context, role: Role, key: WheelKey) {
         prefs(context).edit().putString("key_${role.name}", key.encode()).apply()
         WheelKeyService.settingsChanged()
