@@ -2,7 +2,6 @@ package com.shilapi.xcertplay
 
 import android.Manifest
 import android.os.Build
-import com.shilapi.xcertplay.orchestration.WirelessHotspotMode
 
 /**
  * Runtime permissions a wireless CarPlay start needs per Android release. Android 17 requires
@@ -11,9 +10,7 @@ import com.shilapi.xcertplay.orchestration.WirelessHotspotMode
  * permission exemption for IPv6.
  */
 internal object WirelessPermissions {
-    fun required(hotspotMode: WirelessHotspotMode, sdkInt: Int): List<String> = when {
-        hotspotMode == WirelessHotspotMode.EXISTING_WIFI ->
-            if (sdkInt >= Build.VERSION_CODES.S) listOf(Manifest.permission.BLUETOOTH_CONNECT) else emptyList()
+    fun required(sdkInt: Int): List<String> = when {
         sdkInt >= Build.VERSION_CODES.TIRAMISU -> listOf(
             Manifest.permission.BLUETOOTH_CONNECT,
             Manifest.permission.NEARBY_WIFI_DEVICES,

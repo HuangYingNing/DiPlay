@@ -10,6 +10,7 @@
 - “关于”页面增加 HuangYingNing 修改版源码入口，并提供 GitHub Sponsors 项目支持入口。
 - 高级车辆功能在“检查 ADB 访问”下增加“允许ABD”实验按钮；按安全的标准 Android、localhost 授权和系统设置顺序尝试 Flyme Auto ADB，并记录完整诊断步骤。
 - 默认启用打开 DiPlay 时自动连接及已选 iPhone 的蓝牙唤醒连接；保留用户明确保存的关闭状态，并在诊断中报告蓝牙唤醒开关和 iPhone 选择状态。
+- 修复 Android 11 连接现有 Wi-Fi 时遗漏位置运行时权限的问题；权限被 Flyme Auto 拒绝时显示应用设置入口和逐项诊断，并在仅配对一部手机时自动选中该 iPhone。
 - 增加 PasteDB 日志上传；API Key 以 AES-GCM 密文随 APK 打包，构建解密材料仅保存在本地忽略文件或 GitHub Actions Secrets。
 - 发布版本采用 `v0.2.16-bYYMMDD-nnn` 格式；源码提交号不再显示在版本号中，仅随诊断日志上传。
 

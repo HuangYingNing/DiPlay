@@ -103,7 +103,7 @@
     <string name="advanced_audio_channel_mapping">Asignación avanzada de canales de audio</string>
     <string name="airplay_icon">Icono de AirPlay</string>
     <string name="allow_carplay_ui_outside_the_safe_area">Permitir la interfaz de CarPlay fuera de la zona segura</string>
-    <string name="allow_nearby_devices_and_on_older_android_versions_locatio">Permite «Dispositivos cercanos» y, en versiones antiguas de Android, «Ubicación» antes de restablecer el Wi‑Fi de CarPlay.</string>
+    <string name="allow_nearby_devices_and_on_older_android_versions_locatio">CarPlay inalámbrico necesita Dispositivos cercanos y Ubicación en Android 12 o versiones anteriores. Permítelos en los ajustes de DiPlay y vuelve a intentarlo.</string>
     <string name="allow_nearby_devices_for_diplay_in_the_head_unit_s_app_per">Permite «Dispositivos cercanos» para DiPlay en los permisos de la aplicación de la unidad principal.</string>
     <string name="allow_nearby_devices_so_diplay_can_connect_to_your_paired">Permite «Dispositivos cercanos» para que DiPlay pueda conectarse a tu iPhone emparejado.</string>
     <string name="allow_precise_location_for_diplay_in_the_head_unit_s_app_p">Permite «Ubicación precisa» para DiPlay en los permisos de la aplicación de la unidad principal.</string>

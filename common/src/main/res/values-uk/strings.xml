@@ -106,7 +106,7 @@
     <string name="advanced_audio_channel_mapping">Розширене налаштування аудіоканалів</string>
     <string name="airplay_icon">Значок AirPlay</string>
     <string name="allow_carplay_ui_outside_the_safe_area">Дозволити інтерфейс CarPlay поза безпечною областю</string>
-    <string name="allow_nearby_devices_and_on_older_android_versions_locatio">Надайте дозвіл «Пристрої поблизу», а на старіших версіях Android також «Місцезнаходження», перш ніж скидати Wi-Fi CarPlay.</string>
+    <string name="allow_nearby_devices_and_on_older_android_versions_locatio">Для бездротового CarPlay потрібні дозволи «Пристрої поблизу» та «Місцезнаходження» на Android 12 і старіших версіях. Дозвольте їх у налаштуваннях DiPlay і повторіть спробу.</string>
     <string name="allow_nearby_devices_for_diplay_in_the_head_unit_s_app_per">Надайте DiPlay дозвіл «Пристрої поблизу» в налаштуваннях дозволів застосунку на головному пристрої.</string>
     <string name="allow_nearby_devices_so_diplay_can_connect_to_your_paired">Надайте дозвіл «Пристрої поблизу», щоб DiPlay міг підключитися до спареного iPhone.</string>
     <string name="allow_precise_location_for_diplay_in_the_head_unit_s_app_p">Дозвольте DiPlay доступ до точного місцезнаходження в налаштуваннях дозволів застосунку на головному пристрої.</string>

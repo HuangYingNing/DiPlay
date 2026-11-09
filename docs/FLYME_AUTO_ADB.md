@@ -25,15 +25,21 @@ only while the vehicle is parked.
 
 ## Latest uploaded vehicle log
 
-The 2026-11-09 report (`v0.2.16-b261108-004`) identifies Android 11/API 30,
+The 2026-11-09 report (`v0.2.16-b261109-002`) identifies Android 11/API 30,
 GeelyCloud E22H, Kona/Qualcomm. CarPlay setup reports `ready`, but the session is
-`stopped`, no display negotiation exists, there is no phone Bluetooth wake event,
-and the ADB allow attempt has not been run. Both automatic connect preferences
-were off. This log therefore records no iPhone handshake attempt and cannot show
-a Flyme Auto handshake failure. DiPlay now defaults auto-connect on app open and
-phone-Bluetooth wake on for untouched preferences; explicit saved opt-outs remain
-respected. The diagnostic now reports whether wake is enabled and an iPhone is
-selected, so a follow-up run distinguishes a missing trigger from a failed launch.
+`stopped`, no display negotiation exists, and `selectedPhoneConfigured=false`.
+The owner confirmed the iPhone is paired over Bluetooth and the car hotspot is
+connected. The ADB attempt recorded `WRITE_SECURE_SETTINGS=false`,
+`ADB_ENABLED=0`, and localhost port 5555 open; Flyme Auto rejected the protected
+settings write with `SecurityException`. That permission is not required for
+normal CarPlay networking. The Android 11 gap was that the existing-Wi-Fi
+transport requested no runtime Location permission, even though Android 10+
+Wi-Fi APIs require it. DiPlay now requests Location for Wi-Fi on Android 12 and
+older, Nearby Wi-Fi on Android 13+, and Bluetooth Connect on Android 12+. A
+denied request opens DiPlay app settings and logs each grant result. If exactly
+one Bluetooth device is paired, DiPlay selects it automatically; with multiple
+devices it still asks the user. These changes use the existing Bluetooth pairing
+and car hotspot without changing Flyme Auto's protected ADB setting.
 
 An ordinary Android app cannot grant itself `WRITE_SECURE_SETTINGS`. Declaring
 the permission makes an already privileged or explicitly provisioned install

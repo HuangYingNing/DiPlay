@@ -113,7 +113,7 @@
     <string name="advanced_audio_channel_mapping">Advanced audio channel mapping</string>
     <string name="airplay_icon">AirPlay icon</string>
     <string name="allow_carplay_ui_outside_the_safe_area">Allow CarPlay UI outside the safe area</string>
-    <string name="allow_nearby_devices_and_on_older_android_versions_locatio">Allow Nearby devices and, on older Android versions, Location before resetting CarPlay Wi-Fi.</string>
+    <string name="allow_nearby_devices_and_on_older_android_versions_locatio">Allow Nearby devices and Location for wireless CarPlay. On Android 12 and older, Location is required for Wi-Fi access.</string>
     <string name="allow_nearby_devices_for_diplay_in_the_head_unit_s_app_per">Allow Nearby devices for DiPlay in the head unit’s app permissions.</string>
     <string name="allow_nearby_devices_so_diplay_can_connect_to_your_paired">Allow Nearby devices so DiPlay can connect to your paired iPhone.</string>
     <string name="allow_precise_location_for_diplay_in_the_head_unit_s_app_p">Allow precise Location for DiPlay in the head unit’s app permissions.</string>

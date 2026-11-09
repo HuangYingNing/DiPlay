@@ -1,6 +1,7 @@
 package com.shilapi.xcertplay
 
 import android.app.AlertDialog
+import android.Manifest
 import android.os.Looper
 import android.widget.Button
 import android.widget.EditText
@@ -86,7 +87,10 @@ class ExistingWifiSettingsTest {
         assertEquals(CarPlayTransport.WIRELESS, runtime().transport)
         val permissions = CarPlayHostActivity::class.java.getDeclaredMethod("requiredWirelessPermissions")
             .apply { isAccessible = true }.invoke(host) as List<*>
-        assertTrue(permissions.isEmpty()) // Manual SSID input must work without fine location on API 29.
+        assertEquals(
+            listOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION),
+            permissions,
+        ) // Existing Wi-Fi still uses Android 10+ Wi-Fi APIs that require Location.
         AirPlayPersistence.saveExistingWifiCredentials(app, "", "")
         AirPlayPersistence.saveWirelessEnabled(app, false)
         CarPlayHostActivity::class.java.getDeclaredMethod("loadPersistedSettings").apply { isAccessible = true }.invoke(host)

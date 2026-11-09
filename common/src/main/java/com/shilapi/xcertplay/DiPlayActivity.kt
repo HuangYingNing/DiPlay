@@ -5167,6 +5167,15 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 .setPositiveButton(getString(R.string.open_bluetooth)) { _, _ -> openSystem(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }
                 .setNegativeButton(getString(R.string.got_it), null).show(); return
         }
+        if (devices.size == 1) {
+            val device = devices.single()
+            DiPlayPreferences.savePhone(this, device.address, device.name ?: "iPhone")
+            val start = pendingWireless
+            pendingWireless = false
+            render()
+            if (start) connect(true)
+            return
+        }
         appDialogBuilder().setTitle(getString(R.string.choose_your_iphone))
             .setItems(devices.map { device ->
                 val name = device.name ?: getString(R.string.paired_device)
@@ -5293,6 +5302,13 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         appendLine("Saved resolution preference (may differ from active session): ${AirPlayPersistence.loadDisplayScalePercent(appContext)}%")
         appendLine("Session: ${if (CarPlayBackgroundSession.active) "active" else if (CarPlayBackgroundSession.hasSession()) "connecting" else "stopped"}")
         appendLine(PhoneWakeDiagnostics.report(appContext))
+        appendLine("Wireless runtime permissions: " +
+            WirelessPermissions.required(Build.VERSION.SDK_INT).joinToString { permission ->
+                "${permission.substringAfterLast('.')}=${appContext.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED}"
+            })
+        appendLine("Android location services enabled=${runCatching {
+            appContext.getSystemService(android.location.LocationManager::class.java)?.isLocationEnabled
+        }.getOrNull() ?: "unknown"}")
         appendLine("Head-unit board: ${Build.BOARD}; hardware: ${Build.HARDWARE}; build: ${Build.DISPLAY}")
         appendLine()
         appendLine(UpdateAvailability.report(appContext, System.currentTimeMillis()))

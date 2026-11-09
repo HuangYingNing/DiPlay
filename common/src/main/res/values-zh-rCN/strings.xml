@@ -105,7 +105,7 @@
     <string name="advanced_audio_channel_mapping">高级音频通道映射</string>
     <string name="airplay_icon">AirPlay 图标</string>
     <string name="allow_carplay_ui_outside_the_safe_area">允许 CarPlay 界面超出安全区域</string>
-    <string name="allow_nearby_devices_and_on_older_android_versions_locatio">重置 CarPlay Wi-Fi 前，请授予“附近的设备”权限；较旧的 Android 版本还需要位置权限。</string>
+    <string name="allow_nearby_devices_and_on_older_android_versions_locatio">无线 CarPlay 需要“附近的设备”权限；Android 12 及更早版本还需要位置权限。请在 DiPlay 应用设置中允许后重试。</string>
     <string name="allow_nearby_devices_for_diplay_in_the_head_unit_s_app_per">请在车机应用权限中允许 DiPlay 访问附近的设备。</string>
     <string name="allow_nearby_devices_so_diplay_can_connect_to_your_paired">请允许 DiPlay 访问附近的设备，以连接已配对的 iPhone。</string>
     <string name="allow_precise_location_for_diplay_in_the_head_unit_s_app_p">请在车机应用权限中允许 DiPlay 使用精确位置信息。</string>

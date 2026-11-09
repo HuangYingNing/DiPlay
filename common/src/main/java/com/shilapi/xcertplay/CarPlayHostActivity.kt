@@ -218,18 +218,22 @@ class CarPlayHostActivity : ComponentActivity() {
             onVpnConsentResult(result.resultCode)
         }
     private val wirelessPermissions =
-        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
             awaitingWirelessPermissions = false
             wirelessPermissionsReady = hasRequiredWirelessPermissions()
+            val permissionSummary = grants.entries.joinToString(",") { (permission, granted) ->
+                "${permission.substringAfterLast('.')}=$granted"
+            }
             appendLog(
                 if (wirelessPermissionsReady) {
-                    "Wireless startup permissions granted"
+                    "Wireless startup permissions granted results=$permissionSummary"
                 } else {
-                    "Wireless startup permissions denied"
+                    "Wireless startup permissions denied results=$permissionSummary " +
+                        "missing=${requiredWirelessPermissions().filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }.joinToString { it.substringAfterLast('.') }}"
                 },
             )
             updateHotspotStatusBlock()
-            maybeStartCarPlay()
+            if (wirelessPermissionsReady) maybeStartCarPlay() else showWirelessPermissionHelp()
         }
     private val microphonePermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -874,7 +878,26 @@ class CarPlayHostActivity : ComponentActivity() {
         wirelessPermissionsReady = false
         updateHotspotStatusBlock()
         awaitingWirelessPermissions = true
+        appendLog("Requesting wireless permissions sdk=${Build.VERSION.SDK_INT} " +
+            permissions.joinToString { permission ->
+                "$permission=${checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED}"
+            })
         wirelessPermissions.launch(permissions.toTypedArray())
+    }
+
+    private fun showWirelessPermissionHelp() {
+        if (isFinishing || isDestroyed) return
+        AlertDialog.Builder(this, if (appNight) R.style.Theme_Xcertplay_Dialog_Dark else R.style.Theme_Xcertplay_Dialog_Light)
+            .setTitle(R.string.wireless_permissions)
+            .setMessage(R.string.allow_nearby_devices_and_on_older_android_versions_locatio)
+            .setPositiveButton(R.string.app_settings) { _, _ ->
+                runCatching {
+                    startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        android.net.Uri.parse("package:$packageName")))
+                }.onFailure { appendLog("Could not open app permission settings ${it.javaClass.simpleName}") }
+            }
+            .setNegativeButton(R.string.close, null)
+            .show()
     }
 
     private fun hasRequiredWirelessPermissions(): Boolean =
@@ -883,7 +906,7 @@ class CarPlayHostActivity : ComponentActivity() {
         }
 
     private fun requiredWirelessPermissions(): List<String> =
-        WirelessPermissions.required(wirelessHotspotMode, Build.VERSION.SDK_INT)
+        WirelessPermissions.required(Build.VERSION.SDK_INT)
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)

@@ -103,7 +103,7 @@
     <string name="advanced_audio_channel_mapping">تعيين متقدم لقنوات الصوت</string>
     <string name="airplay_icon">أيقونة AirPlay</string>
     <string name="allow_carplay_ui_outside_the_safe_area">السماح بواجهة CarPlay خارج المنطقة الآمنة</string>
-    <string name="allow_nearby_devices_and_on_older_android_versions_locatio">اسمح بـ «الأجهزة القريبة» وعلى إصدارات Android الأقدم بـ«الموقع» قبل إعادة ضبط واي فاي CarPlay.</string>
+    <string name="allow_nearby_devices_and_on_older_android_versions_locatio">يتطلب CarPlay اللاسلكي إذني الأجهزة القريبة والموقع على Android 12 والإصدارات الأقدم. اسمح بهما من إعدادات DiPlay ثم أعد المحاولة.</string>
     <string name="allow_nearby_devices_for_diplay_in_the_head_unit_s_app_per">اسمح بـ «الأجهزة القريبة» لـ DiPlay في أذونات تطبيق وحدة القيادة.</string>
     <string name="allow_nearby_devices_so_diplay_can_connect_to_your_paired">اسمح بـ «الأجهزة القريبة» ليتمكن DiPlay من الاتصال بـ iPhone المقترن.</string>
     <string name="allow_precise_location_for_diplay_in_the_head_unit_s_app_p">اسمح بـ«الموقع الدقيق» لـ DiPlay في أذونات تطبيق وحدة القيادة.</string>
