@@ -167,6 +167,9 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     private val windowLearningPresses = WheelKeyPresses()
     private val endWindowLearning = Runnable { cancelKeyLearning() }
     private var page = "home"
+    internal var carRhythmSupportCheck: (Context) -> java.util.concurrent.CompletableFuture<Boolean> =
+        com.shilapi.xcertplay.hud.BydCarMusicRhythm::checkSupport
+    internal var selectedMtkDecoderName: (String) -> String? = MtkDecoderTuning::selectedDecoderName
     internal var ambientSupportCheck: (Context) -> java.util.concurrent.CompletableFuture<Boolean> = AmbientMusicController::checkSupport
     private var settingsCategory = SettingsCategory.OVERVIEW
     private var connectionSettingsReturnCategory: SettingsCategory? = null

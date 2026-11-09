@@ -6020,11 +6020,21 @@ internal data class CarPlaySessionDisplay(
     val windowHeight: Int,
     /** The view areas this session declared, or null for the whole screen as one area. */
     val viewAreas: CarPlayViewAreas? = null,
+    val statusBarShown: Boolean? = null,
 )
+
+internal fun statusBarHiddenByAnotherWindow(
+    display: CarPlaySessionDisplay,
+    width: Int,
+    height: Int,
+    statusBarShown: Boolean?,
+): Boolean = !display.hideTopBar && display.statusBarShown == true && statusBarShown == false &&
+    width == display.windowWidth && height > display.windowHeight
 
 /** Process-local hand-off for keeping the CarPlay session alive while no Activity is visible. */
 internal object CarPlayBackgroundSession {
     @Volatile var active = false
+    @Volatile var hotspotReady: CarPlayStatus.HotspotReady? = null
     private var stopAction: (((() -> Unit)) -> Unit)? = null
     private var stopping = false
     private var owner: Any? = null
