@@ -68,8 +68,12 @@ internal object PhoneWakeDiagnostics {
     fun report(context: Context): String {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val at = prefs.getLong("at", 0)
-        return if (at == 0L) "Phone Bluetooth wake: no matching event recorded"
-        else "Phone Bluetooth wake: matchedAtEpochMs=$at result=${prefs.getString("result", "unknown")} " +
+        val wakeEnabled = DiPlayPreferences.connectOnPhoneBluetooth(context)
+        val selectedPhone = DiPlayPreferences.phoneAddress(context) != null
+        return if (at == 0L) "Phone Bluetooth wake: no matching event recorded " +
+            "automaticWakeEnabled=$wakeEnabled selectedPhoneConfigured=$selectedPhone"
+        else "Phone Bluetooth wake: automaticWakeEnabled=$wakeEnabled selectedPhoneConfigured=$selectedPhone " +
+            "matchedAtEpochMs=$at result=${prefs.getString("result", "unknown")} " +
             "failureClass=${prefs.getString("failureClass", "none")}; " +
             "startActivity-returned does not prove the car displayed DiPlay."
     }

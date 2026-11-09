@@ -76,11 +76,13 @@ internal object DiPlayPreferences {
     }
     fun autoConnectWireless(context: Context) =
         defaultConnectionMode(context).wireless(AirPlayPersistence.loadWirelessEnabled(context))
-    fun autoConnect(context: Context) = prefs(context).getBoolean("auto_connect", false)
+    // DiPlay is normally opened to start CarPlay; retain explicit user opt-outs, but make an
+    // untouched installation connect as soon as the driver opens the app.
+    fun autoConnect(context: Context) = prefs(context).getBoolean("auto_connect", true)
     fun saveAutoConnect(context: Context, value: Boolean) {
         prefs(context).edit().putBoolean("auto_connect", value).apply()
     }
-    fun connectOnPhoneBluetooth(context: Context) = prefs(context).getBoolean("connect_on_phone_bluetooth", false)
+    fun connectOnPhoneBluetooth(context: Context) = prefs(context).getBoolean("connect_on_phone_bluetooth", true)
     fun saveConnectOnPhoneBluetooth(context: Context, value: Boolean) {
         prefs(context).edit().putBoolean("connect_on_phone_bluetooth", value).apply()
     }

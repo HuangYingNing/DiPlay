@@ -103,7 +103,7 @@ class DefaultConnectionModeTest {
                 assertEquals(expectedWireless[index], DiPlayPreferences.autoConnectWireless(app))
                 assertEquals(lastWireless, AirPlayPersistence.loadWirelessEnabled(app))
             }
-            assertFalse(DiPlayPreferences.autoConnect(app))
+            assertTrue(DiPlayPreferences.autoConnect(app))
             assertEquals("00:11:22:33:44:55", DiPlayPreferences.phoneAddress(app))
         }
     }
@@ -132,6 +132,6 @@ class DefaultConnectionModeTest {
         dialog.getButton(AlertDialog.BUTTON_NEGATIVE).performClick()
         shadowOf(Looper.getMainLooper()).idle()
         assertEquals(DefaultConnectionMode.USB, DiPlayPreferences.defaultConnectionMode(app))
-        assertFalse(DiPlayPreferences.autoConnect(app))
+        assertTrue(DiPlayPreferences.autoConnect(app))
     }
 }

@@ -16,6 +16,24 @@ only while the vehicle is parked.
 - A community unlocker redirects a vehicle MQTT connection and sends
   `ADBSwitch=ON`. DiPlay deliberately does not embed DNS redirection, MQTT
   impersonation, engineering passwords, patched system files or remote services.
+- The public [Flyme Auto/Geely community notes](https://lynkco.hyphp.cn/t/1982.html)
+  list Xingyuan among E02 head units and report that some E02 firmware exposes
+  wireless ADB in engineering mode. That is a manual vehicle-side switch, not a
+  supported app API. The reported GeelyCloud E22H / Kona / Qualcomm identifiers
+  do not establish that the unit uses the same firmware path, so the engineering
+  menu procedure must not be automated from this evidence.
+
+## Latest uploaded vehicle log
+
+The 2026-11-09 report (`v0.2.16-b261108-004`) identifies Android 11/API 30,
+GeelyCloud E22H, Kona/Qualcomm. CarPlay setup reports `ready`, but the session is
+`stopped`, no display negotiation exists, there is no phone Bluetooth wake event,
+and the ADB allow attempt has not been run. Both automatic connect preferences
+were off. This log therefore records no iPhone handshake attempt and cannot show
+a Flyme Auto handshake failure. DiPlay now defaults auto-connect on app open and
+phone-Bluetooth wake on for untouched preferences; explicit saved opt-outs remain
+respected. The diagnostic now reports whether wake is enabled and an iPhone is
+selected, so a follow-up run distinguishes a missing trigger from a failed launch.
 
 An ordinary Android app cannot grant itself `WRITE_SECURE_SETTINGS`. Declaring
 the permission makes an already privileged or explicitly provisioned install
