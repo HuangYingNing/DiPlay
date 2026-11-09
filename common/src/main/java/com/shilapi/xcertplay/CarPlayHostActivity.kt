@@ -1017,6 +1017,12 @@ open class CarPlayHostActivity : ComponentActivity() {
             requestLocationPermission()
         }
         wirelessPermissionsReady = !wirelessEnabled || hasRequiredWirelessPermissions()
+        if (wirelessEnabled && !wirelessPermissionsReady && !menuOpen) {
+            val missing = requiredWirelessPermissions().filter {
+                checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED
+            }
+            setConnectionStage(WirelessPermissions.refusalMessage(missing))
+        }
         advancedAudioChannelMapping =
             advancedAudioChannelMappingSupported &&
                 AirPlayPersistence.loadAdvancedAudioChannelMapping(this)
