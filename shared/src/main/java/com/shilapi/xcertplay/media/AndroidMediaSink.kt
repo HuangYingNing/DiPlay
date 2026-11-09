@@ -7,7 +7,6 @@ import android.content.IntentFilter
 import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioAttributes
-import android.media.AudioDeviceInfo
 import android.media.AudioFormat as AndroidAudioFormat
 import android.media.AudioManager
 import android.media.AudioRouting
@@ -102,12 +101,6 @@ class AndroidMediaSink(
     /** Opt-in (#946): navigation prompts request duckable focus while the iPhone ducks audio. Needs [audioFocusEnabled]. */
     navigationPromptAudioFocus: Boolean = false,
 ) : MediaSink {
-    @Volatile private var navigationAttenuationDb = NavigationAudioGain.clamp(navigationAttenuationDb)
-
-    fun setNavigationAttenuationDb(db: Int) {
-        navigationAttenuationDb = NavigationAudioGain.clamp(db)
-        audioRenderers.values.forEach { it.setNavigationAttenuationDb(navigationAttenuationDb) }
-    }
     // Each downlink publishes its own reference; a mic must match that stream and sample rate.
     private val callEchoReferences = ConcurrentHashMap<AudioStreamId, EchoReference>()
     private val appContext = context?.applicationContext
@@ -115,13 +108,6 @@ class AndroidMediaSink(
     private val vehicleAudioRouting = unifiedMediaOutput || bluetoothOutput || factoryAudio != null
     private val ambientSinkToken = AmbientMusicController.openSink(appContext)
     private val audioManager = appContext?.getSystemService(AudioManager::class.java)
-    private val navigationPromptFocus = NavigationPromptFocus(
-        appContext,
-        promptFocusEnabled = navigationPromptAudioFocus,
-        audioFocusEnabled = audioFocusEnabled,
-        attributes = { navigationRouteAttributes(navigationChannel) },
-        report = onAudioDiagnostic,
-    )
     @Volatile private var audioOwnershipListener: ((Boolean) -> Unit)? = onAudioOwnershipChanged
     @Volatile private var ownsAudio = false
     // carlito | Rebind the live controller when an Activity adopts a background session.
@@ -156,10 +142,6 @@ class AndroidMediaSink(
         audioFocusCoordinator.onExternalFocusChange(change)
     }
 
-    override fun onAudioDuck(ducked: Boolean) {
-        if (ducked) navigationPromptFocus.onDuck() else navigationPromptFocus.onUnduck()
-    }
-
     private val screenStateLock = Any()
     private val activeScreenTypes = mutableSetOf<Int>()
     private var defaultSurface = surface
@@ -188,11 +170,36 @@ class AndroidMediaSink(
         navigationAttenuationDb = NavigationAudioGain.clamp(db)
         audioRenderers.values.forEach { it.setNavigationAttenuationDb(navigationAttenuationDb) }
     }
-    private val microphoneUplinks = ConcurrentHashMap<AudioStreamId, MicrophoneUplink>()
+    private data class PendingMicrophone(val config: MicrophoneConfig, val counters: MicrophoneCounters = MicrophoneCounters(), var retryAt: Long = 0L)
+    private data class ActiveMicrophone(val request: PendingMicrophone, val uplink: MicrophoneUplink)
+    private val pendingMicrophones = ConcurrentHashMap<AudioStreamId, PendingMicrophone>()
+    private val microphoneUplinks = ConcurrentHashMap<AudioStreamId, ActiveMicrophone>()
+    private val directMicrophoneUplinks = ConcurrentHashMap<AudioStreamId, MicrophoneUplink>()
+    private var lastMicrophoneRouteDiagnostic: String? = null
+    private val audioRouteWorker = Executors.newSingleThreadScheduledExecutor { Thread(it, "carplay-audio-route").apply { isDaemon = true } }
+    private val communicationRoute = CommunicationAudioRoute(appContext, onAudioDiagnostic)
+    private var scoRegistered = false
+    private val audioDeviceCallback = object : AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(devices: Array<out AudioDeviceInfo>) = deviceRoutesChanged()
+        override fun onAudioDevicesRemoved(devices: Array<out AudioDeviceInfo>) = deviceRoutesChanged()
+    }
+    private val scoReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action != AudioManager.ACTION_SCO_AUDIO_STATE_UPDATED) return
+            queueAudioRoute {
+                communicationRoute.onScoState(intent.getIntExtra(AudioManager.EXTRA_SCO_AUDIO_STATE, -1) == AudioManager.SCO_AUDIO_STATE_CONNECTED)
+                refreshCommunication()
+            }
+        }
+    }
     private val audioModeLock = Any()
     private var communicationModeStream: AudioStreamId? = null
+    private var savedAudioMode = AudioManager.MODE_NORMAL
+    private val captureLock = Any()
+    private val closingCommunicationRenderers = mutableSetOf<AudioRenderer>()
     private var callSpeaker: CallSpeaker? = null // guarded by audioModeLock
     private var earpieceFallbackTried = false // guarded by audioModeLock
+    @Volatile private var closed = false
     private val pendingVideoCodec = ConcurrentHashMap<Int, VideoCodec>()
     private val videoRecoveryHandlers = ConcurrentHashMap<Int, () -> Unit>()
     private val videoDiagnosticHandlers = ConcurrentHashMap<Int, (String) -> Unit>()
@@ -500,20 +507,24 @@ class AndroidMediaSink(
 
     override fun onMicrophoneStarted(id: AudioStreamId, config: MicrophoneConfig) {
         // This callback runs on the downlink thread; microphone failures must not stop playback.
-        try {
+        if (!vehicleAudioRouting) try {
             val speakerphoneCall = config.audioType == "telephony" &&
                 appContext != null && BydBluetoothSuspend.isSuspendedByUs(appContext)
             if (config.audioType == "telephony" && !speakerphoneCall) enterCommunicationMode(id)
-            val uplink = microphoneUplinks.computeIfAbsent(id) {
+            val uplink = directMicrophoneUplinks.computeIfAbsent(id) {
                 MicrophoneUplink(config, onAudioDiagnostic,
                     speakerphoneCall = speakerphoneCall,
                     echoReference = if (config.audioType == TELEPHONY_AUDIO_TYPE) callEchoReferences[id] else null,
                     audioManager = audioManager)
             }
             if (!uplink.start()) {
-                microphoneUplinks.remove(id, uplink)
+                directMicrophoneUplinks.remove(id, uplink)
                 restoreAudioMode(id)
             }
+            return
+        } catch (error: Exception) {
+            Log.w("xcertplay-usb", "Microphone start failed", error)
+            MicrophoneCaptureStats.reportStartFailure(config, error, onAudioDiagnostic)
             return
         }
         pendingMicrophones.compute(id) { _, previous ->
@@ -527,7 +538,7 @@ class AndroidMediaSink(
 
     override fun onMicrophoneStopped(id: AudioStreamId) {
         if (!vehicleAudioRouting) {
-            try { microphoneUplinks.remove(id)?.uplink?.close() }
+            try { directMicrophoneUplinks.remove(id)?.close() }
             finally { restoreAudioMode(id) }
             return
         }
@@ -547,6 +558,7 @@ class AndroidMediaSink(
     }
     private fun deviceRoutesChanged() = queueAudioRoute {
         audioRenderers.values.forEach { it.refreshOutputDevice() }
+        directMicrophoneUplinks.values.forEach { it.refreshInputDevice() }
         microphoneUplinks.values.forEach { it.uplink.refreshInputDevice() }
         pendingMicrophones.values.forEach { it.retryAt = 0L }
         communicationRoute.refreshDevices(retry = true)
@@ -734,7 +746,12 @@ class AndroidMediaSink(
         if (hadMedia) onMediaAudioChanged(false)
         pendingMicrophones.clear()
         synchronized(captureLock) {
-            try { microphoneUplinks.values.forEach { it.uplink.close() }; microphoneUplinks.clear() }
+            try {
+                directMicrophoneUplinks.values.forEach(MicrophoneUplink::close)
+                directMicrophoneUplinks.clear()
+                microphoneUplinks.values.forEach { it.uplink.close() }
+                microphoneUplinks.clear()
+            }
             finally { communicationRoute.close(); restoreAudioMode(null) }
         }
         audioRouteWorker.shutdown()
