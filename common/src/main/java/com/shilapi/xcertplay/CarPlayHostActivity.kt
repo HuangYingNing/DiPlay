@@ -4926,7 +4926,8 @@ open class CarPlayHostActivity : ComponentActivity() {
             else -> friendlyStage(description)
         }
         val stoppedStage = if (startupRetryStopped && status is CarPlayStatus.Failed &&
-            status.startupFailure?.retryable == true) {
+            (status.startupFailure?.retryable == true ||
+                status.startupFailure == WirelessStartupFailure.HOTSPOT_CONFIGURATION)) {
             "$stage\n${getString(R.string.wireless_startup_retries_exhausted)}"
         } else {
             stage
