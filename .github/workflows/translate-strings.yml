@@ -1,0 +1,40 @@
+name: Translate Android strings
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - common/src/main/res/values/*.xml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: translate-android-strings
+  cancel-in-progress: false
+
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Add missing translations with Google Cloud Translation
+        env:
+          GOOGLE_TRANSLATE_API_KEY: ${{ secrets.GOOGLE_TRANSLATE_API_KEY }}
+        run: python3 scripts/translate_android_strings.py
+      - name: Commit translated resources
+        run: |
+          if git diff --quiet -- common/src/main/res/values-*; then
+            echo "All locale resources already contain the English string keys."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add common/src/main/res/values-*
+          git commit -m "自动补齐 Android 多语言翻译。"
+          git push
