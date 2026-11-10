@@ -601,6 +601,12 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     }
 
     private fun applyFullscreenMode() {
+        HarmanFullscreenCompat.clear(window)
+        if (AirPlayPersistence.loadHarmanFullscreen(this)) {
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            HarmanFullscreenCompat.apply(window)
+            return
+        }
         // Preserve the vehicle immersive flags while the themed content owns its safe insets.
         applyVehicleSystemBars(this, AirPlayPersistence.loadHideTopBar(this), AirPlayPersistence.loadHideBottomBar(this))
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -1848,6 +1854,12 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         }
         filteredSection(content, SettingsSection.EXPERIMENTAL_DISPLAY,
             getString(R.string.settings_experimental_display), R.drawable.ic_dp_display) { card ->
+            toggle(card, getString(R.string.settings_harman_fullscreen_experimental),
+                getString(R.string.settings_harman_fullscreen_experimental),
+                AirPlayPersistence.loadHarmanFullscreen(this)) {
+                AirPlayPersistence.saveHarmanFullscreen(this, it)
+                applyFullscreenMode()
+            }
             toggle(card, getString(R.string.split_screen_areas), getString(R.string.split_screen_areas_description),
                 SplitScreenSettings.enabled(this)) {
                 SplitScreenSettings.setEnabled(this, it)
