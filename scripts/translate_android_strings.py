@@ -192,6 +192,9 @@ def main() -> int:
                 print(f"{folder.name}: daily or monthly safety limit reached; remaining keys wait for a later run.")
                 return 0
             if batch_names and (len(batch_names) >= BATCH_SIZE or batch_chars + size > MAX_BATCH_CHARACTERS or batch_chars + size > remaining):
+                if batch_chars > remaining:
+                    print(f"{folder.name}: daily or monthly safety limit reached; remaining keys wait for a later run.")
+                    return 0
                 source_values = [missing[key] for key in batch_names]
                 results = translate_batch(source_values, language, api_key)
                 append_translations(folder, dict(zip(batch_names, results, strict=True)))
@@ -202,6 +205,9 @@ def main() -> int:
                 added += len(results)
                 batch_names = []
                 batch_chars = 0
+                if size > remaining:
+                    print(f"{folder.name}: daily or monthly safety limit reached; remaining keys wait for a later run.")
+                    return 0
             batch_names.append(name)
             batch_chars += size
 
