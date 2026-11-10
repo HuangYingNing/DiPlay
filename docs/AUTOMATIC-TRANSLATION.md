@@ -7,12 +7,13 @@ missing keys, preserves format placeholders, and commits the generated locale fi
 with a Chinese commit message.
 
 The workflow uses Azure Translator F0 and fails closed when credentials are missing.
-Set the repository Actions secret `AZURE_TRANSLATOR_KEY` and Actions variable
-`AZURE_TRANSLATOR_REGION` before running it:
+Set the repository Actions secret `AZURE_TRANSLATOR_KEY` before running it. If you
+create a regional or multi-service resource, also set the `AZURE_TRANSLATOR_REGION`
+Actions variable. A single-service Translator resource using the Global region does not
+require that variable:
 
 ```sh
 gh secret set AZURE_TRANSLATOR_KEY --repo HuangYingNing/DiPlay
-gh variable set AZURE_TRANSLATOR_REGION --repo HuangYingNing/DiPlay --body <resource-region>
 ```
 
 Create the Translator resource on the **F0 (Free)** tier. The script records successful

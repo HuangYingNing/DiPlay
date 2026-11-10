@@ -62,14 +62,16 @@ def translate_batch(values: list[str], language: str, api_key: str, region: str)
     query = "api-version=3.0&from=en&to=" + urllib.parse.quote(language, safe="-")
     url = "https://api.cognitive.microsofttranslator.com/translate?" + query
     body = json.dumps([{"Text": value} for value, _ in protected]).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json; charset=utf-8",
+        "Ocp-Apim-Subscription-Key": api_key,
+    }
+    if region:
+        headers["Ocp-Apim-Subscription-Region"] = region
     request = urllib.request.Request(
         url,
         data=body,
-        headers={
-            "Content-Type": "application/json; charset=utf-8",
-            "Ocp-Apim-Subscription-Key": api_key,
-            "Ocp-Apim-Subscription-Region": region,
-        },
+        headers=headers,
         method="POST",
     )
     for attempt in range(4):
@@ -171,9 +173,6 @@ def main() -> int:
         print("AZURE_TRANSLATOR_KEY is required", file=sys.stderr)
         return 2
     region = os.environ.get("AZURE_TRANSLATOR_REGION", "").strip()
-    if not region:
-        print("AZURE_TRANSLATOR_REGION is required", file=sys.stderr)
-        return 2
     usage = load_monthly_usage()
     for folder, missing in gaps.items():
         language = target_language(folder)
