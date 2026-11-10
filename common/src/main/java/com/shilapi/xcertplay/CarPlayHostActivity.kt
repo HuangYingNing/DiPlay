@@ -73,6 +73,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.shilapi.xcertplay.adb.LocalAdb
 import com.shilapi.xcertplay.airplay.CarPlayMediaButton
 import com.shilapi.xcertplay.airplay.AirPlayConfig
 import com.shilapi.xcertplay.airplay.AirPlayDisplaySettings
@@ -854,6 +855,7 @@ open class CarPlayHostActivity : ComponentActivity() {
         }
         if (consent == null) {
             vpnReady = true
+            showConnectionHelp(null)
             maybeStartCarPlay()
             return
         }
@@ -889,6 +891,35 @@ open class CarPlayHostActivity : ComponentActivity() {
         Log.w(TAG, diagnostic, error)
         appendLog(diagnostic)
         setStatus(getString(R.string.vpn_authorization_unavailable))
+        preConsentVpnOverAdb()
+    }
+
+    /** Some head units omit the VPN consent activity. Try already approved local ADB once. */
+    private fun preConsentVpnOverAdb() {
+        val app = applicationContext
+        Thread({
+            val access = runCatching { VpnPreConsent.grant(app) }
+                .getOrDefault(LocalAdb.Access.UNREACHABLE)
+            runOnUiThread {
+                if (isFinishing || isDestroyed || shuttingDown.get()) return@runOnUiThread
+                val granted = runCatching { CarPlayVpnService.prepare(this) == null }
+                    .getOrDefault(false)
+                appendLog("VPN consent over adb access=$access granted=$granted")
+                if (awaitingVpnConsent || vpnReady) return@runOnUiThread
+                if (granted) {
+                    vpnReady = true
+                    showConnectionHelp(null)
+                    maybeStartCarPlay()
+                } else if (!wirelessEnabled) {
+                    setConnectionStage(VpnPreConsent.stage(access))
+                    connectionInstructionsView?.visibility = View.GONE
+                    connectionHelpView?.apply {
+                        text = getString(R.string.vpn_authorization_adb_command, packageName)
+                        visibility = View.VISIBLE
+                    }
+                }
+            }
+        }, "diplay-vpn-adb-consent").start()
     }
 
     private fun requestWirelessPermissions() {
