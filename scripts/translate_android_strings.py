@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Fill missing Android string translations with Google Cloud Translation Basic (v2)."""
+"""Fill missing Android strings through Azure Translator F0's free quota."""
 
 from __future__ import annotations
 
 import argparse
 import glob
-import html
 import json
 import os
 import re
@@ -22,6 +21,9 @@ RES = Path("common/src/main/res")
 LOCALE_PATTERN = re.compile(r"values-([a-z]{2})(?:-r([A-Z]{2}))?$")
 PLACEHOLDER = re.compile(r"%(?:\d+\$)?[dsf]")
 BATCH_SIZE = 64
+MAX_BATCH_CHARACTERS = 40_000
+MONTHLY_FREE_CHARACTER_LIMIT = 1_900_000
+USAGE_FILE = Path("scripts/translation_usage.json")
 
 
 def read_strings(folder: Path) -> dict[str, str]:
@@ -39,8 +41,8 @@ def target_language(folder: Path) -> str:
     if not match:
         raise ValueError(f"Unsupported locale folder: {folder.name}")
     language, region = match.groups()
-    if language == "zh" and region:
-        return f"zh-{region}"
+    if language == "zh":
+        return {None: "zh-Hans", "CN": "zh-Hans", "TW": "zh-Hant"}.get(region, f"zh-{region}")
     return language
 
 
@@ -55,31 +57,30 @@ def protect_placeholders(value: str) -> tuple[str, list[str]]:
     return PLACEHOLDER.sub(replace, value), placeholders
 
 
-def translate_batch(values: list[str], language: str, api_key: str) -> list[str]:
+def translate_batch(values: list[str], language: str, api_key: str, region: str) -> list[str]:
     protected = [protect_placeholders(value) for value in values]
-    url = "https://translation.googleapis.com/language/translate/v2?" + urllib.parse.urlencode({"key": api_key})
-    body = json.dumps({
-        "q": [value for value, _ in protected],
-        "source": "en",
-        "target": language,
-        "format": "text",
-    }).encode("utf-8")
+    query = "api-version=3.0&from=en&to=" + urllib.parse.quote(language, safe="-")
+    url = "https://api.cognitive.microsofttranslator.com/translate?" + query
+    body = json.dumps([{"Text": value} for value, _ in protected]).encode("utf-8")
     request = urllib.request.Request(
         url,
         data=body,
-        headers={"Content-Type": "application/json; charset=utf-8"},
+        headers={
+            "Content-Type": "application/json; charset=utf-8",
+            "Ocp-Apim-Subscription-Key": api_key,
+            "Ocp-Apim-Subscription-Region": region,
+        },
         method="POST",
     )
     for attempt in range(4):
         try:
             with urllib.request.urlopen(request, timeout=40) as response:
                 result = json.loads(response.read().decode("utf-8"))
-            translations = result["data"]["translations"]
-            if len(translations) != len(values):
-                raise ValueError("Google Translation returned a different number of strings")
+            if len(result) != len(values):
+                raise ValueError("Azure Translator returned a different number of strings")
             output = []
-            for item, (_, placeholders) in zip(translations, protected, strict=True):
-                translated = html.unescape(item["translatedText"])
+            for item, (_, placeholders) in zip(result, protected, strict=True):
+                translated = item["translations"][0]["text"]
                 for index, original in enumerate(placeholders):
                     token = f"ZXQKEEPPLACEHOLDER{index}QXZ"
                     if translated.count(token) != 1:
@@ -92,6 +93,42 @@ def translate_batch(values: list[str], language: str, api_key: str) -> list[str]
                 raise
             time.sleep(2 ** attempt)
     raise RuntimeError("Unreachable translation retry state")
+
+
+def load_monthly_usage() -> dict[str, int | str]:
+    month = time.strftime("%Y-%m", time.gmtime())
+    if USAGE_FILE.exists():
+        usage = json.loads(USAGE_FILE.read_text(encoding="utf-8"))
+        if usage.get("month") == month:
+            return {"month": month, "characters": int(usage.get("characters", 0))}
+    return {"month": month, "characters": 0}
+
+
+def save_monthly_usage(usage: dict[str, int | str]) -> None:
+    USAGE_FILE.write_text(json.dumps(usage, indent=2) + "\n", encoding="utf-8")
+
+
+def billable_characters(value: str) -> int:
+    # UTF-16 units conservatively cover supplementary characters in Azure's count.
+    return len(value.encode("utf-16-le")) // 2
+
+
+def batches(names: list[str], values: dict[str, str], remaining: int):
+    names_batch: list[str] = []
+    chars = 0
+    for name in names:
+        protected, _ = protect_placeholders(values[name])
+        size = billable_characters(protected)
+        if size > remaining:
+            raise RuntimeError("Azure F0 monthly translation safety limit reached")
+        if names_batch and (len(names_batch) >= BATCH_SIZE or chars + size > MAX_BATCH_CHARACTERS or chars + size > remaining):
+            yield names_batch
+            names_batch = []
+            chars = 0
+        names_batch.append(name)
+        chars += size
+    if names_batch:
+        yield names_batch
 
 
 def append_translations(folder: Path, missing: dict[str, str]) -> None:
@@ -129,20 +166,30 @@ def main() -> int:
         for folder, missing in gaps.items():
             print(f"{folder.name}: {len(missing)} missing keys")
         return 1 if gaps else 0
-    api_key = os.environ.get("GOOGLE_TRANSLATE_API_KEY", "").strip()
+    api_key = os.environ.get("AZURE_TRANSLATOR_KEY", "").strip()
     if not api_key:
-        print("GOOGLE_TRANSLATE_API_KEY is required", file=sys.stderr)
+        print("AZURE_TRANSLATOR_KEY is required", file=sys.stderr)
         return 2
+    region = os.environ.get("AZURE_TRANSLATOR_REGION", "").strip()
+    if not region:
+        print("AZURE_TRANSLATOR_REGION is required", file=sys.stderr)
+        return 2
+    usage = load_monthly_usage()
     for folder, missing in gaps.items():
         language = target_language(folder)
         names = list(missing)
-        translated: dict[str, str] = {}
-        for offset in range(0, len(names), BATCH_SIZE):
-            batch_names = names[offset:offset + BATCH_SIZE]
-            results = translate_batch([missing[name] for name in batch_names], language, api_key)
-            translated.update(zip(batch_names, results, strict=True))
-        append_translations(folder, translated)
-        print(f"{folder.name}: added {len(translated)} strings")
+        added = 0
+        for batch_names in batches(names, missing, MONTHLY_FREE_CHARACTER_LIMIT - int(usage["characters"])):
+            source_values = [missing[name] for name in batch_names]
+            request_characters = sum(billable_characters(protect_placeholders(value)[0]) for value in source_values)
+            if int(usage["characters"]) + request_characters > MONTHLY_FREE_CHARACTER_LIMIT:
+                raise RuntimeError("Azure F0 monthly translation safety limit reached")
+            results = translate_batch(source_values, language, api_key, region)
+            append_translations(folder, dict(zip(batch_names, results, strict=True)))
+            usage["characters"] = int(usage["characters"]) + request_characters
+            save_monthly_usage(usage)
+            added += len(results)
+        print(f"{folder.name}: added {added} strings")
     return 0
 
 

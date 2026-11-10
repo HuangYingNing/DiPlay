@@ -6,18 +6,28 @@ English Android resources change on `main`, or when started manually. It only ad
 missing keys, preserves format placeholders, and commits the generated locale files
 with a Chinese commit message.
 
-The workflow uses the official Google Cloud Translation Basic v2 REST API. Configure
-the repository Actions secret `GOOGLE_TRANSLATE_API_KEY` before running it:
+The workflow uses Azure Translator F0 and fails closed when credentials are missing.
+Set the repository Actions secret `AZURE_TRANSLATOR_KEY` and Actions variable
+`AZURE_TRANSLATOR_REGION` before running it:
 
 ```sh
-gh secret set GOOGLE_TRANSLATE_API_KEY --repo HuangYingNing/DiPlay
+gh secret set AZURE_TRANSLATOR_KEY --repo HuangYingNing/DiPlay
+gh variable set AZURE_TRANSLATOR_REGION --repo HuangYingNing/DiPlay --body <resource-region>
 ```
 
-The key must belong to a Google Cloud project with Cloud Translation enabled. Google
-Cloud may charge for API usage. The workflow sends English resource string values and
-locale codes to Google; it does not send source files or other repository content.
+Create the Translator resource on the **F0 (Free)** tier. The script records successful
+translation input characters in `scripts/translation_usage.json` and stops before
+1,900,000 characters in a UTC month, leaving a 100,000-character margin below F0's
+2,000,000-character monthly allowance. Counts include each target language separately.
+The workflow sends only missing English string values and locale codes to Azure; it
+does not send source files or other repository content. Never switch the Azure resource
+to a paid tier without reviewing the budget guard.
 
-For a local run, export `GOOGLE_TRANSLATE_API_KEY` in the shell and run:
+The Google Cloud Translation API is not used by this workflow. Google Cloud currently
+requires linking a billing account before enabling that API. To keep this automation
+from using paid Google quota, do not enable billing or configure a Google key here.
+
+For a local run, export `AZURE_TRANSLATOR_KEY` and `AZURE_TRANSLATOR_REGION`, then run:
 
 ```sh
 python3 scripts/translate_android_strings.py
