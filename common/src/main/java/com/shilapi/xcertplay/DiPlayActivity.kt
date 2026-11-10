@@ -527,6 +527,12 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         }
         handler.removeCallbacks(tick); handler.post(tick)
         availableUpdate = UpdateAvailability.available(this, version())
+        if (hotspotStartupResult == CarHotspotTethering.Result.PERMISSION_REQUIRED &&
+            CarHotspotTethering.permitted(this)) {
+            hotspotStartupResult = null
+            startupHotspotCancelled = false
+            startCarHotspotOnLaunch()
+        }
         // Back from the car settings: refresh the car hotspot reminder on the home page.
         if (!initialLaunch && !adbSwitchChangePending && !pausedForAdbSwitchChange &&
             (page == "home" || page == "settings" || page == "connection" || page == "setup")) render()
@@ -900,8 +906,14 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 com.shilapi.xcertplay.network.CarHotspotStatus.isEnabled(this) != true
         }
         if (startupProblem != null) {
-            card.addView(label(hotspotResultText(startupProblem), 15, WARNING))
-            if (!compact) card.addView(homeButton(getString(R.string.open_car_hotspot_settings), false) { openCarWifiSettings() }, matchButton(CONTROL_GAP_DP, 56))
+            val systemAccess = startupProblem == CarHotspotTethering.Result.PERMISSION_REQUIRED &&
+                !CarHotspotSetup.isBydHeadUnit(this) && CarHotspotTethering.appStartSupported()
+            card.addView(label(if (systemAccess) getString(R.string.settings_write_settings_missing)
+                else hotspotResultText(startupProblem), 15, WARNING))
+            if (!compact) card.addView(homeButton(
+                getString(if (systemAccess) R.string.settings_write_settings_allow else R.string.open_car_hotspot_settings),
+                false,
+            ) { if (systemAccess) openWriteSettingsAccess() else openCarWifiSettings() }, matchButton(CONTROL_GAP_DP, 56))
         } else if (carHotspotOff()) {
             card.addView(label(getString(R.string.msg_car_hotspot_off, AirPlayPersistence.loadManualHotspotSsid(this)), 15, WARNING).apply { setPadding(0, dp(14), 0, 0) })
             if (!compact) card.addView(homeButton(getString(R.string.open_car_hotspot_settings), false) { openCarWifiSettings() }, matchButton(CONTROL_GAP_DP, 56))
@@ -1678,6 +1690,27 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 getString(R.string.default_connection_usb)
             ), connectionModes.indexOf(DiPlayPreferences.defaultConnectionMode(this)), reconnects = false) {
                 DiPlayPreferences.saveDefaultConnectionMode(this, connectionModes[it])
+            }
+            if (AirPlayPersistence.loadWirelessHotspotMode(this) == WirelessHotspotMode.MANUAL &&
+                !CarHotspotSetup.isBydHeadUnit(this) && CarHotspotTethering.appStartSupported()) {
+                toggle(card, getString(R.string.auto_car_hotspot_title),
+                    getString(R.string.settings_auto_car_hotspot_system_description) +
+                        "\n" + getString(R.string.saved_for_your_next_connection),
+                    CarHotspotSettings.enabled(this)) { enabled ->
+                    CarHotspotSettings.setEnabled(this, enabled)
+                    if (!enabled) startupHotspotCancelled = true
+                    else {
+                        startupHotspotCancelled = false
+                        if (!CarHotspotTethering.permitted(this)) openWriteSettingsAccess()
+                    }
+                    markReconnectNeeded()
+                }
+                val permitted = CarHotspotTethering.permitted(this)
+                card.addView(label(getString(if (permitted) R.string.settings_write_settings_granted
+                    else R.string.settings_write_settings_missing), 14, if (permitted) READY else MUTED))
+                if (!permitted) card.addView(button(getString(R.string.settings_write_settings_allow), false) {
+                    openWriteSettingsAccess()
+                }, matchButton(8, 54))
             }
             adbToggle(card, R.string.open_after_the_car_starts,
                 R.string.availability_depends_on_your_head_unit_s_startup_settings,
@@ -2752,6 +2785,9 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             .setNeutralButton(getString(R.string.connect)) { _, _ -> connect(true) }
             .setNegativeButton(getString(R.string.cancel), null).show()
     }
+
+    private fun openWriteSettingsAccess() =
+        openSystem(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:$packageName")))
 
     // BYD maps the AOSP tether action to its own hotspot screen; other firmware falls back to Wi-Fi settings.
     // BYD shows that screen as a dialog and closes it unless its own settings or the car home screen is on top,
