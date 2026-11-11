@@ -101,17 +101,19 @@ class UpdateClientTest {
 
     @Test
     fun failedDownloadsKeepPartialBytesForResuming() {
+        val payload = ByteArray(200 * 1024) { (it % 239).toByte() }
         server.createContext("/apk") { exchange ->
-            exchange.sendResponseHeaders(200, 1024L)
-            exchange.responseBody.use { it.write(ByteArray(16)) }
-            exchange.close()
+            exchange.sendResponseHeaders(200, payload.size.toLong())
+            exchange.responseBody.use { it.write(payload) }
         }
         val destination = File(temporaryFolder.root, "update/DiPlay.apk")
         try {
-            UpdateClient.download("$root/apk", destination) { _, _ -> }
+            UpdateClient.download("$root/apk", destination) { written, _ ->
+                if (written > 0L) throw java.io.IOException("simulated interrupted transfer")
+            }
             throw AssertionError("expected an IOException")
         } catch (expected: java.io.IOException) {
-            assertEquals(16L, destination.length())
+            assertEquals(64L * 1024, destination.length())
         }
     }
 

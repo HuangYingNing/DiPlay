@@ -88,6 +88,8 @@ import com.shilapi.xcertplay.settings.SettingsWidgets
 import com.shilapi.xcertplay.setup.DiLinkGeneration
 import com.shilapi.xcertplay.setup.SetupGuide
 import com.shilapi.xcertplay.transport.EvChargingConnectors
+import com.shilapi.xcertplay.transport.WirelessBluetoothInventory
+import com.shilapi.xcertplay.network.WirelessNetworkInventory
 import com.shilapi.xcertplay.update.BackgroundUpdateScheduler
 import com.shilapi.xcertplay.update.UpdateApkExport
 import com.shilapi.xcertplay.update.UpdateAvailability
@@ -5876,14 +5878,16 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         if (Build.VERSION.SDK_INT >= 31 && checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
             bluetoothPermission.launch(Manifest.permission.BLUETOOTH_CONNECT); return
         }
-        val adapter = getSystemService(BluetoothManager::class.java)?.adapter
+        val inventory = WirelessBluetoothInventory.record(this, "iphone-chooser")
+        Log.i("DiPlay-Wireless", inventory.reportLine())
+        val adapter = inventory.adapter
         if (adapter == null) {
             appDialogBuilder().setTitle(getString(R.string.bluetooth_cannot_open_connections))
                 .setMessage(getString(R.string.bluetooth_cannot_open_connections))
                 .setPositiveButton(getString(R.string.got_it), null).show()
             return
         }
-        if (!adapter.isEnabled) {
+        if (!adapter.isEnabled && inventory.connected.isEmpty()) {
             val prefs = getSharedPreferences("diplay", Context.MODE_PRIVATE)
             val visitedSettings = prefs.getBoolean("bluetooth_settings_visited_from_chooser", false)
             val message = getString(R.string.enable_the_car_s_bluetooth_and_pair_your_iphone_first) +
@@ -5896,8 +5900,11 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 }
                 .setNegativeButton(getString(R.string.later), null).show(); return
         }
-        val devices = runCatching { adapter.bondedDevices.sortedBy { it.name ?: "" } }.getOrDefault(emptyList())
+        val devices = inventory.devices.sortedBy { it.name ?: "" }
         if (devices.isEmpty()) {
+            if (inventory.failures.isNotEmpty()) {
+                Log.w("DiPlay-Wireless", "Bluetooth device inventory unavailable: ${inventory.reportLine()}")
+            }
             appDialogBuilder().setTitle(getString(R.string.pair_your_iphone))
                 .setMessage(getString(R.string.on_your_iphone_open_settings_bluetooth_and_pair_with_the_c))
                 .setPositiveButton(getString(R.string.open_bluetooth)) { _, _ -> openBluetoothSettings() }
@@ -6049,6 +6056,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         appendLine("Session: ${if (CarPlayBackgroundSession.active) "active" else if (CarPlayBackgroundSession.hasSession()) "connecting" else "stopped"}")
         appendLine(CarPlayScreen.report(appContext))
         appendLine(PhoneWakeDiagnostics.report(appContext))
+        appendLine(WirelessBluetoothInventory.report(appContext))
+        appendLine(WirelessNetworkInventory.report(appContext))
         appendLine("Wireless runtime permissions: " +
             WirelessPermissions.required(Build.VERSION.SDK_INT).joinToString { permission ->
                 "${permission.substringAfterLast('.')}=${appContext.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED}"

@@ -7,6 +7,8 @@ Instructions for coding agents that work on DiPlay.
 When a user prompt explicitly asks the agent to "请记住" a rule, record that rule in
 this project-level `AGENTS.md` so that future AI agents follow it.
 
+以后新增或修改的项目文档与源码注释一律使用中文。
+
 PasteDB is used for public diagnostic logs. The user accepts that the API key can be
 recovered from the APK. Include only the AES-GCM encrypted key and its decryption key
 in the APK through build-time injection. Keep both source values in Git-ignored

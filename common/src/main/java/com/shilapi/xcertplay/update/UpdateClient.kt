@@ -98,7 +98,7 @@ internal object UpdateClient {
                 }
                 true
             } else {
-                // A server that ignores Range returns the full body. Start over instead of corrupting the APK.
+                // 服务端忽略 Range 时会返回完整内容，必须覆盖已有分片，避免 APK 内容损坏。
                 false
             }
             val total = range?.total?.takeIf { it > 0L }
@@ -119,6 +119,11 @@ internal object UpdateClient {
                 }
             }
             if (total != null && written != total) throw IOException("Incomplete download from $url")
+        } catch (failure: Throwable) {
+            if (destination.length() > MAXIMUM_DOWNLOAD_BYTES || failure.message?.contains("too large") == true) {
+                destination.delete()
+            }
+            throw failure
         } finally {
             connection.disconnect()
         }

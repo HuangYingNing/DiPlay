@@ -58,6 +58,9 @@ import com.shilapi.xcertplay.network.WifiP2pGroupManager
 import com.shilapi.xcertplay.network.WifiScanPause
 import com.shilapi.xcertplay.network.WirelessHotspotInfo
 import com.shilapi.xcertplay.network.WirelessHotspotBackend
+import com.shilapi.xcertplay.network.WirelessNetworkInventory
+import com.shilapi.xcertplay.transport.FlymeAutoCompatibility
+import com.shilapi.xcertplay.transport.WirelessBluetoothInventory
 import com.shilapi.xcertplay.network.WirelessHotspotManager
 import com.shilapi.xcertplay.network.WirelessInterfaceDiagnostics
 import com.shilapi.xcertplay.network.WirelessReceiveDiagnostics
@@ -1454,11 +1457,28 @@ class CarPlayController(
                 awaitBluetoothEnabled(initialAdapter, timeoutMillis = 3_000L)
             }
             val activeAdapter = currentBluetoothAdapter()
+            val bluetoothInventory = WirelessBluetoothInventory.capture(appContext)
+            connectionDiagnostic(
+                "wireless Bluetooth preflight geelyHeadUnit=${FlymeAutoCompatibility.isGeelyHeadUnit()} " +
+                    bluetoothInventory.reportLine(),
+            )
+            val selectedBluetoothTarget = activeAdapter?.let { selectWirelessBluetoothDevice(it, bluetoothInventory) }
+            val connectedDespiteRadioState = selectedBluetoothTarget != null &&
+                (bluetoothInventory.connected.any { it.address.equals(selectedBluetoothTarget.address, ignoreCase = true) } ||
+                    isBluetoothDeviceConnected(selectedBluetoothTarget))
             BluetoothRadioCheck.blockerForState(
                 adapterPresent = activeAdapter != null,
                 state = activeAdapter?.state,
                 pausedByDiPlay = BydBluetoothSuspend.isSuspendedByUs(appContext),
-            )?.let { throw BluetoothRadioCheck.failure(it) }
+            )?.let { blocker ->
+                if (!FlymeAutoCompatibility.isGeelyHeadUnit() || !connectedDespiteRadioState) {
+                    throw BluetoothRadioCheck.failure(blocker)
+                }
+                connectionDiagnostic(
+                    "wireless Bluetooth radio state disagrees with connected profile; " +
+                        "continuing on the selected connected target",
+                )
+            }
             val hotspotInfo = startWirelessHotspot(generation)
             if (isStaleWirelessRun(generation)) {
                 return
@@ -1543,9 +1563,13 @@ class CarPlayController(
             if (adapter.state == BluetoothAdapter.STATE_TURNING_ON) {
                 awaitBluetoothEnabled(adapter, timeoutMillis = 3_000L)
             }
-            if (!adapter.isEnabled) throw IOException(BluetoothRadioCheck.RADIO_OFF)
-            if (!bluetoothRecoveryComplete) throw IOException("Bluetooth recovery did not complete before the handshake")
-            val device = selectWirelessBluetoothDevice(adapter)
+            if (!adapter.isEnabled &&
+                !(FlymeAutoCompatibility.isGeelyHeadUnit() && connectedDespiteRadioState)
+            ) throw IOException(BluetoothRadioCheck.RADIO_OFF)
+            if (!bluetoothRecoveryComplete &&
+                !(FlymeAutoCompatibility.isGeelyHeadUnit() && connectedDespiteRadioState)
+            ) throw IOException("Bluetooth recovery did not complete before the handshake")
+            val device = selectedBluetoothTarget ?: selectWirelessBluetoothDevice(adapter, bluetoothInventory)
             val hostBluetoothMac = accessoryBluetoothMac(adapter)
             debugLog(
                 "wireless selected Bluetooth target name=${device.name ?: "unknown"} " +
@@ -2625,10 +2649,20 @@ class CarPlayController(
     private fun startWirelessHotspot(generation: Int): WirelessHotspotInfo {
         val readyDeadline = System.nanoTime() + WirelessStartupPolicy.HOTSPOT_READY_MILLIS * 1_000_000
         val hotspotMode = config.wirelessHotspotMode
-        if (com.shilapi.xcertplay.network.CarHotspotSettings.shouldEnable(
+        val geelyHeadUnit = FlymeAutoCompatibility.isGeelyHeadUnit()
+        val shouldEnable = com.shilapi.xcertplay.network.CarHotspotSettings.shouldEnable(
                 appContext, config.transport == CarPlayTransport.WIRELESS, hotspotMode,
             )
-        ) {
+        debugLog(
+            "wireless hotspot preflight geelyHeadUnit=$geelyHeadUnit mode=$hotspotMode " +
+                "autoEnable=${com.shilapi.xcertplay.network.CarHotspotSettings.enabled(appContext)} " +
+                "androidReportedEnabled=${com.shilapi.xcertplay.network.CarHotspotStatus.isEnabled(appContext)} " +
+                WirelessNetworkInventory.report(appContext),
+        )
+        if (shouldEnable && geelyHeadUnit) {
+            debugLog("Flyme Auto compatibility: skip standard hotspot enable; inspect the already-running hotspot interface")
+        }
+        if (shouldEnable && !geelyHeadUnit) {
             val result = com.shilapi.xcertplay.network.CarHotspotTethering.enable(
                 appContext,
                 isCancelled = { isStaleWirelessRun(generation) ||
@@ -2656,10 +2690,13 @@ class CarPlayController(
         var pastOffReport = false
         if (hotspotMode == WirelessHotspotMode.MANUAL) {
             val state = com.shilapi.xcertplay.network.CarHotspotStatus.isEnabled(appContext)
-            if (com.shilapi.xcertplay.network.CarHotspotSettings.reportedOff(appContext, state)) {
+            if (com.shilapi.xcertplay.network.CarHotspotSettings.reportedOff(appContext, state) && !geelyHeadUnit) {
                 throw WirelessStartupException(WirelessStartupFailure.HOTSPOT_CONFIGURATION,
                     "The car hotspot is off. Turn it on in the car settings and connect again.",
                     ConnectionFailureCause.CAR_HOTSPOT_OFF)
+            }
+            if (geelyHeadUnit && state == false) {
+                debugLog("Flyme Auto compatibility: Android reports hotspot off; continue to verify the live network interface")
             }
             if (state == false) debugLog("car hotspot: Android reports it off; connecting anyway, as the driver chose")
             pastOffReport = state == false
@@ -2741,14 +2778,28 @@ class CarPlayController(
         (wifiScanPause ?: WifiScanPause(appContext, ::debugLog).also { wifiScanPause = it }).pause()
     }
 
-    private fun selectWirelessBluetoothDevice(adapter: BluetoothAdapter): BluetoothDevice {
-        val bonded = adapter.bondedDevices.orEmpty()
+    private fun selectWirelessBluetoothDevice(adapter: BluetoothAdapter): BluetoothDevice =
+        selectWirelessBluetoothDevice(adapter, WirelessBluetoothInventory.capture(appContext))
+
+    private fun selectWirelessBluetoothDevice(
+        adapter: BluetoothAdapter,
+        inventory: WirelessBluetoothInventory.Snapshot,
+    ): BluetoothDevice {
+        val bonded = inventory.bonded
+        val profileConnected = inventory.connected + connectedBluetoothDevices(adapter)
+        val candidates = bonded + profileConnected
+        connectionDiagnostic(
+            "Bluetooth target candidates bonded=${bonded.size} profileConnected=${profileConnected.size} " +
+                "namedIPhones=${candidates.count { it.name?.contains("iPhone", ignoreCase = true) == true }} " +
+                "queryFailures=${inventory.failures.ifEmpty { listOf("none") }.joinToString(",")}",
+        )
         config.wirelessBluetoothDeviceAddress?.let { selected ->
-            return bonded.firstOrNull { it.address.equals(selected, ignoreCase = true) }
+            return candidates.firstOrNull { it.address.equals(selected, ignoreCase = true) }
                 ?: throw ConnectionFailureException(ConnectionFailureCause.CHOSEN_IPHONE_NOT_PAIRED,
-                    "The selected iPhone is no longer paired. Choose it again in DiPlay.")
+                    "The selected iPhone is no longer visible to Android Bluetooth. " +
+                        "${inventory.reportLine()}")
         }
-        val iPhones = bonded.filter { device ->
+        val iPhones = candidates.filter { device ->
             device.name?.contains("iPhone", ignoreCase = true) == true
         }
         val directlyConnectedIPhones = iPhones.filter(::isBluetoothDeviceConnected)
@@ -2760,7 +2811,7 @@ class CarPlayController(
         val connectedIPhones = if (directlyConnectedIPhones.isNotEmpty()) {
             directlyConnectedIPhones
         } else {
-            val connectedAddresses = connectedBluetoothDevices(adapter).mapTo(mutableSetOf()) {
+            val connectedAddresses = profileConnected.mapTo(mutableSetOf()) {
                 it.address
             }
             iPhones.filter { it.address in connectedAddresses }
@@ -2780,9 +2831,13 @@ class CarPlayController(
             )
         }
         if (bonded.size == 1) return bonded.single()
+        val connectedCandidates = candidates.filter { candidate ->
+            profileConnected.any { it.address.equals(candidate.address, ignoreCase = true) }
+        }
+        if (connectedCandidates.size == 1) return connectedCandidates.single()
         throw ConnectionFailureException(
-            if (bonded.isEmpty()) ConnectionFailureCause.NO_PAIRED_IPHONE else ConnectionFailureCause.IPHONE_NOT_CHOSEN,
-            "No unambiguous bonded iPhone found; pair one iPhone and retry",
+            if (candidates.isEmpty()) ConnectionFailureCause.NO_PAIRED_IPHONE else ConnectionFailureCause.IPHONE_NOT_CHOSEN,
+            "No unambiguous connected or paired iPhone found; ${inventory.reportLine()}",
         )
     }
 

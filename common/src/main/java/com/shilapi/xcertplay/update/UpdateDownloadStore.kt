@@ -3,11 +3,11 @@ package com.shilapi.xcertplay.update
 import java.io.File
 import java.security.MessageDigest
 
-/** Persistent, version-scoped storage for resumable update downloads. */
+/** 按版本保存可续传的新版本下载文件。 */
 internal object UpdateDownloadStore {
     fun directory(root: File, release: UpdateRelease): File = File(root, "version-${releaseKey(release.tagName)}")
 
-    /** Keep only artifacts for the currently available release. */
+    /** 仅保留当前可用版本的下载文件。 */
     fun retainVersion(root: File, release: UpdateRelease) {
         val current = directory(root, release).canonicalFile
         if (!root.exists()) root.mkdirs()
