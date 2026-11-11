@@ -5736,7 +5736,10 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         val title = getString(R.string.carplay_size)
         val savedWidth = AirPlayPersistence.loadWidthPhysicalMm(this)
         val choices = carPlaySizeChoices(this, savedWidth)
-        val control = button("$title · ${choices.lastOrNull { it.widthMillimeters == savedWidth }?.label ?: choices[1].label}", false) {}
+        val savedLabel = getString(R.string.size_option_millimeters,
+            com.shilapi.xcertplay.airplay.CarPlaySize.exact(savedWidth)?.localizedLabel(this)
+                ?: getString(R.string.option_size_custom), savedWidth)
+        val control = button("$title · $savedLabel", false) {}
         control.setOnClickListener {
             var selected = choices.indexOfFirst { it.widthMillimeters == savedWidth }.coerceAtLeast(0)
             appDialogBuilder().setTitle(title)
