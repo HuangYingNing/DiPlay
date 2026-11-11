@@ -6307,7 +6307,10 @@ open class CarPlayHostActivity : ComponentActivity() {
     private fun attachSurface(surface: Surface) {
         sink?.setSurface(SCREEN_TYPE_MAIN, surface)
         if (AirPlayPersistence.loadClusterMapEnabled(this)) {
-            clusterSurface?.let { sink?.setSurface(SCREEN_TYPE_ALT, it) }
+            if (clusterOutputReady() &&
+                (!AdbClusterRouter.enabled(this) || ClusterActivityOutput.hasConfirmedRoute())) {
+                clusterSurface?.takeIf { it.isValid }?.let { sink?.setSurface(SCREEN_TYPE_ALT, it) }
+            }
         } else {
             sink?.setSurface(SCREEN_TYPE_ALT, surface)
         }
