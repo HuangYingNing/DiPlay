@@ -18,6 +18,7 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -36,11 +37,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -f docs/CONNECTION-BASELINE.md ]]; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "Stable connection baseline: upstream changes require selective integration."
-            exit 0
-          fi
           upstream_sha="$(git rev-parse upstream/main)"
           if git merge-base --is-ancestor "$upstream_sha" HEAD; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -53,17 +49,20 @@ jobs:
             git merge --no-edit "$upstream_sha"
           fi
           echo "changed=true" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-java@v4
+        if: steps.merge.outputs.changed == 'true'
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: android-actions/setup-android@v3
+        if: steps.merge.outputs.changed == 'true'
+        with:
+          packages: platform-tools platforms;android-37.0 build-tools;36.0.0 ndk;28.2.13676358
+      - uses: gradle/actions/setup-gradle@v4
+        if: steps.merge.outputs.changed == 'true'
+      - name: Validate merged upstream source
+        if: steps.merge.outputs.changed == 'true'
+        run: ./gradlew :shared:testDebugUnitTest :common:testDebugUnitTest :home:testDebugUnitTest :mobile:lintDebug :home:lintDebug :maphost:lintDebug :mobile:assembleDebug :home:assembleDebug :maphost:assembleDebug --stacktrace
       - name: Push updated main
         if: steps.merge.outputs.changed == 'true'
         run: git push origin HEAD:main
-      - name: Build after upstream update
-        if: steps.merge.outputs.changed == 'true'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'android.yml',
-              ref: 'main',
-            });
