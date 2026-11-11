@@ -488,6 +488,7 @@ open class CarPlayHostActivity : ComponentActivity() {
     private var darkMode = false
     private var appNight = true
     private var hostAppearanceResumed = false
+    private var forwardedScreen = false
     private var callPopupSessionReady = false
     private var hideBydCallPopup = false
     private var paintWaitingScreen: () -> Unit = {}
@@ -743,7 +744,10 @@ open class CarPlayHostActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (CarPlayScreen.forwarded(this)) return
+        if (CarPlayScreen.forwarded(this)) {
+            forwardedScreen = true
+            return
+        }
         val bluetoothState = IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(bluetoothOnReceiver, bluetoothState, Context.RECEIVER_NOT_EXPORTED)
@@ -1841,6 +1845,10 @@ open class CarPlayHostActivity : ComponentActivity() {
 
     override fun onDestroy() {
         CarPlayScreen.destroyed(this)
+        if (forwardedScreen) {
+            super.onDestroy()
+            return
+        }
         dropHeldTouch()
         runCatching { unregisterReceiver(bluetoothOnReceiver) }
         // carlito | A background session deliberately retains its owner after the view is gone.

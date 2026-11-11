@@ -502,7 +502,9 @@ internal object CarPlayMediaKeys {
     // Another car app (its own Spotify, the radio) took audio focus and with it the steering-wheel
     // keys. When CarPlay starts playing again it becomes the car's media source again, as any player
     // would; only the start counts, so a car source picked while the iPhone plays on is not undone.
-    private fun regainFocusLocked(iphoneResumed: Boolean = false) {
+    private fun regainFocusLocked() = regainFocusLocked(iphoneResumed = false)
+
+    private fun regainFocusLocked(iphoneResumed: Boolean) {
         val request = focusRequest ?: return
         if (focusHeld) return
         if (transientFocusLost && !iphoneResumed) return

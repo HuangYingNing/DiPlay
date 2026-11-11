@@ -3982,8 +3982,10 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     }
 
     /** A 1%-step slider row for overlay placement; every step saves, so the card moves live. */
-    private fun overlaySliderRow(title: String, values: List<Int>, current: Int, describe: (Int) -> String): OverlaySliderRow =
-        OverlaySliderRow(this, title, values, current, describe)
+    private fun overlaySliderRow(title: String, values: List<Int>, current: Int, describe: (Int) -> String): OverlaySliderRow {
+        searchIndexSink?.add(title)
+        return OverlaySliderRow(this, title, values, current, describe)
+    }
 
     private inner class OverlaySliderRow(
         context: android.content.Context,
