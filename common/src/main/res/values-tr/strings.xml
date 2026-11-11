@@ -878,7 +878,7 @@
     <string name="dilink_5">DiLink 5</string>
     <string name="dilink_not_sure">Emin değilim</string>
     <string name="dilink_unsupported">Desteklenmiyor</string>
-    <string name="setup_car_unsupported_description">Bu mod DiLink'e özel API'lere bağlı değildir. Bluetooth bağlantı yayınlarını ve etkin ağ bağlantılarını kullanarak iPhone'u bulup bağlanmayı dener.</string>
+    <string name="setup_car_unsupported_description">Bu mod DiLink\'e özel API\'lere bağlı değildir. Bluetooth bağlantı yayınlarını ve etkin ağ bağlantılarını kullanarak iPhone\'u bulup bağlanmayı dener.</string>
     <string name="setup_connection_title">Bağlantı</string>
     <string name="setup_connection_description">iPhone\'un araca nasıl ulaşacağını seçin. Çoğu araç en iyi 5 GHz\'deki kendi araç erişim noktasıyla çalışır. Wi-Fi Direct erişim noktası gerektirmez ancak 2,4 GHz\'e düşebilir.</string>
     <string name="setup_iphone_title">iPhone\'unuzu eşleştirin</string>
