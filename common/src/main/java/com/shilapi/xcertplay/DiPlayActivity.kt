@@ -1322,7 +1322,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
 
     private fun openSettingsCategory(category: SettingsCategory) {
         settingsCategory = category
-        page = if (category == SettingsCategory.ABOUT) "about" else "settings"
+        page = "settings"
         render()
     }
 
@@ -1538,8 +1538,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         if (box !== settingsSearchBox) return
         settingsSearchQuery = box.text.toString()
         if (settingsSearchQuery.isEmpty()) {
-            // Rebuilt for the next search, so it follows settings that changed meanwhile.
-            settingsSearchIndex = null
+            // Keep the index for the lifetime of this search field. Rebuilding it renders
+            // every category and would replace the editor while the driver is typing.
             settingsSearchPopup?.dismiss()
             return
         }
