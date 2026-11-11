@@ -65,6 +65,20 @@ class SetupGuideTest {
         assertNull(DiLinkGeneration.detect(null, null, null, 28).evidence)
     }
 
+    @Test fun anUnrecognizedGeelyFlymeHeadUnitDefaultsToUnsupported() {
+        val unknown = DiLinkGeneration.detect("p145", "GeelyCloud/p145/p145:11/x:user/release-keys", null, 30)
+        assertEquals(DiLinkGeneration.UNSUPPORTED, DiLinkGeneration.defaultSelection(unknown, geelyFlymeHeadUnit = true))
+        assertEquals(DiLinkGeneration.UNKNOWN, DiLinkGeneration.defaultSelection(unknown, geelyFlymeHeadUnit = false))
+        val dilink = DiLinkGeneration.detect("DiLink3.0", null, null, 29)
+        assertEquals(DiLinkGeneration.DILINK_3, DiLinkGeneration.defaultSelection(dilink, geelyFlymeHeadUnit = true))
+    }
+
+    @Test fun unsupportedModeOffersOnlyFeaturesThatDoNotDependOnDiLink() {
+        val features = SetupGuide.features(DiLinkGeneration.UNSUPPORTED).map { it.feature }
+        assertEquals(listOf(Feature.AUTO_CONNECT, Feature.LOCATION), features)
+        assertEquals(0, SetupGuide.navigationAudioChannelDefault(DiLinkGeneration.UNSUPPORTED))
+    }
+
     @Test fun generationsChooseTheirNavigationAudioDefaults() {
         assertEquals(14, SetupGuide.navigationAudioChannelDefault(DiLinkGeneration.DILINK_3))
         assertEquals(14, SetupGuide.navigationAudioChannelDefault(DiLinkGeneration.DILINK_4))

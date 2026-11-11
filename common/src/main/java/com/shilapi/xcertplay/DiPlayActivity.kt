@@ -3162,6 +3162,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         DiLinkGeneration.DILINK_4 -> R.string.dilink_4
         DiLinkGeneration.DILINK_5 -> R.string.dilink_5
         DiLinkGeneration.UNKNOWN -> R.string.dilink_not_sure
+        DiLinkGeneration.UNSUPPORTED -> R.string.dilink_unsupported
     })
 
     private fun setupGuide(content: LinearLayout) {
@@ -3201,7 +3202,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
 
     private fun setupCarStep(content: LinearLayout) {
         val detection = DiLinkGeneration.detect()
-        val selected = DiLinkGeneration.confirmed(this) ?: detection.generation
+        val selected = DiLinkGeneration.current(this)
         setupTitle(content, R.string.setup_car_title, when (detection.source) {
             DiLinkGeneration.Source.SYSTEM_VERSION -> getString(R.string.setup_car_detected, dilinkLabel(detection.generation))
             DiLinkGeneration.Source.LIKELY -> getString(R.string.setup_car_likely, dilinkLabel(detection.generation))
@@ -3221,6 +3222,10 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             } else matchButton(12, 60))
         }
         card.addView(choices)
+        if (selected == DiLinkGeneration.UNSUPPORTED) {
+            card.addView(label(getString(R.string.setup_car_unsupported_description), 14, MUTED)
+                .apply { setPadding(0, dp(16), 0, 0) })
+        }
         detection.evidence?.let {
             card.addView(label(getString(R.string.setup_car_evidence, it), 13, MUTED).apply { setPadding(0, dp(16), 0, 0) })
         }
@@ -3251,7 +3256,9 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
 
     private fun setupFeaturesStep(content: LinearLayout) {
         val generation = DiLinkGeneration.current(this)
-        val description = if (generation == DiLinkGeneration.UNKNOWN) getString(R.string.setup_features_description_unknown)
+        val description = if (generation == DiLinkGeneration.UNKNOWN || generation == DiLinkGeneration.UNSUPPORTED) {
+            getString(R.string.setup_features_description_unknown)
+        }
             else getString(R.string.setup_features_description, dilinkLabel(generation))
         setupTitle(content, R.string.setup_features_title, description)
         if (SetupGuide.hasConflictingClusterRoute(generation, AirPlayPersistence.loadAdbClusterEnabled(this))) {
@@ -5888,7 +5895,9 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 .setPositiveButton(getString(R.string.got_it), null).show()
             return
         }
-        if (!adapter.isEnabled && inventory.connected.isEmpty()) {
+        if (!adapter.isEnabled && inventory.connected.isEmpty() &&
+            DiLinkGeneration.current(this) != DiLinkGeneration.UNSUPPORTED
+        ) {
             val prefs = getSharedPreferences("diplay", Context.MODE_PRIVATE)
             val visitedSettings = prefs.getBoolean("bluetooth_settings_visited_from_chooser", false)
             val message = getString(R.string.enable_the_car_s_bluetooth_and_pair_your_iphone_first) +
@@ -6048,6 +6057,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         appendLine(LastConnectionProblem.report(appContext))
         appendLine("Android ${Build.VERSION.RELEASE} / API ${Build.VERSION.SDK_INT}")
         appendLine("Head unit: ${Build.MANUFACTURER} ${Build.MODEL}")
+        appendLine("DiLink setup mode: ${DiLinkGeneration.current(appContext).key}")
         appendLine("Connection: ${if (AirPlayPersistence.loadWirelessEnabled(appContext)) "wireless" else "USB"}")
         appendLine("Authentication: local experimental beta identity; no remote fallback")
         appendLine("CarPlay setup: ${if (setupError == null) "ready" else "authentication unavailable"}")

@@ -886,13 +886,15 @@
     <string name="setup_car_title">La tua auto</string>
     <string name="setup_car_detected">Trovato %1$s nella versione di sistema. Cambialo se non è corretto.</string>
     <string name="setup_car_likely">Sembra %1$s. Conferma, per favore.</string>
-    <string name="setup_car_unknown">DiPlay non è riuscito a leggere la versione di DiLink. Sceglila qui sotto, oppure lascia Non sono sicuro.</string>
+    <string name="setup_car_unknown">DiPlay non è riuscito a identificare la versione di DiLink. Scegline una qui sotto oppure seleziona Non supportato.</string>
     <string name="setup_car_choose">Versione di DiLink</string>
     <string name="setup_car_evidence">Versione di sistema: %1$s</string>
     <string name="dilink_3">DiLink 3</string>
     <string name="dilink_4">DiLink 4</string>
     <string name="dilink_5">DiLink 5</string>
     <string name="dilink_not_sure">Non sono sicuro</string>
+    <string name="dilink_unsupported">Non supportato</string>
+    <string name="setup_car_unsupported_description">Questa modalità non dipende dalle API specifiche di DiLink. Prova a rilevare e collegare l’iPhone tramite le trasmissioni di connessione Bluetooth e i collegamenti di rete attivi.</string>
     <string name="setup_connection_title">Connessione</string>
     <string name="setup_connection_description">Scegli come l’iPhone raggiunge l’auto. Con la maggior parte delle auto funziona meglio l’hotspot dell’auto a 5 GHz. Wi-Fi Direct non richiede un hotspot ma può ripiegare su 2,4 GHz.</string>
     <string name="setup_iphone_title">Associa il tuo iPhone</string>

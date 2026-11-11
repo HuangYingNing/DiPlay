@@ -767,13 +767,15 @@
     <string name="setup_car_title">Tu coche</string>
     <string name="setup_car_detected">Se encontró %1$s en la versión del sistema. Cámbialo si no es correcto.</string>
     <string name="setup_car_likely">Parece %1$s. Confírmalo.</string>
-    <string name="setup_car_unknown">DiPlay no pudo leer la versión de DiLink. Elígela abajo o deja No estoy seguro.</string>
+    <string name="setup_car_unknown">DiPlay no pudo identificar la versión de DiLink. Elige una abajo o selecciona No compatible.</string>
     <string name="setup_car_choose">Versión de DiLink</string>
     <string name="setup_car_evidence">Versión del sistema: %1$s</string>
     <string name="dilink_3">DiLink 3</string>
     <string name="dilink_4">DiLink 4</string>
     <string name="dilink_5">DiLink 5</string>
     <string name="dilink_not_sure">No estoy seguro</string>
+    <string name="dilink_unsupported">No compatible</string>
+    <string name="setup_car_unsupported_description">Este modo no depende de las API específicas de DiLink. Intenta detectar y conectar el iPhone mediante emisiones de conexión Bluetooth y enlaces de red activos.</string>
     <string name="setup_connection_title">Conexión</string>
     <string name="setup_connection_description">Elige cómo llega el iPhone al coche. La mayoría de los coches funcionan mejor con el punto de acceso del propio coche en 5 GHz. Wi-Fi Direct no necesita punto de acceso, pero puede pasar a 2,4 GHz.</string>
     <string name="setup_iphone_title">Empareja tu iPhone</string>

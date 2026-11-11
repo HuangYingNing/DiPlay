@@ -2,13 +2,15 @@ package com.shilapi.xcertplay.setup
 
 import android.content.Context
 import android.os.Build
+import com.shilapi.xcertplay.transport.FlymeAutoCompatibility
 
 /** The BYD head unit generation. The setup guide uses it only to explain which features apply. */
 enum class DiLinkGeneration(val key: String) {
     DILINK_3("dilink3"),
     DILINK_4("dilink4"),
     DILINK_5("dilink5"),
-    UNKNOWN("unknown");
+    UNKNOWN("unknown"),
+    UNSUPPORTED("unsupported");
 
     /** How the guess was made, so the guide can say how sure it is. */
     enum class Source { SYSTEM_VERSION, LIKELY, NONE }
@@ -66,8 +68,14 @@ enum class DiLinkGeneration(val key: String) {
 
         fun confirmed(context: Context): DiLinkGeneration? = fromKey(prefs(context).getString(KEY, null))
 
-        /** The driver's confirmed choice, or the detected generation when they have not picked one. */
-        fun current(context: Context): DiLinkGeneration = confirmed(context) ?: detect().generation
+        /** 返回用户已确认的选项；尚未选择时，根据车机识别结果生成默认选项。 */
+        fun current(
+            context: Context,
+            geelyFlymeHeadUnit: Boolean = FlymeAutoCompatibility.isGeelyHeadUnit(),
+        ): DiLinkGeneration = confirmed(context) ?: defaultSelection(detect(), geelyFlymeHeadUnit)
+
+        fun defaultSelection(detection: Detection, geelyFlymeHeadUnit: Boolean): DiLinkGeneration =
+            if (geelyFlymeHeadUnit && detection.generation == UNKNOWN) UNSUPPORTED else detection.generation
 
         fun save(context: Context, generation: DiLinkGeneration) {
             prefs(context).edit().putString(KEY, generation.key).apply()

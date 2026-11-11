@@ -817,13 +817,15 @@
     <string name="setup_car_title">你的車輛</string>
     <string name="setup_car_detected">已從系統版本中識別為 %1$s。如有誤請變更。</string>
     <string name="setup_car_likely">看起來是 %1$s，請確認。</string>
-    <string name="setup_car_unknown">DiPlay 無法讀取 DiLink 版本。請在下方選擇，或保留「不確定」。</string>
+    <string name="setup_car_unknown">DiPlay 無法識別 DiLink 版本。請在下方選擇對應版本，或選擇「不支援」。</string>
     <string name="setup_car_choose">DiLink 版本</string>
     <string name="setup_car_evidence">系統版本：%1$s</string>
     <string name="dilink_3">DiLink 3</string>
     <string name="dilink_4">DiLink 4</string>
     <string name="dilink_5">DiLink 5</string>
     <string name="dilink_not_sure">不確定</string>
+    <string name="dilink_unsupported">不支援</string>
+    <string name="setup_car_unsupported_description">此模式不依賴 DiLink 專用介面，會嘗試透過藍牙連線廣播和目前網路連結來尋找並連接 iPhone。</string>
     <string name="setup_connection_title">連線</string>
     <string name="setup_connection_description">選擇 iPhone 連線到車輛的方式。大多數車輛使用車機內建的 5 GHz 熱點效果最好。Wi-Fi Direct 不需要熱點，但可能退回 2.4 GHz。</string>
     <string name="setup_iphone_title">配對 iPhone</string>

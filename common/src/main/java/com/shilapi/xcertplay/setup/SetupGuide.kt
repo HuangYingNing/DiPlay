@@ -22,6 +22,9 @@ object SetupGuide {
     /** Claims follow docs/COMPATIBILITY.md: community reports, not a certified support list. */
     fun features(generation: DiLinkGeneration): List<Entry> {
         fun entry(feature: Feature, status: Status, needsAdb: Boolean = false) = Entry(feature, status, needsAdb)
+        if (generation == DiLinkGeneration.UNSUPPORTED) {
+            return listOf(entry(Feature.AUTO_CONNECT, Status.TESTED), entry(Feature.LOCATION, Status.TESTED))
+        }
         val dilink3 = generation == DiLinkGeneration.DILINK_3
         val dilink4 = generation == DiLinkGeneration.DILINK_4
         return listOf(
@@ -43,7 +46,7 @@ object SetupGuide {
     fun navigationAudioChannelDefault(generation: DiLinkGeneration): Int = when (generation) {
         DiLinkGeneration.DILINK_3, DiLinkGeneration.DILINK_4 -> 14
         DiLinkGeneration.DILINK_5 -> 15
-        DiLinkGeneration.UNKNOWN -> 0
+        DiLinkGeneration.UNKNOWN, DiLinkGeneration.UNSUPPORTED -> 0
     }
 
     fun applyGenerationDefaults(context: Context, generation: DiLinkGeneration): Boolean =

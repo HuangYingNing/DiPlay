@@ -1462,18 +1462,18 @@ class CarPlayController(
                 "wireless Bluetooth preflight geelyHeadUnit=${FlymeAutoCompatibility.isGeelyHeadUnit()} " +
                     bluetoothInventory.reportLine(),
             )
-            val flymeHeadUnit = FlymeAutoCompatibility.isGeelyHeadUnit()
+            val broadcastBluetoothMode = FlymeAutoCompatibility.usesBroadcastBluetooth(appContext)
             val selectedBluetoothTarget = activeAdapter?.let { adapter ->
                 try {
                     selectWirelessBluetoothDevice(adapter, bluetoothInventory)
                 } catch (error: ConnectionFailureException) {
-                    if (BluetoothRadioCheck.shouldIgnoreReportedOffOnFlyme(
-                            isGeelyFlymeHeadUnit = flymeHeadUnit,
+                    if (BluetoothRadioCheck.shouldIgnoreReportedOffOnBroadcastMode(
+                            usesBroadcastBluetooth = broadcastBluetoothMode,
                             state = adapter.state,
                             pausedByDiPlay = BydBluetoothSuspend.isSuspendedByUs(appContext),
                         )) {
                         connectionDiagnostic(
-                            "Flyme Auto Bluetooth inventory has no visible iPhone target at preflight; " +
+                            "broadcast Bluetooth mode has no visible iPhone target at preflight; " +
                                 "continue to inspect current network and ACL events before retrying selection",
                         )
                         null
@@ -1484,8 +1484,8 @@ class CarPlayController(
                 (bluetoothInventory.connected.any { it.address.equals(selectedBluetoothTarget.address, ignoreCase = true) } ||
                     isBluetoothDeviceConnected(selectedBluetoothTarget))
             val bluetoothPausedByDiPlay = BydBluetoothSuspend.isSuspendedByUs(appContext)
-            val flymeReportedOff = BluetoothRadioCheck.shouldIgnoreReportedOffOnFlyme(
-                isGeelyFlymeHeadUnit = flymeHeadUnit,
+            val broadcastModeReportedOff = BluetoothRadioCheck.shouldIgnoreReportedOffOnBroadcastMode(
+                usesBroadcastBluetooth = broadcastBluetoothMode,
                 state = activeAdapter?.state,
                 pausedByDiPlay = bluetoothPausedByDiPlay,
             )
@@ -1494,12 +1494,12 @@ class CarPlayController(
                 state = activeAdapter?.state,
                 pausedByDiPlay = bluetoothPausedByDiPlay,
             )?.let { blocker ->
-                if (!flymeReportedOff && !connectedDespiteRadioState) {
+                if (!broadcastModeReportedOff && !connectedDespiteRadioState) {
                     throw BluetoothRadioCheck.failure(blocker)
                 }
                 connectionDiagnostic(
-                    if (flymeReportedOff) {
-                        "Flyme Auto Android Bluetooth reports off; continue and verify the actual connected-device path"
+                    if (broadcastModeReportedOff) {
+                        "broadcast Bluetooth mode: Android reports radio off; continue and verify the actual connected-device path"
                     } else {
                         "wireless Bluetooth radio state disagrees with connected profile; " +
                             "continuing on the selected connected target"
@@ -1590,19 +1590,19 @@ class CarPlayController(
             if (adapter.state == BluetoothAdapter.STATE_TURNING_ON) {
                 awaitBluetoothEnabled(adapter, timeoutMillis = 3_000L)
             }
-            val flymeStillReportsOff = BluetoothRadioCheck.shouldIgnoreReportedOffOnFlyme(
-                isGeelyFlymeHeadUnit = FlymeAutoCompatibility.isGeelyHeadUnit(),
+            val broadcastModeStillReportsOff = BluetoothRadioCheck.shouldIgnoreReportedOffOnBroadcastMode(
+                usesBroadcastBluetooth = broadcastBluetoothMode,
                 state = adapter.state,
                 pausedByDiPlay = BydBluetoothSuspend.isSuspendedByUs(appContext),
             )
             if (!adapter.isEnabled &&
-                !(FlymeAutoCompatibility.isGeelyHeadUnit() && (connectedDespiteRadioState || flymeStillReportsOff))
+                !(broadcastBluetoothMode && (connectedDespiteRadioState || broadcastModeStillReportsOff))
             ) throw IOException(BluetoothRadioCheck.RADIO_OFF)
             if (!bluetoothRecoveryComplete &&
-                !(FlymeAutoCompatibility.isGeelyHeadUnit() && (connectedDespiteRadioState || flymeStillReportsOff))
+                !(broadcastBluetoothMode && (connectedDespiteRadioState || broadcastModeStillReportsOff))
             ) throw IOException("Bluetooth recovery did not complete before the handshake")
-            if (flymeStillReportsOff) {
-                connectionDiagnostic("Flyme Auto Bluetooth APIs still report off; attempting iPhone selection and RFCOMM handshake")
+            if (broadcastModeStillReportsOff) {
+                connectionDiagnostic("broadcast Bluetooth mode: Android still reports radio off; attempting iPhone selection and RFCOMM handshake")
             }
             val handshakeBluetoothInventory = WirelessBluetoothInventory.capture(appContext)
             connectionDiagnostic("wireless Bluetooth handshake inventory ${handshakeBluetoothInventory.reportLine()}")

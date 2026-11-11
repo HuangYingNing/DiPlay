@@ -12,11 +12,11 @@ import java.io.IOException
  * radio it can also take the unit off the Wi-Fi it was using, and every retry does it again.
  */
 object BluetoothRadioCheck {
-    fun shouldIgnoreReportedOffOnFlyme(
-        isGeelyFlymeHeadUnit: Boolean,
+    fun shouldIgnoreReportedOffOnBroadcastMode(
+        usesBroadcastBluetooth: Boolean,
         state: Int?,
         pausedByDiPlay: Boolean,
-    ): Boolean = isGeelyFlymeHeadUnit &&
+    ): Boolean = usesBroadcastBluetooth &&
         state == android.bluetooth.BluetoothAdapter.STATE_OFF &&
         !pausedByDiPlay
 

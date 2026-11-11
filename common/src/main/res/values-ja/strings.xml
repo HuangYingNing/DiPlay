@@ -911,13 +911,15 @@
     <string name="setup_car_title">お使いの車</string>
     <string name="setup_car_detected">システムのバージョンから%1$sを検出しました。違う場合は変更してください。</string>
     <string name="setup_car_likely">%1$sと思われます。確認してください。</string>
-    <string name="setup_car_unknown">DiLinkのバージョンを読み取れませんでした。下から選択するか、「不明」のままにしてください。</string>
+    <string name="setup_car_unknown">DiLinkのバージョンを特定できませんでした。下から選ぶか、「非対応」を選択してください。</string>
     <string name="setup_car_choose">DiLinkのバージョン</string>
     <string name="setup_car_evidence">システムバージョン：%1$s</string>
     <string name="dilink_3">DiLink 3</string>
     <string name="dilink_4">DiLink 4</string>
     <string name="dilink_5">DiLink 5</string>
     <string name="dilink_not_sure">不明</string>
+    <string name="dilink_unsupported">非対応</string>
+    <string name="setup_car_unsupported_description">このモードはDiLink専用APIに依存せず、Bluetooth接続ブロードキャストと現在のネットワークリンクからiPhoneの検出と接続を試みます。</string>
     <string name="setup_connection_title">接続</string>
     <string name="setup_connection_description">iPhoneを車に接続する方法を選択してください。多くの車では5 GHzの車載ホットスポットが最適です。Wi-Fi Directはホットスポット不要ですが、2.4 GHzに切り替わることがあります。</string>
     <string name="setup_iphone_title">iPhoneをペアリング</string>

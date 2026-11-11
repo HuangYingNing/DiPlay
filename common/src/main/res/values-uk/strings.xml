@@ -779,13 +779,15 @@
     <string name="setup_car_title">Ваше авто</string>
     <string name="setup_car_detected">У версії системи знайдено: %1$s. Змініть, якщо це неправильно.</string>
     <string name="setup_car_likely">Схоже на %1$s. Підтвердьте.</string>
-    <string name="setup_car_unknown">DiPlay не вдалося визначити версію DiLink. Оберіть її нижче або залиште «Не впевнений».</string>
+    <string name="setup_car_unknown">DiPlay не вдалося визначити версію DiLink. Оберіть її нижче або виберіть «Не підтримується».</string>
     <string name="setup_car_choose">Версія DiLink</string>
     <string name="setup_car_evidence">Версія системи: %1$s</string>
     <string name="dilink_3">DiLink 3</string>
     <string name="dilink_4">DiLink 4</string>
     <string name="dilink_5">DiLink 5</string>
     <string name="dilink_not_sure">Не впевнений</string>
+    <string name="dilink_unsupported">Не підтримується</string>
+    <string name="setup_car_unsupported_description">Цей режим не залежить від спеціальних API DiLink. Він намагається знайти iPhone і підключитися до нього через широкомовні події Bluetooth і активні мережеві з’єднання.</string>
     <string name="setup_connection_title">Підключення</string>
     <string name="setup_connection_description">Оберіть, як iPhone підключається до авто. Більшість авто найкраще працюють із власною точкою доступу на 5 ГГц. Wi-Fi Direct не потребує точки доступу, але може перейти на 2,4 ГГц.</string>
     <string name="setup_iphone_title">Під’єднайте iPhone</string>

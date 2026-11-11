@@ -26,4 +26,20 @@ class FlymeAutoCompatibilityTest {
             fingerprint = "byd/dmi/release",
         ))
     }
+
+    @Test
+    fun usesBluetoothBroadcastInventoryForGeelyAndUnsupportedSetupMode() {
+        assertTrue(FlymeAutoCompatibility.usesBroadcastBluetooth(
+            isGeelyHeadUnit = true,
+            selectedGeneration = null,
+        ))
+        assertTrue(FlymeAutoCompatibility.usesBroadcastBluetooth(
+            isGeelyHeadUnit = false,
+            selectedGeneration = "unsupported",
+        ))
+        assertFalse(FlymeAutoCompatibility.usesBroadcastBluetooth(
+            isGeelyHeadUnit = false,
+            selectedGeneration = "dilink5",
+        ))
+    }
 }

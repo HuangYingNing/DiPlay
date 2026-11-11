@@ -901,13 +901,15 @@
     <string name="setup_car_title">내 차량</string>
     <string name="setup_car_detected">시스템 버전에서 %1$s을(를) 찾았습니다. 잘못된 경우 변경하세요.</string>
     <string name="setup_car_likely">%1$s 차량으로 보입니다. 확인해 주세요.</string>
-    <string name="setup_car_unknown">DiPlay가 DiLink 버전을 읽지 못했습니다. 아래에서 선택하거나 \'잘 모르겠습니다\'를 그대로 두세요.</string>
+    <string name="setup_car_unknown">DiPlay가 DiLink 버전을 확인하지 못했습니다. 아래에서 선택하거나 ‘지원되지 않음’을 선택하세요.</string>
     <string name="setup_car_choose">DiLink 버전</string>
     <string name="setup_car_evidence">시스템 버전: %1$s</string>
     <string name="dilink_3">DiLink 3</string>
     <string name="dilink_4">DiLink 4</string>
     <string name="dilink_5">DiLink 5</string>
     <string name="dilink_not_sure">잘 모르겠습니다</string>
+    <string name="dilink_unsupported">지원되지 않음</string>
+    <string name="setup_car_unsupported_description">이 모드는 DiLink 전용 API에 의존하지 않습니다. Bluetooth 연결 브로드캐스트와 현재 네트워크 링크를 통해 iPhone 검색 및 연결을 시도합니다.</string>
     <string name="setup_connection_title">연결</string>
     <string name="setup_connection_description">iPhone이 차량에 연결되는 방식을 선택하세요. 대부분의 차량에서는 차량 자체 5 GHz 핫스팟이 가장 적합합니다. Wi-Fi Direct는 핫스팟이 필요 없지만 2.4 GHz로 전환될 수 있습니다.</string>
     <string name="setup_iphone_title">iPhone 페어링</string>

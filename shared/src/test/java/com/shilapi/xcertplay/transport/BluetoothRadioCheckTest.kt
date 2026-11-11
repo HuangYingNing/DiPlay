@@ -9,24 +9,24 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BluetoothRadioCheckTest {
-    @Test fun flymeReportedOffCanBeCheckedAgainstTheConnectedDevicePath() {
-        assertTrue(BluetoothRadioCheck.shouldIgnoreReportedOffOnFlyme(
-            isGeelyFlymeHeadUnit = true,
+    @Test fun broadcastModeReportedOffCanBeCheckedAgainstTheConnectedDevicePath() {
+        assertTrue(BluetoothRadioCheck.shouldIgnoreReportedOffOnBroadcastMode(
+            usesBroadcastBluetooth = true,
             state = android.bluetooth.BluetoothAdapter.STATE_OFF,
             pausedByDiPlay = false,
         ))
-        assertFalse(BluetoothRadioCheck.shouldIgnoreReportedOffOnFlyme(
-            isGeelyFlymeHeadUnit = false,
+        assertFalse(BluetoothRadioCheck.shouldIgnoreReportedOffOnBroadcastMode(
+            usesBroadcastBluetooth = false,
             state = android.bluetooth.BluetoothAdapter.STATE_OFF,
             pausedByDiPlay = false,
         ))
-        assertFalse(BluetoothRadioCheck.shouldIgnoreReportedOffOnFlyme(
-            isGeelyFlymeHeadUnit = true,
+        assertFalse(BluetoothRadioCheck.shouldIgnoreReportedOffOnBroadcastMode(
+            usesBroadcastBluetooth = true,
             state = android.bluetooth.BluetoothAdapter.STATE_TURNING_OFF,
             pausedByDiPlay = false,
         ))
-        assertFalse(BluetoothRadioCheck.shouldIgnoreReportedOffOnFlyme(
-            isGeelyFlymeHeadUnit = true,
+        assertFalse(BluetoothRadioCheck.shouldIgnoreReportedOffOnBroadcastMode(
+            usesBroadcastBluetooth = true,
             state = android.bluetooth.BluetoothAdapter.STATE_OFF,
             pausedByDiPlay = true,
         ))

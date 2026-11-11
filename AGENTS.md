@@ -9,6 +9,12 @@ this project-level `AGENTS.md` so that future AI agents follow it.
 
 以后新增或修改的项目文档与源码注释一律使用中文。
 
+每次从 PasteDB 获取到新的有效诊断日志后，必须将服务端返回的原始内容保存到本地 `.private/diagnostics/`，文件名注明采集日期和日志标识；该目录及日志原文不得提交或上传 Git。分析时可以另行生成脱敏摘要，但原始资料必须保留。
+
+PasteDB 可绕过代理直接访问。读取 PasteDB 失败时，先检查代理环境变量并尝试不经代理直连；不得因为本地代理不可用就跳过取日志。
+
+网络连接默认直连，不经过代理；直连失败后，才尝试使用已配置的代理服务器。
+
 PasteDB is used for public diagnostic logs. The user accepts that the API key can be
 recovered from the APK. Include only the AES-GCM encrypted key and its decryption key
 in the APK through build-time injection. Keep both source values in Git-ignored
