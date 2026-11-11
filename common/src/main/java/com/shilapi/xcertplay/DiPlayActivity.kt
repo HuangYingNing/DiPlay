@@ -201,6 +201,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     private var pendingCarHotspotSetup = false
     private var carHotspotConfigStatus: Int? = null
     private var importedCarHotspot: CarHotspotSavedCredentials? = null
+    private var restoringCarHotspotCredentials = false
+    private var carHotspotRestoreAttempted = false
     private var setupError: String? = null
     private var status: TextView? = null
     private var connectButton: Button? = null
@@ -993,7 +995,11 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             card.addView(label(message, 15, WARNING).apply { setPadding(0, dp(14), 0, 0) })
             if (!compact) card.addView(homeButton(getString(R.string.open_car_hotspot_settings), false) { openCarWifiSettings() }, matchButton(CONTROL_GAP_DP, 56))
         }
-        card.addView(homeButton(getString(R.string.choose_iphone), false) { choosePhone() }, matchButton(if (compact) CONTROL_GAP_DP else 16, if (compact) 46 else 56))
+        if (DiPlayPreferences.phoneAddress(this) != null ||
+            !DiLinkGeneration.current(this).canStartWirelessWithoutSelectedPhone) {
+            card.addView(homeButton(getString(R.string.choose_iphone), false) { choosePhone() },
+                matchButton(if (compact) CONTROL_GAP_DP else 16, if (compact) 46 else 56))
+        }
         disconnectButton = homeButton(getString(R.string.disconnect), false) {
             disconnectButton?.isEnabled = false
             CarPlayBackgroundSession.stop { runOnUiThread { refreshStatus() } }
@@ -1260,7 +1266,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         active = CarPlayBackgroundSession.active,
         running = CarPlayBackgroundSession.hasSession(),
         wireless = AirPlayPersistence.loadWirelessEnabled(this),
-        phoneChosen = DiPlayPreferences.phoneAddress(this) != null,
+        phoneChosen = DiPlayPreferences.phoneAddress(this) != null ||
+            DiLinkGeneration.current(this).canStartWirelessWithoutSelectedPhone,
         hotspotSetupNeeded = AirPlayPersistence.loadWirelessHotspotMode(this) == WirelessHotspotMode.MANUAL &&
             (pendingCarHotspotSetup || hotspotError(storedSsid(), storedPassword()) != null),
     )
@@ -3893,6 +3900,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         AirPlayPersistence.saveManualHotspotSecurity(this, security)
         AirPlayPersistence.saveManualHotspotBand(this, com.shilapi.xcertplay.orchestration.ManualHotspotBand.AUTO)
         AirPlayPersistence.saveManualHotspotChannel(this, 0)
+        carHotspotRestoreAttempted = false
         markReconnectNeeded()
         val unchangedImportedCredentials = importedCarHotspot == CarHotspotSavedCredentials(ssid, password, security)
         if (CarHotspotSettings.configWrite(this) && !unchangedImportedCredentials) {
@@ -3904,6 +3912,43 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 .setOnCancelListener { render() }
                 .show()
         }
+    }
+
+    /** 应用数据因重装丢失时，先从车机读取原有热点配置，避免让驾驶员重复输入。 */
+    private fun restoreSavedCarHotspotForConnection() {
+        if (restoringCarHotspotCredentials) return
+        restoringCarHotspotCredentials = true
+        carHotspotRestoreAttempted = true
+        Log.i("DiPlay-Hotspot", "saved manual hotspot details are missing; trying a noninteractive read of the car's saved AP configuration")
+        Thread({
+            val outcome = runCatching {
+                CarHotspotConfigRead.read(applicationContext, mayAsk = false,
+                    log = { Log.i("DiPlay-Hotspot", it) })
+            }.getOrElse { error ->
+                Log.w("DiPlay-Hotspot", "saved AP recovery failed: ${error.javaClass.simpleName}")
+                CarHotspotConfigRead.Outcome(reason = CarHotspotConfigRead.Reason.UNAVAILABLE)
+            }
+            val credentials = outcome.credentials?.takeIf {
+                com.shilapi.xcertplay.orchestration.ManualHotspotValidation.error(
+                    it.ssid, it.passphrase,
+                ) == null
+            }
+            if (credentials != null) {
+                AirPlayPersistence.saveManualHotspotSsid(applicationContext, credentials.ssid)
+                AirPlayPersistence.saveManualHotspotPassphrase(applicationContext, credentials.passphrase)
+                AirPlayPersistence.saveManualHotspotSecurity(applicationContext, credentials.security)
+                AirPlayPersistence.saveManualHotspotBand(applicationContext, com.shilapi.xcertplay.orchestration.ManualHotspotBand.AUTO)
+                Log.i("DiPlay-Hotspot", "restored saved car AP settings; SSID and password values were not logged")
+            } else {
+                Log.i("DiPlay-Hotspot", "saved car AP recovery unavailable reason=${outcome.reason} access=${outcome.access}")
+            }
+            runOnUiThread {
+                restoringCarHotspotCredentials = false
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (credentials != null) carHotspotRestoreAttempted = false
+                connect(true)
+            }
+        }, "diplay-hotspot-restore").apply { isDaemon = true; start() }
     }
 
     private fun askHotspotCredentials(existingWifi: Boolean = false, done: (String, String, ManualHotspotSecurity) -> Unit) {
@@ -5844,11 +5889,17 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     }
 
     private fun connect(wireless: Boolean) {
+        if (wireless && restoringCarHotspotCredentials) return
         startupHotspotCancelled = true
         if (wireless && pendingCarHotspotSetup) { toast(getString(R.string.save_your_hotspot_details_in_connection_setup_first)); page = "connection"; render(); return }
         if (setupError != null) { toast(setupError!!); return }
         if (wireless && AirPlayPersistence.loadWirelessHotspotMode(this) == WirelessHotspotMode.MANUAL &&
             hotspotError(storedSsid(), storedPassword()) != null) {
+            if (!carHotspotRestoreAttempted) {
+                restoreSavedCarHotspotForConnection()
+                return
+            }
+            carHotspotRestoreAttempted = false
             pendingCarHotspotSetup = true
             page = "connection"
             render()
@@ -5856,8 +5907,14 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             return
         }
         if (wireless && carHotspotOff()) { carHotspotOffDialog(); return }
-        if (wireless && DiPlayPreferences.phoneAddress(this) == null) {
+        val generation = DiLinkGeneration.current(this)
+        if (wireless && DiPlayPreferences.phoneAddress(this) == null &&
+            !generation.canStartWirelessWithoutSelectedPhone) {
             pendingWireless = true; choosePhone(); return
+        }
+        if (wireless && generation.canStartWirelessWithoutSelectedPhone &&
+            DiPlayPreferences.phoneAddress(this) == null) {
+            Log.i("DiPlay-Wireless", "DiLink unsupported mode: starting wireless connection without a preselected Android Bluetooth device")
         }
         val preferences = getSharedPreferences("diplay", MODE_PRIVATE)
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED && !preferences.getBoolean("notification_asked", false)) {
@@ -6059,6 +6116,9 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         appendLine("Head unit: ${Build.MANUFACTURER} ${Build.MODEL}")
         appendLine("DiLink setup mode: ${DiLinkGeneration.current(appContext).key}")
         appendLine("Connection: ${if (AirPlayPersistence.loadWirelessEnabled(appContext)) "wireless" else "USB"}")
+        val hotspotMode = AirPlayPersistence.loadWirelessHotspotMode(appContext)
+        appendLine("Wireless setup: hotspotMode=${hotspotMode.name} manualSsidSaved=${AirPlayPersistence.loadManualHotspotSsid(appContext).isNotBlank()} manualPasswordSaved=${AirPlayPersistence.loadManualHotspotPassphrase(appContext).isNotEmpty()} manualSecurity=${AirPlayPersistence.loadManualHotspotSecurity(appContext).name} existingWifiSsidSaved=${AirPlayPersistence.loadExistingWifiSsid(appContext).isNotBlank()} existingWifiPasswordSaved=${AirPlayPersistence.loadExistingWifiPassphrase(appContext).isNotEmpty()} selectedIphoneConfigured=${DiPlayPreferences.phoneAddress(appContext) != null}")
+        appendLine("Wireless phone-selection policy: ${if (DiLinkGeneration.current(appContext).canStartWirelessWithoutSelectedPhone) "deferred-to-Flyme-Auto-broadcast-path" else "select-before-connect"}")
         appendLine("Authentication: local experimental beta identity; no remote fallback")
         appendLine("CarPlay setup: ${if (setupError == null) "ready" else "authentication unavailable"}")
         appendLine("Saved video preference (may differ from active session): ${if (AirPlayPersistence.loadHevcEnabled(appContext)) "HEVC" else "H.264"}; ${AirPlayPersistence.loadFps(appContext)} fps")

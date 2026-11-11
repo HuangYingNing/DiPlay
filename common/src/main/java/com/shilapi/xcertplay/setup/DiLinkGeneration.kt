@@ -12,6 +12,10 @@ enum class DiLinkGeneration(val key: String) {
     UNKNOWN("unknown"),
     UNSUPPORTED("unsupported");
 
+    /** “不支持”模式不要求先从 Android 蓝牙清单中选出 iPhone，允许运行车机广播连接路径。 */
+    val canStartWirelessWithoutSelectedPhone: Boolean
+        get() = this == UNSUPPORTED
+
     /** How the guess was made, so the guide can say how sure it is. */
     enum class Source { SYSTEM_VERSION, LIKELY, NONE }
 

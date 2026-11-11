@@ -10,6 +10,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SetupGuideTest {
+    @Test fun unsupportedGenerationCanStartWirelessWithoutAnAndroidBluetoothSelection() {
+        assertTrue(DiLinkGeneration.UNSUPPORTED.canStartWirelessWithoutSelectedPhone)
+        assertFalse(DiLinkGeneration.UNKNOWN.canStartWirelessWithoutSelectedPhone)
+        assertFalse(DiLinkGeneration.DILINK_3.canStartWirelessWithoutSelectedPhone)
+    }
+
     @Test fun gccHanDiLink3IsDetectedFromItsProduct() {
         val detection = DiLinkGeneration.detect("DiLink3.0",
             "BYD-AUTO/DiLink3.0/DiLink3.0:10/QKQ1.210910.001/eng.build.20260204.025317:user/release-keys", null, 29)
