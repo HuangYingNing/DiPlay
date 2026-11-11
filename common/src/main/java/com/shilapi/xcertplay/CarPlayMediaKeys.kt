@@ -613,6 +613,7 @@ internal object CarPlayMediaKeys {
         nowPlaying = CarPlayNowPlaying()
         artwork = null
         artworkCache.clear()
+        ClusterMusicState.publish(nowPlaying, null)
         focusRequest?.let { request -> appContext?.getSystemService(AudioManager::class.java)?.let(request::abandon) }
         focusRequest = null
         focusHeld = false

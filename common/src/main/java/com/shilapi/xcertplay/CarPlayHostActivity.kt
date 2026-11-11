@@ -1441,6 +1441,7 @@ open class CarPlayHostActivity : ComponentActivity() {
     }
 
     private var adbClusterConfigured = false
+    private var adbClusterNativeStreamNegotiated = false
     // Whether the running session's cluster stream was sized for a physical cluster display.
     private var clusterStreamOnDisplay = false
 
@@ -1465,7 +1466,9 @@ open class CarPlayHostActivity : ComponentActivity() {
     private fun clusterDisplayConfig(): AirPlayDisplayConfig? = clusterDisplayConfig(hevcEnabled)
 
     private fun clusterDisplayConfig(useHevc: Boolean): AirPlayDisplayConfig? {
+        ClusterActivityOutput.clearRouteConfirmationCallback(this)
         adbClusterConfigured = false
+        adbClusterNativeStreamNegotiated = false
         clusterStreamOnDisplay = false
         requestedSmallWindowForStream = null
         vehicleMapPlan = null
@@ -1499,12 +1502,21 @@ open class CarPlayHostActivity : ComponentActivity() {
         }
         if (!AirPlayPersistence.loadClusterMapEnabled(this)) return null
         if (AdbClusterRouter.enabled(this)) {
-            adbClusterConfigured = ClusterActivityOutput.hasConfirmedRoute()
+            ClusterActivityOutput.setRouteConfirmationCallback(this) {
+                adbClusterConfigured = adbClusterNativeStreamNegotiated && ClusterActivityOutput.hasConfirmedRoute()
+                if (adbClusterConfigured && clusterOutputReady()) {
+                    clusterSurface?.takeIf { it.isValid }?.let { sink?.setSurface(SCREEN_TYPE_ALT, it) }
+                }
+                updateClusterMapShown()
+            }
             clusterStreamOnDisplay = true
             return DiLink4ClusterDisplay.streamConfig(AirPlayPersistence.loadClusterContent(this),
                 safeAreaRect = AirPlayPersistence.loadClusterSafeAreaRect(this),
                 markerXPercent = AirPlayPersistence.loadClusterMarkerXPercent(this),
                 markerYPercent = AirPlayPersistence.loadClusterMarkerYPercent(this)).also {
+                adbClusterNativeStreamNegotiated = it.widthPixels == DiLink4ClusterDisplay.STREAM_WIDTH &&
+                    it.heightPixels == DiLink4ClusterDisplay.STREAM_HEIGHT
+                adbClusterConfigured = adbClusterNativeStreamNegotiated && ClusterActivityOutput.hasConfirmedRoute()
                 MapMirrors.streamAspect = it.widthPixels.toDouble() / it.heightPixels
                 appendLog("Cluster activity: requesting stream 111 at ${it.widthPixels}x${it.heightPixels}; safeArea=${it.safeArea} drawOutside=${it.safeAreaDrawOutside}; ADB task routing")
             }
@@ -5413,6 +5425,7 @@ open class CarPlayHostActivity : ComponentActivity() {
                 }
                 reconnectAfterLoss(description, status.startupFailure, failureStage = stage)
             }
+            CarPlayStatus.ControlEnded -> reconnectAfterLoss(description)
             else -> Unit
         }
     }
@@ -6882,6 +6895,7 @@ internal object CarPlayBackgroundSession {
         controller = null
         sink = null
         if (!keepOwner) { stopAction = null; owner = null }
+        if (!keepOwner) hotspotReady = null
         active = false
         callPopupReady = false
         width = 0

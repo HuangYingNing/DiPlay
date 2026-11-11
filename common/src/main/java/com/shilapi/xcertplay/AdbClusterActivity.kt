@@ -178,6 +178,7 @@ internal object ClusterActivityOutput {
         activity = WeakReference(window)
         launchPending = false
         main.removeCallbacks(retryTick)
+        if (routeCallbackOwner === hostOwner) onRouteConfirmed?.invoke()
         if (AirPlayPersistence.loadLegacyClusterEnabled(window) && !legacyPresented) retry()
         return true
     }
@@ -195,6 +196,8 @@ internal object ClusterActivityOutput {
     private var surfaceOwner: Any? = null
     private var hostOwner: Any? = null
     private var onSurface: ((Surface?) -> Unit)? = null
+    private var routeCallbackOwner: Any? = null
+    private var onRouteConfirmed: (() -> Unit)? = null
     var streamActive = false
         private set
 
@@ -262,6 +265,17 @@ internal object ClusterActivityOutput {
         mainTaskId = taskId
         onSurface = callback
         callback(surface)
+    }
+
+    fun setRouteConfirmationCallback(owner: Any, callback: () -> Unit) {
+        routeCallbackOwner = owner
+        onRouteConfirmed = callback
+    }
+
+    fun clearRouteConfirmationCallback(owner: Any) {
+        if (routeCallbackOwner !== owner) return
+        routeCallbackOwner = null
+        onRouteConfirmed = null
     }
 
     fun ensure(host: Activity) {
@@ -344,6 +358,8 @@ internal object ClusterActivityOutput {
         main.removeCallbacks(retryTick)
         onSurface?.invoke(null)
         onSurface = null
+        routeCallbackOwner = null
+        onRouteConfirmed = null
         hostOwner = null
         mainTaskId = -1
         surface = null

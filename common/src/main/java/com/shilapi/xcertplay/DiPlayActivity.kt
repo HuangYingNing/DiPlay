@@ -6219,6 +6219,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     }
 
     private fun showDiagnosticReport(report: String) {
+        if (!SteeringProfiles.developerUnlocked(this)) return
         val body = column().apply { setPadding(dp(24), dp(12), dp(24), dp(12)) }
         body.addView(label(getString(R.string.diagnostic_report_copy_hint), 14, MUTED))
         body.addView(label(reportTail(report), 13, TEXT).apply {

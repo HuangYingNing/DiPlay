@@ -50,9 +50,7 @@ object ConnectionSettingsSection {
         // The car hotspot keeps the radio on one channel; Wi-Fi Direct shares it with the car's network search.
         val modes = buildList {
             add(WirelessHotspotMode.MANUAL to context.getString(R.string.settings_built_in_car_hotspot_recommended))
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                add(WirelessHotspotMode.WIFI_P2P to context.getString(R.string.wi_fi_p2p_5_ghz))
-            }
+            add(WirelessHotspotMode.WIFI_P2P to context.getString(R.string.wi_fi_p2p_5_ghz))
             add(WirelessHotspotMode.EXISTING_WIFI to context.getString(R.string.existing_wifi_title))
         }
         return SettingsWidgets.createChoiceRow(
