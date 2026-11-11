@@ -2,6 +2,7 @@ package com.shilapi.xcertplay.update
 
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.net.HttpURLConnection
@@ -47,18 +48,65 @@ internal object UpdateClient {
 
     internal fun download(url: String, destination: File, onProgress: (Long, Long?) -> Unit) {
         destination.parentFile?.mkdirs()
+        var offset = destination.takeIf { it.isFile }?.length() ?: 0L
+        if (offset > MAXIMUM_DOWNLOAD_BYTES) {
+            destination.delete()
+            offset = 0L
+        }
+        download(url, destination, offset, retryWithoutRange = true, onProgress = onProgress)
+    }
+
+    private fun download(
+        url: String,
+        destination: File,
+        offset: Long,
+        retryWithoutRange: Boolean,
+        onProgress: (Long, Long?) -> Unit,
+    ) {
         val connection = URL(url).openConnection() as HttpURLConnection
         try {
             connection.connectTimeout = CONNECT_TIMEOUT_MILLIS
             connection.readTimeout = READ_TIMEOUT_MILLIS
             connection.useCaches = false
+            if (offset > 0L) connection.setRequestProperty("Range", "bytes=$offset-")
             val statusCode = connection.responseCode
+            if (statusCode == 416 && offset > 0L && retryWithoutRange) {
+                connection.disconnect()
+                destination.delete()
+                return download(url, destination, 0L, retryWithoutRange = false, onProgress = onProgress)
+            }
             if (statusCode !in 200..299) throw IOException("Download from $url failed: $statusCode")
-            val total = connection.contentLengthLong.takeIf { it > 0 }
+            val range = if (statusCode == HttpURLConnection.HTTP_PARTIAL) {
+                parseContentRange(connection.getHeaderField("Content-Range"))
+                    ?: run {
+                        if (offset > 0L && retryWithoutRange) {
+                            connection.disconnect()
+                            destination.delete()
+                            return download(url, destination, 0L, retryWithoutRange = false, onProgress = onProgress)
+                        }
+                        throw IOException("Download from $url returned an invalid Content-Range")
+                    }
+            } else null
+            val append = if (range != null) {
+                if (range.first != offset) {
+                    if (offset > 0L && retryWithoutRange) {
+                        connection.disconnect()
+                        destination.delete()
+                        return download(url, destination, 0L, retryWithoutRange = false, onProgress = onProgress)
+                    }
+                    throw IOException("Download from $url resumed at an unexpected offset")
+                }
+                true
+            } else {
+                // A server that ignores Range returns the full body. Start over instead of corrupting the APK.
+                false
+            }
+            val total = range?.total?.takeIf { it > 0L }
+                ?: connection.contentLengthLong.takeIf { it > 0 }?.let { it + if (append) offset else 0L }
             if (total != null && total > MAXIMUM_DOWNLOAD_BYTES) throw IOException("Download from $url is too large")
-            var written = 0L
+            var written = if (append) offset else 0L
             connection.inputStream.use { input ->
-                destination.outputStream().use { output ->
+                FileOutputStream(destination, append).use { output ->
                     val buffer = ByteArray(BUFFER_BYTES)
                     while (true) {
                         val read = input.read(buffer)
@@ -71,12 +119,22 @@ internal object UpdateClient {
                 }
             }
             if (total != null && written != total) throw IOException("Incomplete download from $url")
-        } catch (failure: Throwable) {
-            destination.delete()
-            throw failure
         } finally {
             connection.disconnect()
         }
+    }
+
+    private data class ContentRange(val first: Long, val last: Long, val total: Long?)
+
+    private fun parseContentRange(value: String?): ContentRange? {
+        val match = value?.let { Regex("bytes (\\d+)-(\\d+)/(\\d+|\\*)", RegexOption.IGNORE_CASE).matchEntire(it.trim()) }
+            ?: return null
+        val first = match.groupValues[1].toLongOrNull() ?: return null
+        val last = match.groupValues[2].toLongOrNull() ?: return null
+        if (last < first) return null
+        val total = match.groupValues[3].takeIf { it != "*" }?.toLongOrNull()
+        if (total != null && total <= last) return null
+        return ContentRange(first, last, total)
     }
 
     private fun readUtf8Limited(url: String, stream: InputStream): String {

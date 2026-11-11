@@ -100,7 +100,7 @@ class UpdateClientTest {
     }
 
     @Test
-    fun failedDownloadsLeaveNoPartialFile() {
+    fun failedDownloadsKeepPartialBytesForResuming() {
         server.createContext("/apk") { exchange ->
             exchange.sendResponseHeaders(200, 1024L)
             exchange.responseBody.use { it.write(ByteArray(16)) }
@@ -111,8 +111,52 @@ class UpdateClientTest {
             UpdateClient.download("$root/apk", destination) { _, _ -> }
             throw AssertionError("expected an IOException")
         } catch (expected: java.io.IOException) {
-            assertTrue(!destination.exists())
+            assertEquals(16L, destination.length())
         }
+    }
+
+    @Test
+    fun downloadResumesFromTheExistingFileLength() {
+        val payload = ByteArray(128 * 1024) { (it % 239).toByte() }
+        val offset = 17 * 1024
+        val requestedRange = AtomicBoolean()
+        server.createContext("/resumable") { exchange ->
+            val range = exchange.requestHeaders.getFirst("Range")
+            requestedRange.set(range == "bytes=$offset-")
+            val remaining = payload.copyOfRange(offset, payload.size)
+            exchange.responseHeaders.add("Content-Range", "bytes $offset-${payload.size - 1}/${payload.size}")
+            exchange.sendResponseHeaders(206, remaining.size.toLong())
+            exchange.responseBody.use { it.write(remaining) }
+        }
+        val destination = File(temporaryFolder.root, "update/DiPlay.apk").apply {
+            parentFile!!.mkdirs()
+            writeBytes(payload.copyOfRange(0, offset))
+        }
+
+        UpdateClient.download("$root/resumable", destination) { _, _ -> }
+
+        assertTrue(requestedRange.get())
+        assertEquals(payload.toList(), destination.readBytes().toList())
+    }
+
+    @Test
+    fun downloadRestartsWhenServerIgnoresRange() {
+        val payload = "complete APK".toByteArray()
+        val requestedRange = AtomicBoolean()
+        server.createContext("/ignore-range") { exchange ->
+            requestedRange.set(exchange.requestHeaders.getFirst("Range") != null)
+            exchange.sendResponseHeaders(200, payload.size.toLong())
+            exchange.responseBody.use { it.write(payload) }
+        }
+        val destination = File(temporaryFolder.root, "update/DiPlay.apk").apply {
+            parentFile!!.mkdirs()
+            writeBytes("stale partial".toByteArray())
+        }
+
+        UpdateClient.download("$root/ignore-range", destination) { _, _ -> }
+
+        assertTrue(requestedRange.get())
+        assertEquals(payload.toList(), destination.readBytes().toList())
     }
     private fun assertRefusedAsTooLarge(path: String, length: Long) {
         val chunk = ByteArray(1024 * 1024)

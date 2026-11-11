@@ -1,6 +1,7 @@
 package com.shilapi.xcertplay.update
 
 import android.content.Context
+import java.io.File
 
 /** Durable metadata only. APK downloads always remain an explicit foreground action. */
 internal object UpdateAvailability {
@@ -40,6 +41,7 @@ internal object UpdateAvailability {
     }
 
     fun save(context: Context, release: UpdateRelease) {
+        UpdateDownloadStore.retainVersion(File(context.filesDir, "update-downloads"), release)
         preferences(context).edit().putString(TAG, release.tagName).putString(APK_NAME, release.apkName)
             .putString(APK_URL, release.apkUrl).putString(CHECKSUMS_URL, release.checksumsUrl).apply()
     }

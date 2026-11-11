@@ -94,6 +94,7 @@ import com.shilapi.xcertplay.update.UpdateAvailability
 import com.shilapi.xcertplay.update.UpdateCatalog
 import com.shilapi.xcertplay.update.UpdateClient
 import com.shilapi.xcertplay.update.UpdateChecksums
+import com.shilapi.xcertplay.update.UpdateDownloadStore
 import com.shilapi.xcertplay.update.UpdateRelease
 import com.shilapi.xcertplay.update.UpdateReleaseLookup
 import java.io.File
@@ -2776,33 +2777,41 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         val generation = ++updateGeneration
         render()
         Thread({
-            // Each attempt owns its files, including across activity recreation.
-            val directory = File(cacheDir, "update/${java.util.UUID.randomUUID()}")
+            val storageRoot = File(filesDir, "update-downloads")
             val outcome = runCatching {
                 release = latestRelease() ?: throw IOException(getString(R.string.update_up_to_date))
+                UpdateDownloadStore.retainVersion(storageRoot, release)
+                val directory = UpdateDownloadStore.directory(storageRoot, release)
+                if (!directory.exists() && !directory.mkdirs()) throw IOException("Update storage is unavailable")
                 val checksumsFile = File(directory, UpdateCatalog.CHECKSUMS_FILE)
                 UpdateClient.download(release.checksumsUrl, checksumsFile) { _, _ -> }
                 val apkFile = File(directory, release.apkName)
-                UpdateClient.download(release.apkUrl, apkFile) { written, total ->
-                    val percent = total?.takeIf { it > 0 }?.let { (written * 100 / it).toInt() } ?: return@download
-                    if (percent != updateProgress) {
-                        updateProgress = percent
-                        refreshUpdateUi(generation)
+                val expected = UpdateChecksums.parse(checksumsFile.readText())
+                val alreadyVerified = apkFile.isFile && runCatching {
+                    UpdateChecksums.matches(expected, release.apkName, UpdateChecksums.sha256Hex(apkFile))
+                }.getOrDefault(false)
+                if (!alreadyVerified) {
+                    apkFile.delete()
+                    UpdateClient.download(release.apkUrl, apkFile) { written, total ->
+                        val percent = total?.takeIf { it > 0 }?.let { (written * 100 / it).toInt() } ?: return@download
+                        if (percent != updateProgress) {
+                            updateProgress = percent
+                            refreshUpdateUi(generation)
+                        }
                     }
                 }
                 updateStage = UpdateStage.VERIFYING
                 refreshUpdateUi(generation)
-                val expected = UpdateChecksums.parse(checksumsFile.readText())
                 val actual = UpdateChecksums.sha256Hex(apkFile)
                 if (!UpdateChecksums.matches(expected, release.apkName, actual)) {
+                    apkFile.delete()
                     throw IOException("Checksum mismatch for ${release.apkName}")
                 }
                 apkFile
-            }.onFailure { directory.deleteRecursively() }
+            }
             val saved = outcome.getOrNull()?.let { UpdateApkExport.copy(applicationContext, it) }
             runOnUiThread {
                 if (generation != updateGeneration || isFinishing || isDestroyed) {
-                    directory.deleteRecursively()
                     return@runOnUiThread
                 }
                 outcome.fold(
