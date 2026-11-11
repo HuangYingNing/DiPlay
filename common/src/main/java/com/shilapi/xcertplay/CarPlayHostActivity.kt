@@ -154,6 +154,7 @@ open class CarPlayHostActivity : ComponentActivity() {
         val safeAreaRects: MutableMap<DisplaySize, SafeAreaRect?>,
         val customIconBytes: ByteArray?,
         val hotspotStatus: HotspotStatus,
+        val blackCornerRadiusDp: Int,
     )
 
     private data class PendingAssignedSiriDoublePress(
@@ -321,6 +322,8 @@ open class CarPlayHostActivity : ComponentActivity() {
 
     // The full-window viewport stays independent of the letterboxed SurfaceView dimensions.
     private var videoView: View? = null
+    private var blackCornerOverlay: CarPlayBlackCornerOverlay? = null
+    private var blackCornerRadiusDp = 0
     private var fallbackVideoView: SurfaceView? = null
     private var fallbackVideoBounds: CarPlaySurfaceBounds? = null
     // Smooth video (a setting): SurfaceView output with frames released at the iPhone's frame time.
@@ -860,6 +863,8 @@ open class CarPlayHostActivity : ComponentActivity() {
         temporarySystemBarsEnabled = AirPlayPersistence.loadTemporarySystemBars(this)
         harmanFullscreenEnabled = AirPlayPersistence.loadHarmanFullscreen(this)
         safeAreaDrawOutside = AirPlayPersistence.loadSafeAreaDrawOutside(this)
+        blackCornerRadiusDp = AirPlayPersistence.loadBlackCornerRadiusDp(this)
+        blackCornerOverlay?.radiusDp = blackCornerRadiusDp
         locationPermissionAvailable = hasFineLocationPermission()
         loadConnectionSettings()
         wirelessPermissionsReady = !wirelessEnabled || hasRequiredWirelessPermissions()
@@ -1900,6 +1905,8 @@ open class CarPlayHostActivity : ComponentActivity() {
         mainHandler.removeCallbacks(expireOldLogLines)
         mainHandler.removeCallbacks(pollConfiguration)
         videoSurfaceOwner.clear()
+        blackCornerOverlay?.setIphoneMask(null)
+        blackCornerOverlay = null
         currentSurfaceTexture = null
         fallbackVideoView = null
         fallbackVideoBounds = null
@@ -1916,11 +1923,18 @@ open class CarPlayHostActivity : ComponentActivity() {
             surfaceTextureListener = textureListener
         }
         pictureBinding = CarPlayPicture.Binding(video)
+        blackCornerRadiusDp = AirPlayPersistence.loadBlackCornerRadiusDp(this)
+        blackCornerOverlay = CarPlayBlackCornerOverlay(this).apply {
+            radiusDp = blackCornerRadiusDp
+            setContentBounds(android.graphics.RectF(0f, 0f,
+                resources.displayMetrics.widthPixels.toFloat(), resources.displayMetrics.heightPixels.toFloat()))
+        }
         val gestureLayer = View(this).apply {
             isClickable = true
             setOnTouchListener { view, event -> onHostTouch(view, event) }
         }
         root.addView(video, FrameLayout.LayoutParams(-1, -1))
+        root.addView(blackCornerOverlay, FrameLayout.LayoutParams(-1, -1))
         root.addView(gestureLayer, FrameLayout.LayoutParams(-1, -1))
         // Measure the preparation content naturally, then fit it inside the safe viewport.
         val viewport = object : FrameLayout(this) {
@@ -3439,6 +3453,7 @@ open class CarPlayHostActivity : ComponentActivity() {
         AirPlayPersistence.saveTemporarySystemBars(this, temporarySystemBarsEnabled)
         AirPlayPersistence.saveHarmanFullscreen(this, harmanFullscreenEnabled)
         AirPlayPersistence.saveSafeAreaDrawOutside(this, safeAreaDrawOutside)
+        AirPlayPersistence.saveBlackCornerRadiusDp(this, blackCornerRadiusDp)
     }
 
     /** Mirrors [persistMenuSettings]: a field staged there belongs here too. */
@@ -3451,6 +3466,7 @@ open class CarPlayHostActivity : ComponentActivity() {
         hevcSoftwareDecoderEnabled, manufacturer, model, oemLabel, debugLogsEnabled, rightHandDrive,
         carPlayDock, hideTopBar, hideBottomBar, temporarySystemBarsEnabled, harmanFullscreenEnabled,
         safeAreaDrawOutside,
+        blackCornerRadiusDp,
     ).joinToString("|").hashCode()
 
     private fun captureSettingsBaseline(): SettingsBaseline {
@@ -3467,6 +3483,7 @@ open class CarPlayHostActivity : ComponentActivity() {
             },
             customIconBytes = customIconBytes,
             hotspotStatus = hotspotStatus,
+            blackCornerRadiusDp = blackCornerRadiusDp,
         )
     }
 
@@ -3477,6 +3494,8 @@ open class CarPlayHostActivity : ComponentActivity() {
             harmanFullscreenEnabled != AirPlayPersistence.loadHarmanFullscreen(this)
         loadPersistedSettings()
         hotspotStatus = baseline.hotspotStatus
+        blackCornerRadiusDp = baseline.blackCornerRadiusDp
+        blackCornerOverlay?.radiusDp = blackCornerRadiusDp
         baseline.safeAreaRects.forEach { (size, savedRect) ->
             savedRect?.let { rect ->
                 AirPlayPersistence.saveSafeAreaRect(
@@ -4106,6 +4125,24 @@ open class CarPlayHostActivity : ComponentActivity() {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
             ).apply { topMargin = dp(6) },
         )
+        section.addView(menuText(getString(R.string.black_corner_overlay), 16f, MENU_SECONDARY))
+        section.addView(menuText(getString(R.string.black_corner_overlay_description), 13f, MENU_SECONDARY))
+        section.addView(SeekBar(this).apply {
+            val options = CarPlayBlackCornerOverlay.RADII_DP
+            max = options.lastIndex
+            progress = options.indexOf(blackCornerRadiusDp).coerceAtLeast(0)
+            contentDescription = getString(R.string.black_corner_overlay)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(bar: SeekBar?, value: Int, fromUser: Boolean) {
+                    blackCornerRadiusDp = options[value.coerceIn(options.indices)]
+                    blackCornerOverlay?.radiusDp = if (blackCornerRadiusDp == CarPlayBlackCornerOverlay.IPHONE_MASK) 24
+                        else blackCornerRadiusDp
+                }
+                override fun onStartTrackingTouch(bar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(bar: SeekBar?) = Unit
+            })
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            .apply { topMargin = dp(6) })
         val buttons = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
         }
@@ -4634,14 +4671,11 @@ open class CarPlayHostActivity : ComponentActivity() {
             "${getString(R.string.resolution_handshake_prefix)}${native.width} x ${native.height} -> " +
                 "${negotiated.widthPixels} x ${negotiated.heightPixels}"
         }
-        val transport = if (!hevcEnabled) {
-            "H.264"
-        } else {
-            "HEVC (H.265, ${if (hevcSoftwareDecoderEnabled) "software" else "hardware"})"
-        }
+        val transport = if (!hevcEnabled) "H.264" else getString(R.string.preview_transport_hevc,
+            getString(if (hevcSoftwareDecoderEnabled) R.string.preview_decoder_software else R.string.preview_decoder_hardware))
         val fullscreen = buildString {
             append(if (hideTopBar) getString(R.string.fullscreen_top_hidden) else getString(R.string.fullscreen_top_shown))
-            append(", ")
+            append(getString(R.string.preview_list_separator))
             append(if (hideBottomBar) getString(R.string.fullscreen_bottom_hidden) else getString(R.string.fullscreen_bottom_shown))
         }
         resolutionPreviewView?.text = buildString {
