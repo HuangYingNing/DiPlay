@@ -1592,6 +1592,10 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         settingsSearchPopup = PopupWindow(scroll, width, height, false).apply {
             setBackgroundDrawable(rounded(SURFACE, BORDER))
             elevation = dp(8).toFloat()
+            runCatching {
+                PopupWindow::class.java.getDeclaredField("mLayoutInScreen").apply { isAccessible = true }
+                    .setBoolean(this, true)
+            }
             // Tapping elsewhere closes the list and keeps the query; tapping the box reopens it.
             isOutsideTouchable = true
             inputMethodMode = PopupWindow.INPUT_METHOD_NEEDED
@@ -4504,6 +4508,10 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             render()
         }
         if (BydOutputSettings.clusterSong(this)) {
+            toggle(card, getString(R.string.cluster_song_gate), getString(R.string.cluster_song_gate_description),
+                BydOutputSettings.clusterSongGate(this)) {
+                BydOutputSettings.setClusterSongGate(this, it)
+            }
             toggle(card, getString(R.string.cluster_song_on_change), getString(R.string.cluster_song_on_change_description),
                 BydOutputSettings.clusterSongOnChange(this), enabled = !adbSwitchChangePending) {
                 BydOutputSettings.setClusterSongOnChange(this, it)
@@ -4957,7 +4965,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                     vehicleProbeOutcome = null
                 }
                 render()
-                if (mayAsk) toast(status?.state?.let(::adbLinkStatusText) ?: getString(R.string.adb_check_failed))
+                if (mayAsk) toast(status?.state?.let(::adbCheckResultText) ?: getString(R.string.adb_check_failed))
                 // Unreadable data keeps the current connection; the page shows what is missing.
                 if (!legacy && vehicleDataReconnectPending && status?.state == BydAdbAccess.State.READY &&
                     enabledVehicleDataReadable(null, status)) {
@@ -5281,6 +5289,13 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         BydAdbAccess.State.NOT_APPROVED -> getString(R.string.adb_enabled_not_approved)
         BydAdbAccess.State.ADB_OFF -> getString(R.string.adb_off)
         BydAdbAccess.State.PAIRING_ONLY -> getString(R.string.adb_pairing_only)
+    }
+
+    private fun adbCheckResultText(state: BydAdbAccess.State): String = when {
+        state == BydAdbAccess.State.ADB_OFF && android.provider.Settings.Global.getInt(
+            contentResolver, android.provider.Settings.Global.ADB_ENABLED, 0) == 1 ->
+            getString(R.string.adb_network_not_answering)
+        else -> adbLinkStatusText(state)
     }
 
     private fun gearLetter(value: Int): String = when (value) {
