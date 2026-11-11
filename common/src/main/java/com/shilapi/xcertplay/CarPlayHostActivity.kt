@@ -473,6 +473,7 @@ open class CarPlayHostActivity : ComponentActivity() {
     private var darkMode = false
     private var appNight = true
     private var hostAppearanceResumed = false
+    private var callPopupSessionReady = false
     private var hideBydCallPopup = false
     private var paintWaitingScreen: () -> Unit = {}
     private var carPlayNightMode = CarPlayNightMode.SYSTEM
@@ -1046,6 +1047,7 @@ open class CarPlayHostActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         hostAppearanceResumed = true
+        updateCallPopupGuard()
         val savedNightMode = AirPlayPersistence.loadCarPlayNightMode(this)
         val savedThreshold = AirPlayPersistence.loadAmbientLightThreshold(this)
         val savedDelay = AirPlayPersistence.loadAmbientDelaySeconds(this)
@@ -1571,6 +1573,7 @@ open class CarPlayHostActivity : ComponentActivity() {
 
     override fun onPause() {
         hostAppearanceResumed = false
+        updateCallPopupGuard()
         cancelTemporarySystemBars()
         AppAppearanceRuntime.clearHost(this)
         nightModeController.pause()
@@ -3251,7 +3254,7 @@ open class CarPlayHostActivity : ComponentActivity() {
 
     /** Mirrors [persistMenuSettings]: a field staged there belongs here too. */
     private fun menuSettingsSignature(): Int = listOf(
-        hideBydCallPopup, gestureFingerCount, wirelessEnabled, mfiTarget, mfiI2cPath, remoteMfiServer, remoteMfiToken,
+        gestureFingerCount, wirelessEnabled, mfiTarget, mfiI2cPath, remoteMfiServer, remoteMfiToken,
         wirelessHotspotMode, existingWifiSsid, existingWifiPassphrase, manualHotspotSsid,
         manualHotspotPassphrase, manualHotspotBand, manualHotspotChannel, manualHotspotSecurity,
         locationReportingEnabled, autoStartOnBoot, advancedAudioChannelMapping, displayScaleTenths,
@@ -4985,6 +4988,8 @@ open class CarPlayHostActivity : ComponentActivity() {
                     }
                     activeAirPlaySession = session
                     CarPlayBackgroundSession.active = true
+                    callPopupSessionReady = true
+                    updateCallPopupGuard()
                     LastConnectionProblem.clear(this@CarPlayHostActivity)
                     showConnectionHelp(null)
                     // carlito | RECORD can recover an ended AirPlay session, but it cannot
@@ -5030,6 +5035,8 @@ open class CarPlayHostActivity : ComponentActivity() {
                     startupRetryBudget.disconnected()
                     activeAirPlaySession = null
                     CarPlayBackgroundSession.active = false
+                    callPopupSessionReady = false
+                    updateCallPopupGuard()
                     if (menuOpen) {
                         recoveryPendingAfterMenu = true
                         return@runOnUiThread
@@ -5045,6 +5052,8 @@ open class CarPlayHostActivity : ComponentActivity() {
             override fun onTransportError(message: String) {
                 runOnUiThread {
                     if (controllerGeneration != restartGeneration || startupRetryStopped) return@runOnUiThread
+                    callPopupSessionReady = false
+                    updateCallPopupGuard()
                     startupRetryBudget.disconnected()
                     if (menuOpen) {
                         recoveryPendingAfterMenu = true
@@ -5092,6 +5101,8 @@ open class CarPlayHostActivity : ComponentActivity() {
             LastConnectionProblem.clear(this)
             showConnectionHelp(null)
         } else if (status is CarPlayStatus.Failed) {
+            callPopupSessionReady = false
+            updateCallPopupGuard()
             showConnectionHelp(status)
         } else if (!wirelessEnabled) {
             connectionInstructionsView?.text = getString(when (status) {
@@ -5211,6 +5222,8 @@ open class CarPlayHostActivity : ComponentActivity() {
                 finish()
             }
         }
+        callPopupSessionReady = CarPlayBackgroundSession.callPopupReady
+        updateCallPopupGuard()
         if (snapshot.width > 0 && snapshot.height > 0) {
             activeDisplaySize = DisplaySize(snapshot.width, snapshot.height)
         }
@@ -6200,6 +6213,21 @@ open class CarPlayHostActivity : ComponentActivity() {
         }
     }
 
+    private fun shouldHideBydCallPopup(): Boolean =
+        hostAppearanceResumed && callPopupSessionReady && !menuOpen && !shuttingDown.get() &&
+            !handshakeResetInProgress && !reconnectScheduled && CarPlayBackgroundSession.active &&
+            CarPlayBackgroundSession.isOwner(this) && AirPlayPersistence.loadHideBydCallPopup(this)
+
+    private fun updateCallPopupGuard() {
+        if (CarPlayBackgroundSession.isOwner(this)) {
+            CarPlayBackgroundSession.callPopupReady = callPopupSessionReady
+        }
+        com.shilapi.xcertplay.hud.BydCallPopupGuard.update(this, this, shouldHideBydCallPopup()) {
+            CarPlayBackgroundSession.active && CarPlayBackgroundSession.callPopupReady &&
+                CarPlayBackgroundSession.isOwner(this)
+        }
+    }
+
     private fun setStatus(message: String) {
         runOnUiThread {
             setConnectionStage(message)
@@ -6483,6 +6511,7 @@ internal fun statusBarHiddenByAnotherWindow(
 /** Process-local hand-off for keeping the CarPlay session alive while no Activity is visible. */
 internal object CarPlayBackgroundSession {
     @Volatile var active = false
+    @Volatile var callPopupReady = false
     @Volatile var hotspotReady: CarPlayStatus.HotspotReady? = null
     private var stopAction: (((() -> Unit)) -> Unit)? = null
     private var stopping = false
@@ -6550,6 +6579,7 @@ internal object CarPlayBackgroundSession {
         sink = null
         if (!keepOwner) { stopAction = null; owner = null }
         active = false
+        callPopupReady = false
         width = 0
         height = 0
         display = null

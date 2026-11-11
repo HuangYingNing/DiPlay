@@ -65,8 +65,16 @@ import com.shilapi.xcertplay.media.AmbientColorSpeed
 import com.shilapi.xcertplay.media.AmbientMusicController
 import com.shilapi.xcertplay.media.MtkDecoderTuning
 import com.shilapi.xcertplay.media.AmbientMusicSettings
+import com.shilapi.xcertplay.backup.SettingsBackupCodec
+import com.shilapi.xcertplay.backup.SettingsBackupServer
+import com.shilapi.xcertplay.backup.SettingsBackupEndpoint
+import com.shilapi.xcertplay.backup.SettingsQrCode
 import com.shilapi.xcertplay.network.CarHotspotSettings
+import com.shilapi.xcertplay.network.CarHotspotSavedCredentials
+import com.shilapi.xcertplay.network.CarHotspotConfigRead
+import com.shilapi.xcertplay.network.CarHotspotConfigWrite
 import com.shilapi.xcertplay.network.CarHotspotTethering
+import com.shilapi.xcertplay.network.HotspotCredentials
 import com.shilapi.xcertplay.network.WifiP2pChannels
 import com.shilapi.xcertplay.orchestration.ManualHotspotSecurity
 import com.shilapi.xcertplay.orchestration.WirelessHotspotMode
@@ -99,6 +107,7 @@ internal enum class SettingsSection {
     CARPLAY_CONTROLS,
     WHEEL_KEYS,
     CONNECTION_SETUP,
+    USB_CONNECTION,
     DIAGNOSTICS,
     AUTOMATIC_CONNECTION,
     BYD_ADB,
@@ -127,6 +136,7 @@ internal object SettingsInformationArchitecture {
         SettingsCategory.ABOUT to emptySet(),
         SettingsCategory.CONNECTION to setOf(
             SettingsSection.CONNECTION_SETUP,
+            SettingsSection.USB_CONNECTION,
             SettingsSection.AUTOMATIC_CONNECTION,
             SettingsSection.BYD_ADB,
             SettingsSection.PERMISSIONS_AND_HELP,
@@ -180,6 +190,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     private var clusterSafeAreaDialog: Dialog? = null
     private var clusterContentRequestVersion = 0L
     private var pendingCarHotspotSetup = false
+    private var carHotspotConfigStatus: Int? = null
+    private var importedCarHotspot: CarHotspotSavedCredentials? = null
     private var setupError: String? = null
     private var status: TextView? = null
     private var connectButton: Button? = null
@@ -263,6 +275,10 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     private var pendingVehicleLostFields: Set<BydVehicleField> = emptySet()
     private var defaultVehicleStatus: BydAdbAccess.Status? = null
     private var vehicleDataReconnectPending = false
+    @Volatile private var backupServer: SettingsBackupServer? = null
+    @Volatile private var backupEndpoint: SettingsBackupEndpoint? = null
+    private var backupOpenedFrom = SettingsCategory.DIAGNOSTICS
+    @Volatile private var backupSummary: String? = null
     private val automaticVehicleValidation = Runnable {
         automaticVehicleValidationPending = false
         validateSavedVehicleConfigurationAutomatically()
@@ -660,6 +676,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         applyWindowAppearance()
         // A pending assignment belongs to the widgets being replaced, never to another page.
         if (!appearanceOnly) cancelKeyLearning()
+        if (page != "backup" && backupServer != null) stopBackupServer()
         val focusSnapshot = if (appearanceOnly) {
             currentFocus?.let { focused ->
                 FocusSnapshot(
@@ -721,6 +738,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 "connection" -> connectionSetup(content)
                 "setup" -> setupGuide(content)
                 "settings" -> settingsCategoryContent(content)
+                "backup" -> backup(content)
                 "about" -> about(content)
                 else -> home(content)
             }
@@ -817,6 +835,10 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         }
         val returnCategory = connectionSettingsReturnCategory
         when {
+            page == "backup" -> {
+                page = "settings"
+                settingsCategory = backupOpenedFrom
+            }
             page == "about" -> {
                 page = "settings"
                 settingsCategory = SettingsCategory.OVERVIEW
@@ -1639,6 +1661,19 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             card.addView(label(getString(R.string.choose_how_to_connect_follow_the_setup_steps_and_save_your), 16, MUTED))
             card.addView(button(getString(R.string.open_connection_setup), false, ::openConnectionSetupFromSettings), matchButton(12, 60))
         }
+        filteredSection(content, SettingsSection.USB_CONNECTION,
+            getString(R.string.settings_usb_connection), R.drawable.ic_dp_connection) { card ->
+            val currents = UsbChargingCurrent.entries
+            choice(card, getString(R.string.settings_usb_charging), listOf(
+                getString(R.string.settings_usb_charging_normal),
+                getString(R.string.settings_usb_charging_reduced),
+                getString(R.string.settings_usb_charging_low),
+            ), currents.indexOf(AirPlayPersistence.loadUsbChargingCurrent(this)), reconnects = false) {
+                AirPlayPersistence.saveUsbChargingCurrent(this, currents[it])
+                if (!AirPlayPersistence.loadWirelessEnabled(this)) markReconnectNeeded()
+            }
+            card.addView(label(getString(R.string.settings_usb_charging_description), 14, MUTED))
+        }
         filteredSection(content, SettingsSection.DIAGNOSTICS,
             getString(R.string.diagnostics), R.drawable.ic_dp_diagnostics) { card ->
             exportButton = button(if (exportInProgress) getString(R.string.saving_report) else getString(R.string.save_diagnostic_report), false) {
@@ -1647,6 +1682,11 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             }.apply { isEnabled = !exportInProgress }
             card.addView(exportButton, matchButton(10, 60))
             card.addView(button(getString(R.string.choose_save_location), false) { chooseReportDestination() }, matchButton(10, 60))
+            card.addView(button(getString(R.string.settings_report_on_phone), false) {
+                backupOpenedFrom = SettingsCategory.DIAGNOSTICS
+                page = "backup"
+                render()
+            }, matchButton(10, 60))
             val destination = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) getString(R.string.reports_save_to_downloads_diplay) else getString(R.string.choose_where_to_save_your_report)
             card.addView(label(destination + getString(R.string.nothing_is_sent_automatically_protocol_payloads_and_creden), 14, MUTED).apply { setPadding(0, dp(12), 0, 0) })
             reportIssueInput = EditText(this).apply {
@@ -1761,6 +1801,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         if (settingsSectionFilter?.contains(SettingsSection.BYD_ADB) != false) bydAdbSettings(content)
         filteredSection(content, SettingsSection.DISPLAY_AND_PERFORMANCE,
             getString(R.string.display_and_performance), R.drawable.ic_dp_display) { card ->
+            frameRateControl(card)
             val appearances = AppAppearance.entries
             choice(
                 card,
@@ -1889,6 +1930,13 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         // Opt-in controls that can cost sound or video on some head units.
         filteredSection(content, SettingsSection.ADVANCED_MEDIA,
             getString(R.string.settings_advanced_media), R.drawable.ic_dp_advanced) { card ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && CarHotspotSetup.isBydHeadUnit(this)) {
+                toggle(card, getString(R.string.settings_hide_byd_call_popup),
+                    getString(R.string.settings_hide_byd_call_popup_description),
+                    AirPlayPersistence.loadHideBydCallPopup(this)) {
+                    AirPlayPersistence.saveHideBydCallPopup(this, it)
+                }
+            }
             toggle(card, getString(R.string.efficient_video), getString(R.string.use_hevc_leave_off_for_the_widest_head_unit_compatibility), AirPlayPersistence.loadHevcEnabled(this)) { AirPlayPersistence.saveHevcEnabled(this, it); markReconnectNeeded() }
             toggle(card, getString(R.string.smooth_video), getString(R.string.smooth_video_description),
                 AirPlayPersistence.loadSmoothVideo(this)) {
@@ -1943,6 +1991,30 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             getString(R.string.audio_routing), R.drawable.ic_dp_audio) { card ->
             mediaChannelControl(card)
             navigationChannelControl(card)
+            val gainSlider = overlaySliderRow(
+                getString(R.string.settings_navigation_attenuation),
+                (com.shilapi.xcertplay.media.NavigationAudioGain.MIN_DB..
+                    com.shilapi.xcertplay.media.NavigationAudioGain.MAX_DB).toList(),
+                AirPlayPersistence.loadNavigationAudioAttenuationDb(this),
+            ) { db -> getString(R.string.settings_navigation_attenuation_value, db) }
+            val gainTitle = getString(R.string.settings_navigation_attenuation)
+            gainSlider.slider.contentDescription = gainTitle + ": " +
+                getString(R.string.settings_navigation_attenuation_value,
+                    AirPlayPersistence.loadNavigationAudioAttenuationDb(this))
+            gainSlider.onSave = { db ->
+                AirPlayPersistence.saveNavigationAudioAttenuationDb(this, db)
+                CarPlayBackgroundSession.snapshot()?.sink?.setNavigationAttenuationDb(db)
+                gainSlider.slider.contentDescription = gainTitle + ": " +
+                    getString(R.string.settings_navigation_attenuation_value, db)
+            }
+            card.addView(gainSlider)
+            card.addView(label(getString(R.string.settings_navigation_attenuation_description), 14, MUTED).apply {
+                setPadding(0, dp(SETTINGS_BLOCK_GAP_DP), 0, 0)
+            })
+            musicBufferChoice(card, wireless = true)
+            musicBufferChoice(card, wireless = false)
+            toggle(card, getString(R.string.settings_call_speakerphone), getString(R.string.settings_call_speakerphone_description),
+                AirPlayPersistence.loadCallSpeakerphone(this)) { AirPlayPersistence.saveCallSpeakerphone(this, it) }
             choice(card, getString(R.string.vehicle_audio_output_mode), listOf(
                 getString(R.string.vehicle_audio_output_factory), getString(R.string.vehicle_audio_output_bluetooth)),
                 if (com.shilapi.xcertplay.vehicle.VehicleAudioOutputMode.bluetooth(this)) 1 else 0,
@@ -1972,6 +2044,11 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             card.addView(button(ambientConfigurationLabel(AmbientMusicSettings.load(this)), false) {
                 showAmbientConfiguration()
             }, matchButton(0, 60))
+            carRhythmControl(card)
+            toggle(card, getString(R.string.settings_ambient_car_rhythm_feed),
+                getString(R.string.settings_ambient_car_rhythm_feed_description), AmbientMusicSettings.load(this).carRhythmFeed) { enabled ->
+                AmbientMusicSettings.save(this, AmbientMusicSettings.load(this).copy(carRhythmFeed = enabled))
+            }
         }
         filteredSection(content, SettingsSection.LOCATION,
             getString(R.string.location), R.drawable.ic_dp_navigation) { card ->
@@ -2384,6 +2461,99 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             card.addView(button(getString(R.string.wireless_connection_help), false) { wirelessHelp() }, matchButton(10, 60))
         }
         languageSettings(content)
+    }
+
+    private fun backup(content: LinearLayout) {
+        val preferredPrefix = when (AirPlayPersistence.loadWirelessHotspotMode(this)) {
+            WirelessHotspotMode.WIFI_P2P -> "p2p"
+            WirelessHotspotMode.LOCAL_ONLY_HOTSPOT -> "ap"
+            WirelessHotspotMode.MANUAL, WirelessHotspotMode.EXISTING_WIFI -> "wlan"
+        }
+        val addresses = SettingsBackupServer.addressCandidates(preferredPrefix)
+        val forReport = backupOpenedFrom == SettingsCategory.DIAGNOSTICS
+        content.addView(label(getString(if (forReport) R.string.settings_report_on_phone else R.string.backup_title), 40, TEXT, true))
+        var endpoint = backupEndpoint
+        if ((backupServer == null || endpoint == null) && addresses.isEmpty()) {
+            content.addView(space(SETTINGS_BLOCK_GAP_DP))
+            content.addView(label(getString(R.string.backup_no_network), 16, MUTED))
+            return
+        }
+        if (backupServer == null || endpoint == null) {
+            val created = SettingsBackupServer(
+                page = assets.open("settings-backup.html").use { it.readBytes() },
+                export = { SettingsBackupCodec.export(this, version()) },
+                import = { SettingsBackupCodec.import(this, it) },
+                report = { diagnosticReportText(applicationContext).toByteArray(Charsets.UTF_8) },
+                codePage = assets.open("settings-code.html").use { it.readBytes() },
+            )
+            created.onCodeEntryClosed = {
+                runOnUiThread { if (!isFinishing && !isDestroyed && backupServer === created) render() }
+            }
+            created.onIdle = {
+                runOnUiThread {
+                    if (isFinishing || isDestroyed || backupServer !== created) return@runOnUiThread
+                    stopBackupServer()
+                    page = "settings"
+                    settingsCategory = backupOpenedFrom
+                    render()
+                }
+            }
+            created.onImported = { outcome ->
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    backupSummary = if (outcome.invalid) getString(R.string.backup_import_invalid)
+                    else getString(R.string.backup_summary, outcome.applied, outcome.skipped)
+                    if (!outcome.invalid && outcome.applied > 0) markReconnectNeeded()
+                    render()
+                }
+            }
+            endpoint = created.start()
+            if (endpoint == null) {
+                created.stop()
+                content.addView(space(SETTINGS_BLOCK_GAP_DP))
+                content.addView(label(getString(R.string.backup_no_network), 16, MUTED))
+                return
+            }
+            backupServer = created
+            backupEndpoint = endpoint
+            backupSummary = null
+        }
+        val active = endpoint
+        backupServer?.landing = if (forReport) "#report" else ""
+        content.addView(space(SETTINGS_BLOCK_GAP_DP))
+        content.addView(card().apply {
+            addView(label(getString(if (forReport) R.string.settings_report_on_phone_hint else R.string.backup_page_hint), 16, MUTED))
+            val side = dp(240)
+            addView(ImageView(this@DiPlayActivity).apply {
+                setImageBitmap(SettingsQrCode.encode(active.url(addresses.first()) + if (forReport) "#report" else "", side))
+                scaleType = ImageView.ScaleType.FIT_CENTER
+            }, LinearLayout.LayoutParams(side + dp(24), side + dp(24)).apply {
+                topMargin = dp(SETTINGS_BLOCK_GAP_DP)
+                gravity = Gravity.CENTER_HORIZONTAL
+            })
+            backupSummary?.let { addView(label(it, 15, TEXT).apply { setPadding(0, dp(16), 0, 0) }) }
+            addView(label(
+                if (backupServer?.codeEntryOpen == true) getString(
+                    R.string.backup_type_address,
+                    active.typedAddress(addresses.first()),
+                    active.code.chunked(3).joinToString(" "),
+                ) else getString(R.string.backup_code_entry_closed),
+                16,
+                TEXT,
+            ).apply { setPadding(0, dp(16), 0, 0) })
+            if (addresses.size > 1) addView(label(
+                addresses.drop(1).joinToString("\n") { getString(R.string.backup_other_addresses, it) },
+                14,
+                MUTED,
+            ).apply { setPadding(0, dp(16), 0, 0) })
+        })
+    }
+
+    private fun stopBackupServer() {
+        backupServer?.stop()
+        backupServer = null
+        backupEndpoint = null
+        backupSummary = null
     }
 
     private fun about(content: LinearLayout) {
@@ -3120,6 +3290,27 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 }
             }, matchButton(12, 60))
             parent.addView(label(if (pendingCarHotspotSetup) getString(R.string.finish_setup_save_your_hotspot_details_to_use_this_mode) else if (carHotspotOff()) getString(R.string.hotspot_details_off) else getString(R.string.hotspot_details_saved), 15, if (carHotspotOff()) WARNING else MUTED).apply { setPadding(0, dp(12), 0, 0) })
+            if (CarHotspotConfigWrite.supported()) {
+                parent.addView(SettingsWidgets.createSwitchRow(
+                    context = this,
+                    label = getString(R.string.settings_car_hotspot_config_title),
+                    description = getString(R.string.settings_car_hotspot_config_description),
+                    labelSizeSp = 22f,
+                    checked = CarHotspotSettings.configWrite(this),
+                    theme = SettingsTheme.card(palette),
+                    contentDescription = getString(R.string.settings_car_hotspot_config_title),
+                    onChanged = { enabled ->
+                        CarHotspotSettings.setConfigWrite(this, enabled)
+                        carHotspotConfigStatus = null
+                        if (enabled) importCarHotspotConfig() else render()
+                    },
+                ).rowView)
+                carHotspotConfigStatus?.let { status ->
+                    parent.addView(label(getString(status), 15, MUTED).apply {
+                        setPadding(0, dp(SETTINGS_BLOCK_GAP_DP), 0, 0)
+                    })
+                }
+            }
 
         } else if (mode == WirelessHotspotMode.EXISTING_WIFI) {
             parent.addView(label(getString(R.string.existing_wifi_instructions), 16, MUTED))
@@ -3219,6 +3410,41 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         parent.addView(label(getString(R.string.contrib_audio_home_nav_channel_note), 14, MUTED).apply {
             setPadding(0, dp(8), 0, dp(18))
         })
+    }
+
+    private fun musicBufferChoice(card: LinearLayout, wireless: Boolean) {
+        val buffer = com.shilapi.xcertplay.media.MediaAudioBuffer
+        val presets = if (wireless) buffer.wirelessPresets else buffer.wiredPresets
+        val labels = presets.map { millis ->
+            when (millis) {
+                buffer.DEFAULT_MILLIS -> getString(R.string.s_300_ms_default)
+                buffer.MOST_STABLE_MILLIS -> getString(R.string.s_1000_ms_most_stable)
+                else -> getString(R.string.settings_music_buffer_ms, millis)
+            }
+        }
+        val title = getString(if (wireless) R.string.settings_music_buffer_wireless else R.string.settings_music_buffer_wired)
+        val sessionTransport = AirPlayPersistence.loadWirelessEnabled(this) == wireless
+        choice(card, title, labels,
+            presets.indexOf(AirPlayPersistence.loadMediaBufferMillis(this, wireless)).coerceAtLeast(0),
+            reconnects = sessionTransport) {
+            AirPlayPersistence.saveMediaBufferMillis(this, wireless, presets[it])
+        }
+    }
+
+    private fun frameRateControl(parent: LinearLayout) {
+        val current = AirPlayPersistence.loadFps(this)
+        val rates = listOf(30, current, 60).distinct()
+        val labels = rates.map {
+            when (it) {
+                30 -> getString(R.string.s_30_fps_lighter_load)
+                60 -> getString(R.string.s_60_fps_smoother_motion)
+                else -> "$it fps"
+            }
+        }
+        choice(parent, getString(R.string.frame_rate), labels, rates.indexOf(current)) {
+            AirPlayPersistence.saveFps(this, rates[it])
+            markReconnectNeeded()
+        }
     }
 
     private fun showChannelDialog(title: String, current: Int, navigation: Boolean, onApply: (Int) -> Unit) {
@@ -3352,6 +3578,80 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     private fun hotspotError(ssid: String, password: String) =
         com.shilapi.xcertplay.orchestration.ManualHotspotValidation.error(ssid, password)?.let { getString(it.messageResource()) }
 
+    private fun importCarHotspotConfig() {
+        carHotspotConfigStatus = R.string.adb_checking_may_ask
+        render()
+        Thread({
+            val read = CarHotspotConfigRead.read(applicationContext, mayAsk = true,
+                log = { Log.i("DiPlay-Hotspot", it) })
+            val saved = read.credentials
+            Log.i("DiPlay-Hotspot", "car hotspot config read: credentials=${saved != null} reason=${read.reason}")
+            if (saved != null) {
+                AirPlayPersistence.saveManualHotspotSsid(applicationContext, saved.ssid)
+                AirPlayPersistence.saveManualHotspotPassphrase(applicationContext, saved.passphrase)
+                AirPlayPersistence.saveManualHotspotSecurity(applicationContext, saved.security)
+            }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (saved != null) {
+                    importedCarHotspot = saved
+                    carHotspotConfigStatus = null
+                    render()
+                } else {
+                    carHotspotConfigStatus = when (read.access) {
+                        LocalAdb.Access.NOT_APPROVED -> R.string.adb_not_approved
+                        LocalAdb.Access.UNSUPPORTED -> R.string.adb_pairing_only
+                        LocalAdb.Access.UNREACHABLE -> adbOffText()
+                        else -> R.string.settings_car_hotspot_config_failed
+                    }
+                    render()
+                }
+            }
+        }, "diplay-hotspot-config-read").start()
+    }
+
+    private fun writeCarHotspotConfigNow() {
+        val ssid = storedSsid()
+        val passphrase = storedPassword()
+        val validation = com.shilapi.xcertplay.orchestration.ManualHotspotValidation.error(ssid, passphrase)
+        if (validation != null) {
+            carHotspotConfigStatus = validation.messageResource()
+            render()
+            return
+        }
+        val credentials = HotspotCredentials(ssid, passphrase,
+            AirPlayPersistence.loadManualHotspotSecurity(this), AirPlayPersistence.loadManualHotspotBand(this))
+        Thread({
+            val access = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                runCatching { CarHotspotSetup.grant(applicationContext, emptyList()) }
+                    .getOrDefault(LocalAdb.Access.UNREACHABLE)
+            } else LocalAdb.Access.READY
+            val outcome = if (access != LocalAdb.Access.READY) {
+                CarHotspotConfigWrite.WriteOutcome(CarHotspotConfigWrite.Result.ADB_UNAVAILABLE)
+            } else CarHotspotConfigWrite.write(applicationContext, credentials,
+                log = { Log.i("DiPlay-Hotspot", it) })
+            Log.i("DiPlay-Hotspot", "car hotspot config write: ${outcome.result}")
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                carHotspotConfigStatus = when (outcome.result) {
+                    CarHotspotConfigWrite.Result.WRITTEN -> {
+                        outcome.ssid?.let { AirPlayPersistence.saveManualHotspotSsid(this, it) }
+                        R.string.settings_car_hotspot_config_written
+                    }
+                    CarHotspotConfigWrite.Result.SKIPPED -> R.string.settings_car_hotspot_config_wpa3
+                    CarHotspotConfigWrite.Result.OPEN_REJECTED -> R.string.settings_car_hotspot_config_open
+                    CarHotspotConfigWrite.Result.ADB_UNAVAILABLE -> when (access) {
+                        LocalAdb.Access.NOT_APPROVED -> R.string.adb_not_approved
+                        LocalAdb.Access.UNSUPPORTED -> R.string.adb_pairing_only
+                        else -> adbOffText()
+                    }
+                    else -> R.string.settings_car_hotspot_config_failed
+                }
+                render()
+            }
+        }, "diplay-hotspot-config-write").start()
+    }
+
     private fun saveHotspotCredentials(ssid: String, password: String, security: ManualHotspotSecurity) {
         AirPlayPersistence.saveManualHotspotSsid(this, ssid)
         AirPlayPersistence.saveManualHotspotPassphrase(this, password)
@@ -3359,6 +3659,16 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         AirPlayPersistence.saveManualHotspotBand(this, com.shilapi.xcertplay.orchestration.ManualHotspotBand.AUTO)
         AirPlayPersistence.saveManualHotspotChannel(this, 0)
         markReconnectNeeded()
+        val unchangedImportedCredentials = importedCarHotspot == CarHotspotSavedCredentials(ssid, password, security)
+        if (CarHotspotSettings.configWrite(this) && !unchangedImportedCredentials) {
+            appDialogBuilder()
+                .setTitle(R.string.settings_car_hotspot_config_dialog_title)
+                .setMessage(R.string.settings_car_hotspot_config_dialog_save_message)
+                .setPositiveButton(R.string.settings_car_hotspot_config_dialog_confirm) { _, _ -> writeCarHotspotConfigNow() }
+                .setNegativeButton(R.string.cancel, null)
+                .setOnCancelListener { render() }
+                .show()
+        }
     }
 
     private fun askHotspotCredentials(existingWifi: Boolean = false, done: (String, String, ManualHotspotSecurity) -> Unit) {
@@ -5846,6 +6156,29 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         parent.addView(result.rowView)
         return result.switch
     }
+    private fun carRhythmControl(card: LinearLayout) {
+        var row: Switch? = null
+        row = toggle(card, getString(R.string.settings_ambient_car_rhythm),
+            getString(R.string.settings_ambient_car_rhythm_description), AmbientMusicSettings.load(this).carRhythm) { enabled ->
+            if (!enabled) {
+                AmbientMusicSettings.save(this, AmbientMusicSettings.load(this).copy(carRhythm = false))
+                return@toggle
+            }
+            carRhythmSupportCheck(applicationContext).whenComplete { supported, _ ->
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    if (row?.isChecked != true) return@runOnUiThread
+                    if (supported == true) {
+                        AmbientMusicSettings.save(this, AmbientMusicSettings.load(this).copy(carRhythm = true))
+                    } else {
+                        toast(getString(R.string.settings_ambient_car_rhythm_unavailable))
+                        row?.isChecked = false
+                    }
+                }
+            }
+        }
+    }
+
     private fun ambientConfigurationLabel(value: AmbientMusicSettings.Values): String {
         val mode = if (!value.music) getString(R.string.settings_ambient_static) else when (value.colorMode) {
             AmbientColorMode.ENERGY -> getString(R.string.settings_ambient_energy)
