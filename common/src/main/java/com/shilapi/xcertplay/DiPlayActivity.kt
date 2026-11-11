@@ -6100,6 +6100,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         appendLine()
         appendLine("--- Steering controls ---")
         appendLine(CarPlayMediaKeys.steeringDiagnostics())
+        appendLine(WheelKeyService.report(appContext))
+        WheelKeyLog.report(WheelKeyService.connected()).forEach(::appendLine)
         appendLine()
         appendLine("--- Recent own-app process exits (Android 11+) ---")
         appendLine(ProcessExitDiagnostics.report(appContext))
