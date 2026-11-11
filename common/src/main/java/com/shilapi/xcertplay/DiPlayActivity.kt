@@ -88,6 +88,7 @@ import com.shilapi.xcertplay.settings.SettingsWidgets
 import com.shilapi.xcertplay.setup.DiLinkGeneration
 import com.shilapi.xcertplay.setup.SetupGuide
 import com.shilapi.xcertplay.transport.EvChargingConnectors
+import com.shilapi.xcertplay.transport.BluetoothAclInventory
 import com.shilapi.xcertplay.transport.WirelessBluetoothInventory
 import com.shilapi.xcertplay.network.WirelessNetworkInventory
 import com.shilapi.xcertplay.update.BackgroundUpdateScheduler
@@ -6057,6 +6058,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         appendLine(CarPlayScreen.report(appContext))
         appendLine(PhoneWakeDiagnostics.report(appContext))
         appendLine(WirelessBluetoothInventory.report(appContext))
+        appendLine(BluetoothAclInventory.report(appContext))
         appendLine(WirelessNetworkInventory.report(appContext))
         appendLine("Wireless runtime permissions: " +
             WirelessPermissions.required(Build.VERSION.SDK_INT).joinToString { permission ->

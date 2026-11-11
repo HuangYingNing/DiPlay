@@ -18,6 +18,8 @@ class WirelessNetworkInventoryTest {
         assertTrue(report, report.contains("fineLocation="))
         assertTrue(report, report.contains("reportedSoftAp="))
         assertTrue(report, report.contains("networks="))
+        assertTrue(report, report.contains("interfaces="))
+        assertTrue(report, report.contains("validated="))
         assertFalse(report, report.contains("password"))
         assertFalse(report, report.contains("ssid=\""))
     }

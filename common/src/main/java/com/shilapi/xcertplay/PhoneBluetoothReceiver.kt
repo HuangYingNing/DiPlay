@@ -9,10 +9,15 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.SystemClock
 import android.util.Log
+import com.shilapi.xcertplay.transport.BluetoothAclInventory
 
 /** Optional DiLink wake-up path for the iPhone the user selected in connection setup. */
 class PhoneBluetoothReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != BluetoothDevice.ACTION_ACL_CONNECTED &&
+            intent.action != BluetoothDevice.ACTION_ACL_DISCONNECTED) return
+        BluetoothAclInventory.record(context, intent)
+        Log.i("DiPlay-Wireless", BluetoothAclInventory.report(context))
         if (intent.action != BluetoothDevice.ACTION_ACL_CONNECTED ||
             !DiPlayPreferences.connectOnPhoneBluetooth(context) ||
             CarPlayBackgroundSession.hasSession()) return

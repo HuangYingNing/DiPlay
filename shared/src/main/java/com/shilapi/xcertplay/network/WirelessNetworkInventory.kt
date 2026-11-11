@@ -8,6 +8,7 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.wifi.WifiManager
 import android.os.Build
+import java.net.NetworkInterface
 
 /** 采集 Wi-Fi、热点、定位及附近设备权限状态，不记录 SSID、密码或网络地址。 */
 object WirelessNetworkInventory {
@@ -19,10 +20,12 @@ object WirelessNetworkInventory {
         val wifiEnabled = runCatching { wifi?.isWifiEnabled }
             .onFailure { failures += "wifiEnabled:${it.javaClass.simpleName}" }.getOrNull()
         val networks = mutableListOf<String>()
+        var activeNetwork: android.net.Network? = null
         val connectivity = runCatching { app.getSystemService(ConnectivityManager::class.java) }
             .onFailure { failures += "connectivityManager:${it.javaClass.simpleName}" }.getOrNull()
         runCatching {
             val activeConnectivity = connectivity ?: return@runCatching
+            activeNetwork = activeConnectivity.activeNetwork
             activeConnectivity.allNetworks.forEach { network ->
                 val capabilities = activeConnectivity.getNetworkCapabilities(network)
                 val links = activeConnectivity.getLinkProperties(network)
@@ -32,9 +35,19 @@ object WirelessNetworkInventory {
                     if (capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) == true) add("ethernet")
                     if (capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true) add("vpn")
                 }.ifEmpty { listOf("unknown") }.joinToString("+")
-                networks += "$transports:${links?.interfaceName ?: "no-interface"}:addresses=${links?.linkAddresses?.size ?: 0}"
+                val validated = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) ?: false
+                val internet = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) ?: false
+                networks += "$transports:${links?.interfaceName ?: "no-interface"}:" +
+                    "active=${network == activeNetwork}:internet=$internet:validated=$validated:" +
+                    "routes=${links?.routes?.size ?: 0}:addresses=${links?.linkAddresses?.size ?: 0}"
             }
         }.onFailure { failures += "networkList:${it.javaClass.simpleName}" }
+        val interfaces = runCatching {
+            NetworkInterface.getNetworkInterfaces()?.toList().orEmpty().map { networkInterface ->
+                "${networkInterface.name}:up=${runCatching { networkInterface.isUp }.getOrDefault(false)}:" +
+                    "loopback=${networkInterface.isLoopback}:virtual=${networkInterface.isVirtual}"
+            }
+        }.onFailure { failures += "interfaces:${it.javaClass.simpleName}" }.getOrDefault(emptyList())
         @Suppress("DEPRECATION")
         val station = runCatching { wifi?.connectionInfo }
             .onFailure { failures += "stationInfo:${it.javaClass.simpleName}" }.getOrNull()
@@ -55,6 +68,7 @@ object WirelessNetworkInventory {
             "connectedSsidReadable=$ssidReadable frequencyMHz=$frequency " +
             "reportedSoftAp=${hotspotState ?: "unknown"} networks=${networks.size} " +
             "links=${networks.ifEmpty { listOf("none") }.joinToString(",")} " +
+            "interfaces=${interfaces.ifEmpty { listOf("none") }.joinToString(",")} " +
             "queryFailures=${failures.ifEmpty { listOf("none") }.joinToString(",")}"
     }
 }

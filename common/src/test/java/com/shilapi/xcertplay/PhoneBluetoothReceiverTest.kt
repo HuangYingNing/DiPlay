@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothDevice
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
+import com.shilapi.xcertplay.transport.BluetoothAclInventory
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -23,16 +24,35 @@ class PhoneBluetoothReceiverTest {
         DiPlayPreferences.saveConnectOnPhoneBluetooth(app, false)
         app.getSharedPreferences("diplay_phone_wake", Context.MODE_PRIVATE).edit().clear().commit()
         app.getSharedPreferences("diplay_phone_wake_diagnostics", Context.MODE_PRIVATE).edit().clear().commit()
+        app.getSharedPreferences("diplay_bluetooth_acl_inventory", Context.MODE_PRIVATE).edit().clear().commit()
         CarPlayBackgroundSession.clear()
         // Saved in lowercase on purpose: the receiver must match the (always uppercase) device
         // address case-insensitively; Robolectric refuses to build a lowercase remote device.
         DiPlayPreferences.savePhone(app, selected.lowercase(), "iPhone")
     }
 
-    private fun event(address: String): Intent {
+    private fun event(address: String, action: String = BluetoothDevice.ACTION_ACL_CONNECTED): Intent {
         val device = BluetoothAdapter.getDefaultAdapter().getRemoteDevice(address)
-        return Intent(BluetoothDevice.ACTION_ACL_CONNECTED)
+        return Intent(action)
             .putExtra(BluetoothDevice.EXTRA_DEVICE, device)
+    }
+
+    @Test fun aclBroadcastsRecordTheConnectedPhoneWithoutWakeOrAddressInTheReport() {
+        app.getSharedPreferences("diplay", Context.MODE_PRIVATE).edit().remove("phone_address").commit()
+        val receiver = PhoneBluetoothReceiver()
+
+        receiver.onReceive(app, event(selected))
+        val connected = BluetoothAclInventory.report(app)
+        assertTrue(connected, connected.contains("connectedEvents=1"))
+        assertTrue(connected, connected.contains("recentConnected=1"))
+        assertFalse(connected.contains(selected))
+        assertTrue(BluetoothAclInventory.connectedDevices(app, BluetoothAdapter.getDefaultAdapter()).size == 1)
+
+        receiver.onReceive(app, event(selected, BluetoothDevice.ACTION_ACL_DISCONNECTED))
+        val disconnected = BluetoothAclInventory.report(app)
+        assertTrue(disconnected, disconnected.contains("disconnectedEvents=1"))
+        assertTrue(disconnected, disconnected.contains("recentConnected=0"))
+        assertFalse(disconnected.contains(selected))
     }
 
     @Test fun onlySelectedPhoneWithOptInLaunchesOnce() {

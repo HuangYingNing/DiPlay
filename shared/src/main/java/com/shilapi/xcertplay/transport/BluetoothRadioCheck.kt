@@ -12,6 +12,14 @@ import java.io.IOException
  * radio it can also take the unit off the Wi-Fi it was using, and every retry does it again.
  */
 object BluetoothRadioCheck {
+    fun shouldIgnoreReportedOffOnFlyme(
+        isGeelyFlymeHeadUnit: Boolean,
+        state: Int?,
+        pausedByDiPlay: Boolean,
+    ): Boolean = isGeelyFlymeHeadUnit &&
+        state == android.bluetooth.BluetoothAdapter.STATE_OFF &&
+        !pausedByDiPlay
+
     /**
      * Why this attempt cannot reach an iPhone, or null when it can go on. A radio that DiPlay
      * paused itself is turned back on before the handshake, so it does not stop the attempt here.

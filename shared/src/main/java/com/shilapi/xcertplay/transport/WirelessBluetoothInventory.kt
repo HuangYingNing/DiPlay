@@ -22,10 +22,11 @@ object WirelessBluetoothInventory {
         val state: Int?,
         val bonded: Set<BluetoothDevice>,
         val connectedByProfile: Map<String, Set<BluetoothDevice>>,
+        val aclConnected: Set<BluetoothDevice>,
         val failures: List<String>,
         val connectPermission: Boolean?,
     ) {
-        val connected: Set<BluetoothDevice> = connectedByProfile.values.flatten().toSet()
+        val connected: Set<BluetoothDevice> = connectedByProfile.values.flatten().toSet() + aclConnected
         val devices: Set<BluetoothDevice> = bonded + connected
 
         private fun namedLikeIphone(device: BluetoothDevice): Boolean =
@@ -46,6 +47,7 @@ object WirelessBluetoothInventory {
                 "bonded=${bonded.size} connectedProfiles=${profiles.ifEmpty { "none" }} " +
                 "bondedIphoneNamed=${bonded.count(::namedLikeIphone)} " +
                 "connectedIphoneNamed=${connected.count(::namedLikeIphone)} " +
+                "aclConnected=${aclConnected.size} " +
                 "connectedAlsoBonded=${connected.count { active -> bonded.any { it.address.equals(active.address, true) } }} " +
                 "uniqueConnected=${connected.size} discoverableTargets=${devices.size} " +
                 "queryFailures=${failures.ifEmpty { listOf("none") }.joinToString(",")}"
@@ -64,20 +66,29 @@ object WirelessBluetoothInventory {
             .onFailure { failures += "adapterState:${it.javaClass.simpleName}" }
             .getOrNull()
         val bonded = runCatching { adapter?.bondedDevices.orEmpty() }
-            .onFailure { failures += "bondedDevices:${it.javaClass.simpleName}" }
+            .onFailure { failures += failureLabel("bondedDevices", it) }
             .getOrDefault(emptySet())
         val profiles = linkedMapOf<String, Set<BluetoothDevice>>()
         if (manager != null && adapter != null) {
             for ((name, profile) in listOf("headset" to BluetoothProfile.HEADSET, "a2dp" to BluetoothProfile.A2DP)) {
                 val devices = runCatching { manager.getConnectedDevices(profile).toSet() }
-                    .onFailure { failures += "${name}Connected:${it.javaClass.simpleName}" }
+                    .onFailure { failures += failureLabel("${name}Connected", it) }
                     .getOrDefault(emptySet())
                 profiles[name] = devices
             }
         } else {
             failures += "bluetoothManager:missing"
         }
-        return Snapshot(adapter, state, bonded, profiles, failures, permission)
+        val aclConnected = BluetoothAclInventory.connectedDevices(app, adapter)
+        return Snapshot(adapter, state, bonded, profiles, aclConnected, failures, permission)
+    }
+
+    private fun failureLabel(operation: String, error: Throwable): String {
+        val detail = error.message.orEmpty()
+            .replace(Regex("[^A-Za-z0-9 _.-]"), "")
+            .trim()
+            .take(80)
+        return "$operation:${error.javaClass.simpleName}" + if (detail.isNotEmpty()) ":$detail" else ""
     }
 
     fun record(context: Context, point: String): Snapshot {
