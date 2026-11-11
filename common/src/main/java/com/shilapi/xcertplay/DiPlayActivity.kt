@@ -3578,6 +3578,11 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     private fun hotspotError(ssid: String, password: String) =
         com.shilapi.xcertplay.orchestration.ManualHotspotValidation.error(ssid, password)?.let { getString(it.messageResource()) }
 
+    private fun adbOffText(): Int {
+        val adbEnabled = Settings.Global.getInt(contentResolver, Settings.Global.ADB_ENABLED, 0) == 1
+        return if (adbEnabled) R.string.adb_network_not_answering else R.string.adb_off
+    }
+
     private fun importCarHotspotConfig() {
         carHotspotConfigStatus = R.string.adb_checking_may_ask
         render()
