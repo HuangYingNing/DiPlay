@@ -123,7 +123,7 @@ internal object CarPlayMediaKeys {
             onMediaPlaying(playing)
             onIphonePlaying(next, playing)
         }
-        next.nowPlayingListener = { update -> onNowPlayingChanged(next, update) }
+        next.nowPlayingListener = { _ -> onNowPlayingChanged(next) }
         next.artworkListener = { id, bytes -> onArtworkChanged(next, id, bytes) }
         syncGeelyInputLocked()
     }
@@ -171,10 +171,11 @@ internal object CarPlayMediaKeys {
     }
 
     /** Publishes the iPhone's retained metadata through Android's system media session. */
-    private fun onNowPlayingChanged(expected: CarPlayController, update: CarPlayNowPlaying) {
+    private fun onNowPlayingChanged(expected: CarPlayController) {
         mainHandler.post {
             synchronized(this) {
                 if (controller !== expected) return@synchronized
+                val update = expected.nowPlayingSnapshot()
                 val previousArtwork = artwork
                 speechMedia?.let { before ->
                     if (before.title != update.title || before.artist != update.artist || before.sourceApp != update.sourceApp)
@@ -208,10 +209,12 @@ internal object CarPlayMediaKeys {
             decoded?.recycle()
             return
         }
-        artworkCache.remove(id)
-        artworkCache[id] = decoded
+        if (decoded != null) {
+            artworkCache.remove(id)
+            artworkCache[id] = decoded
+        }
         while (artworkCache.size > MAX_CACHED_ARTWORK) artworkCache.remove(artworkCache.keys.first())
-        if (nowPlaying.artworkTransferId == id) {
+        if (decoded != null && nowPlaying.artworkTransferId == id) {
             artwork = decoded
             session?.setMetadata(androidMetadata(nowPlaying, shownArtworkLocked()))
         }
@@ -494,6 +497,8 @@ internal object CarPlayMediaKeys {
 
     internal fun onExternalMediaKey(index: Int) = send(index, "geely-wheel")
 
+    private fun albumRecoveryEnabled(): Boolean = appContext?.let(ClusterMusicSettings::enabled) == true
+
     // Another car app (its own Spotify, the radio) took audio focus and with it the steering-wheel
     // keys. When CarPlay starts playing again it becomes the car's media source again, as any player
     // would; only the start counts, so a car source picked while the iPhone plays on is not undone.
@@ -647,10 +652,12 @@ internal object CarPlayMediaKeys {
         // make the iPhone end the video session.
         if (CarPlayVideo.onMediaKey(index)) {
             Log.i(TAG, "media key $source -> car video player $index")
+            WheelKeyLog.note("media key $source -> car video player $index")
             return
         }
         val sent = synchronized(this) { controller }?.sendMediaButton(index) ?: false
         Log.i(TAG, "media key $source -> CarPlay $index sent=$sent")
+        WheelKeyLog.note("media key $source -> CarPlay $index sent=$sent")
     }
 
     private val callback = CarPlayMediaCallback(
