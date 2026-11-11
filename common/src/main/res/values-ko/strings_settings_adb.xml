@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_allow_abd">ADB 허용 (실험 기능)</string>
+    <string name="settings_allow_adb_description">실험 기능: Android 기본 스위치를 시도하고 localhost:5555에서 DiPlay 승인을 요청합니다. Flyme Auto가 직접 접근을 막으면 개발자 설정을 엽니다. 사용 전에 차량을 주차하세요. 각 단계가 진단 로그에 기록됩니다.</string>
+    <string name="settings_allow_adb_working">ADB 허용 시도 중…</string>
+    <string name="settings_allow_adb_ready">ADB가 활성화되었고 DiPlay가 승인되었습니다.</string>
+    <string name="settings_allow_adb_authorization_required">ADB가 응답합니다. 차량 화면에서 DiPlay를 승인한 다음 ADB 접근을 확인하세요.</string>
+    <string name="settings_allow_adb_settings_opened">Flyme Auto가 직접 접근을 허용하지 않았습니다. 열린 설정에서 ADB 또는 네트워크 디버깅 스위치를 켠 다음 돌아와 ADB 접근을 확인하세요.</string>
+    <string name="settings_allow_adb_failed">ADB를 허용할 수 없고 호환되는 설정 화면도 찾지 못했습니다. 분석을 위해 진단 로그를 업로드하세요.</string>
+    <string name="settings_vehicle_map_experimental">차량 지도 (실험 기능)</string>
+</resources>

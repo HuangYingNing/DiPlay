@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_allow_abd">ADB’ye izin ver (deneysel)</string>
+    <string name="settings_allow_adb_description">Deneysel: Android’in standart anahtarını dener, localhost:5555 üzerinden DiPlay yetkisi ister; Flyme Auto doğrudan erişimi engellerse geliştirici ayarlarını açar. Kullanmadan önce aracı park edin. Her adım tanılama kayıtlarına eklenir.</string>
+    <string name="settings_allow_adb_working">ADB’ye izin verilmeye çalışılıyor…</string>
+    <string name="settings_allow_adb_ready">ADB etkin ve DiPlay yetkilendirildi.</string>
+    <string name="settings_allow_adb_authorization_required">ADB yanıt veriyor. Araç ekranında DiPlay’i yetkilendirin, ardından ADB erişimini kontrol edin.</string>
+    <string name="settings_allow_adb_settings_opened">Flyme Auto doğrudan erişime izin vermedi. Açılan ayarlarda ADB veya ağ hata ayıklama anahtarını kullanın, sonra geri dönüp ADB erişimini kontrol edin.</string>
+    <string name="settings_allow_adb_failed">ADB etkinleştirilemedi ve uyumlu bir ayar ekranı bulunamadı. İnceleme için tanılama kayıtlarını yükleyin.</string>
+    <string name="settings_vehicle_map_experimental">Araç haritası (deneysel)</string>
+</resources>

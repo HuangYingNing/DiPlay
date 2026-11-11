@@ -155,6 +155,16 @@ open class CarPlayHostActivity : ComponentActivity() {
         val customIconBytes: ByteArray?,
     )
 
+    private data class PendingAssignedSiriDoublePress(
+        val physicalKey: Triple<Int, Int, Int>,
+        val assignedKey: WheelKey,
+        val keyCode: Int,
+        val session: AirPlaySession,
+        val confirmedAtMillis: Long,
+        val intervalMillis: Int,
+        val triggerDelayMillis: Int,
+    )
+
     private var connectionPanel: View? = null
     private var connectionInstructionsView: TextView? = null
     private var connectionHelpView: TextView? = null
@@ -162,6 +172,10 @@ open class CarPlayHostActivity : ComponentActivity() {
     private var reconnectAttempts = 0
     private val siriKey = WheelSiriKey()
     private val siriKeyPresses = WheelKeyPresses()
+    private val mediaKeyPresses = WheelKeyPresses()
+    private var doubleSiriFirstPressWasInCall = false
+    private var pendingDoubleSiri: PendingAssignedSiriDoublePress? = null
+    private var delayedDoubleSiri: PendingAssignedSiriDoublePress? = null
     private val legacySiriPresses = mutableSetOf<Triple<Int, Int, Int>>()
     private val startupRetryBudget = WirelessStartupRetryBudget()
     private var startupRetryStopped = false
@@ -550,6 +564,16 @@ open class CarPlayHostActivity : ComponentActivity() {
     private var failurePendingAfterMenu: CarPlayStatus.Failed? = null
     private val shuttingDown = AtomicBoolean(false)
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val requestDelayedAssignedSiri = Runnable {
+        val pending = delayedDoubleSiri
+        delayedDoubleSiri = null
+        if (pending == null || !WheelZoomSettings.siriDoublePress(this) ||
+            !WheelZoomSettings.isSiriKey(this, pending.assignedKey) ||
+            activeAirPlaySession !== pending.session || inCall(this)) return@Runnable
+        val sent = controller?.requestSiri() == true
+        appendLog("Siri: assigned double key ${pending.keyCode} sent=$sent " +
+            "intervalMs=${pending.intervalMillis} delayMs=${pending.triggerDelayMillis}")
+    }
     private var sidePanel: LinearLayout? = null
     // Everything on the panel's card, in one layout so the resize blur covers it as a whole.
     private var sidePanelContents: LinearLayout? = null
@@ -1198,24 +1222,36 @@ open class CarPlayHostActivity : ComponentActivity() {
         else -> false
     }
 
+    private fun clusterOutputReady(): Boolean = activeAirPlaySession?.hasRenderedMainFrame == true &&
+        !isDestroyed && !handshakeResetInProgress && !shuttingDown.get()
+
     private fun ensureClusterPresentation() {
         if (VehicleMapSettings.enabled(this) || VehicleMapProjection.owns(controller)) {
             dismissClusterPresentation()
             return
         }
         if (!AirPlayPersistence.loadClusterMapEnabled(this)) {
+            clusterLaunchGate.reset()
             dismissClusterPresentation()
             return
         }
+        if (!clusterOutputReady()) {
+            clusterLaunchGate.reset()
+            mainHandler.removeCallbacks(clusterLaunchTick)
+            return
+        }
+        if (clusterReleasedWhileIdle) return
+        clusterSurface?.let { sink?.setSurface(SCREEN_TYPE_ALT, it) }
         if (AdbClusterRouter.enabled(this)) {
             ClusterActivityOutput.bind(this, taskId) { onClusterSurface(it) }
             ClusterActivityOutput.setStreamActive(SCREEN_TYPE_ALT in activeScreenStreamTypes)
             applyClusterTurnOverlay()
-            runCatching { ClusterActivityOutput.ensure(this) }.onFailure {
-                appendLog("Cluster activity: launch failed ${it.javaClass.simpleName}: ${it.message}")
-            }
+            if (ClusterActivityOutput.hasConfirmedRoute() ||
+                clusterLaunchGate.request(SystemClock.uptimeMillis(), hasWindowFocus())) launchClusterActivity()
+            else scheduleClusterLaunchTick()
             return
         }
+        clusterLaunchGate.reset()
         ClusterActivityOutput.stop(this)
         val theme = effectiveClusterTheme()
         if (DiLink51ClusterLayout.supported()) {
@@ -1247,6 +1283,36 @@ open class CarPlayHostActivity : ComponentActivity() {
         } catch (error: RuntimeException) {
             Log.w(ClusterMapPresentation.TAG, "cluster presentation failed", error)
             appendLog("Cluster map: presentation failed ${error.javaClass.simpleName}: ${error.message}")
+        }
+    }
+
+    private val clusterLaunchGate = ClusterLaunchGate()
+    private val clusterLaunchTick = Runnable { onClusterLaunchTick() }
+
+    private fun launchClusterActivity() {
+        runCatching { ClusterActivityOutput.ensure(this) }.onFailure {
+            appendLog("Cluster activity: launch failed ${it.javaClass.simpleName}: ${it.message}")
+        }
+    }
+
+    private fun scheduleClusterLaunchTick() {
+        mainHandler.removeCallbacks(clusterLaunchTick)
+        mainHandler.postDelayed(clusterLaunchTick, ClusterLaunchGate.TICK_MILLIS)
+    }
+
+    private fun onClusterLaunchTick() {
+        mainHandler.removeCallbacks(clusterLaunchTick)
+        if (isDestroyed || !clusterOutputReady() || !AirPlayPersistence.loadClusterMapEnabled(this)) {
+            clusterLaunchGate.reset()
+            return
+        }
+        val now = SystemClock.uptimeMillis()
+        if (clusterLaunchGate.due(now, hasWindowFocus(), isActivityStarted)) {
+            appendLog("Cluster activity: launching after the main window " +
+                if (hasWindowFocus()) "took focus" else if (isActivityStarted) "waited for focus" else "left the screen")
+            launchClusterActivity()
+        } else if (clusterLaunchGate.awaitingFocus) {
+            scheduleClusterLaunchTick()
         }
     }
 
@@ -1512,6 +1578,20 @@ open class CarPlayHostActivity : ComponentActivity() {
             }
             return true
         }
+        val remappedMedia = if (downOrUp &&
+            (WheelZoomSettings.mediaPlayPause(this) || mediaKeyPresses.hasConsumedPress(physicalKey))) mediaKeyPresses.filter(
+            physicalKey, event.action == KeyEvent.ACTION_DOWN, event.repeatCount == 0,
+        ) {
+            if (activeAirPlaySession == null || inCall(this) ||
+                !WheelZoomSettings.isMediaPlayPauseKey(this, WheelKey.of(event))) {
+                WheelZoomKeys.Action.PASS
+            } else {
+                val sent = controller?.sendMediaButton(CarPlayMediaButton.PLAY_PAUSE) == true
+                appendLog("Media: assigned wheel key ${event.keyCode} -> CarPlay play/pause sent=$sent")
+                WheelZoomKeys.Action.CONSUME
+            }
+        } else WheelZoomKeys.Action.PASS
+        if (remappedMedia != WheelZoomKeys.Action.PASS) return true
         if (!menuOpen && AndroidTvInputMode.shouldUseKnobAsPrimaryInput(this) &&
             CarPlayRemoteKeys.dispatch(event, controller)) {
             if (event.repeatCount == 0) {
@@ -1527,7 +1607,57 @@ open class CarPlayHostActivity : ComponentActivity() {
         if (CarPlayCallKeys.onKey(this, event.keyCode, event.action == KeyEvent.ACTION_DOWN, controller)) return true
 
         // The wheel key service, when it runs, takes an assigned Siri key before this window sees it.
-        val assignedKey = WheelZoomSettings.isSiriKey(this, WheelKey.of(event))
+        val wheelKey = WheelKey.of(event)
+        val assignedKey = WheelZoomSettings.isSiriKey(this, wheelKey)
+        val doublePress = WheelZoomSettings.siriDoublePress(this)
+        val activeSession = activeAirPlaySession
+        val calling = inCall(this)
+        pendingDoubleSiri?.let { pending ->
+            if (!doublePress || !WheelZoomSettings.isSiriKey(this, pending.assignedKey) ||
+                activeSession !== pending.session) {
+                pendingDoubleSiri = null
+                doubleSiriFirstPressWasInCall = false
+                siriKey.reset()
+            }
+        }
+        if (downOrUp && assignedKey && doublePress && activeSession != null) {
+            var confirmed = false
+            var confirmedPair = false
+            var doubleAction: WheelSiriKey.DoublePressAction? = null
+            val handledByService = WheelKeyService.observedDoubleSiri(event)
+            if (handledByService && event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                pendingDoubleSiri = null
+                doubleSiriFirstPressWasInCall = false
+                siriKey.reset()
+            }
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 &&
+                pendingDoubleSiri?.physicalKey == physicalKey) pendingDoubleSiri = null
+            if (!handledByService && event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                val intervalMillis = WheelZoomSettings.siriDoublePressIntervalMillis(this)
+                doubleAction = siriKey.onDoublePress(event.eventTime, intervalMillis.toLong())
+                if (doubleAction == WheelSiriKey.DoublePressAction.FIRST) doubleSiriFirstPressWasInCall = calling
+                confirmedPair = doubleAction == WheelSiriKey.DoublePressAction.CONFIRMED
+                confirmed = confirmedPair && !doubleSiriFirstPressWasInCall
+                if (confirmedPair) doubleSiriFirstPressWasInCall = false
+                if (confirmed) pendingDoubleSiri = PendingAssignedSiriDoublePress(
+                    physicalKey, wheelKey, event.keyCode, activeSession, event.eventTime,
+                    intervalMillis, WheelZoomSettings.siriTriggerDelayMillis(this),
+                )
+            }
+            val matchingRelease = pendingDoubleSiri?.takeIf {
+                event.action == KeyEvent.ACTION_UP && it.physicalKey == physicalKey
+            }
+            val release = matchingRelease?.takeIf {
+                event.eventTime - it.confirmedAtMillis in 0L..WheelSiriKey.MAX_SECOND_PRESS_MILLIS
+            }
+            if (matchingRelease != null) pendingDoubleSiri = null
+            if (release != null) {
+                delayedDoubleSiri = release
+                mainHandler.removeCallbacks(requestDelayedAssignedSiri)
+                mainHandler.postDelayed(requestDelayedAssignedSiri, release.triggerDelayMillis.toLong())
+            }
+            return super.dispatchKeyEvent(event)
+        }
         val assignedAction = if (downOrUp) siriKeyPresses.filter(
             physicalKey, event.action == KeyEvent.ACTION_DOWN, event.repeatCount == 0,
         ) {
@@ -1544,7 +1674,21 @@ open class CarPlayHostActivity : ComponentActivity() {
         if (assignedAction != WheelZoomKeys.Action.PASS) return true
         if (downOrUp && assignedKey) return super.dispatchKeyEvent(event)
 
+        val mediaPress = CarPlayMediaButton.forCarPlayWindow(
+            event.keyCode,
+            sessionActive = activeAirPlaySession != null,
+            inCall = inCall(this),
+        )
+        if (downOrUp && mediaPress != null) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                val sent = controller?.sendMediaButton(mediaPress) == true
+                appendLog("Media: wheel key ${event.keyCode} -> CarPlay $mediaPress sent=$sent")
+            }
+            return true
+        }
+
         // Keep DiPlay's existing steering-wheel/voice-key Siri handling intact.
+        if (CarPlayMediaButton.isShortVoiceKey(event.keyCode) && WheelZoomSettings.siriLongPressOnly(this)) return true
         if (!CarPlayMediaButton.opensSiri(event.keyCode)) return super.dispatchKeyEvent(event)
         if (event.action == KeyEvent.ACTION_DOWN) legacySiriPresses.add(physicalKey)
         if (event.action == KeyEvent.ACTION_UP) {
@@ -1554,7 +1698,7 @@ open class CarPlayHostActivity : ComponentActivity() {
     }
 
     private fun requestLegacySiri(keyCode: Int) {
-        val sent = controller?.requestSiri() == true
+        val sent = VoiceKeyPair.shared.allowGenericKey(SystemClock.uptimeMillis()) && controller?.requestSiri() == true
         appendLog("Siri: voice key $keyCode sent=$sent")
     }
 
@@ -1563,6 +1707,7 @@ open class CarPlayHostActivity : ComponentActivity() {
         if (hasFocus) {
             refreshConfiguration(source = ThemeModeDiagnostics.Source.WINDOW_FOCUS)
             applyFullscreenMode()
+            onClusterLaunchTick()
         }
     }
 
@@ -1588,6 +1733,7 @@ open class CarPlayHostActivity : ComponentActivity() {
         logThemeState(ThemeModeDiagnostics.Source.STOP, resources.configuration)
         mainHandler.removeCallbacks(pollConfiguration)
         super.onStop()
+        onClusterLaunchTick()
         if (!isFinishing && !isChangingConfigurations) CenterMapOverlay.scheduleShow()
     }
 
@@ -1696,6 +1842,10 @@ open class CarPlayHostActivity : ComponentActivity() {
         mainHandler.removeCallbacks(hideIdleCenterMap)
         mainHandler.removeCallbacks(releaseIdleCluster)
         mainHandler.removeCallbacks(hideTemporarySystemBars)
+        mainHandler.removeCallbacks(clusterLaunchTick)
+        mainHandler.removeCallbacks(requestDelayedAssignedSiri)
+        pendingDoubleSiri = null
+        delayedDoubleSiri = null
         homeMonitor?.stop()
         CenterMapOverlay.hide()
         if (CenterMapOverlay.requestShow == (::showCenterMap)) CenterMapOverlay.requestShow = null
@@ -5012,7 +5162,10 @@ open class CarPlayHostActivity : ComponentActivity() {
             override fun onVideoFrameRendered(session: AirPlaySession) {
                 runOnUiThread {
                     if (controllerGeneration != restartGeneration || activeAirPlaySession !== session || shuttingDown.get()) return@runOnUiThread
-                    if (!startupRetryBudget.firstFrame(session, android.os.SystemClock.elapsedRealtime())) return@runOnUiThread
+                    val firstFrame = startupRetryBudget.firstFrame(session, android.os.SystemClock.elapsedRealtime())
+                    if (firstFrame) appendLog("Main video first frame rendered; cluster output may start")
+                    ensureClusterPresentation()
+                    if (!firstFrame) return@runOnUiThread
                     mainHandler.postDelayed({
                         if (controllerGeneration == restartGeneration && activeAirPlaySession === session &&
                             !shuttingDown.get() && CarPlayBackgroundSession.isOwner(this@CarPlayHostActivity) &&

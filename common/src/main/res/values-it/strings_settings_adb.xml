@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_allow_abd">Consenti ADB (sperimentale)</string>
+    <string name="settings_allow_adb_description">Sperimentale: prova l’interruttore Android standard, richiede l’autorizzazione DiPlay su localhost:5555, poi apre le impostazioni sviluppatore se Flyme Auto blocca l’accesso diretto. Parcheggia l’auto prima dell’uso. Ogni passaggio viene aggiunto alla diagnostica.</string>
+    <string name="settings_allow_adb_working">Tentativo di attivare ADB…</string>
+    <string name="settings_allow_adb_ready">ADB è attivo e DiPlay è autorizzato.</string>
+    <string name="settings_allow_adb_authorization_required">ADB risponde. Autorizza DiPlay sullo schermo dell’auto, poi controlla l’accesso ADB.</string>
+    <string name="settings_allow_adb_settings_opened">Flyme Auto non ha consentito l’accesso diretto. Usa l’interruttore ADB o Debug di rete nelle impostazioni aperte, poi torna e controlla l’accesso ADB.</string>
+    <string name="settings_allow_adb_failed">Impossibile attivare ADB e non è stata trovata una schermata delle impostazioni compatibile. Carica la diagnostica per l’analisi.</string>
+    <string name="settings_vehicle_map_experimental">Mappa del veicolo (sperimentale)</string>
+</resources>

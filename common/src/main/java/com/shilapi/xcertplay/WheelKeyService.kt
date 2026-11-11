@@ -197,7 +197,7 @@ class WheelKeyService : AccessibilityService() {
             session() != null) {
             if (!down) {
                 val shortPressIgnored = WheelZoomSettings.siriLongPressOnly(this) && CarPlayMediaButton.isShortVoiceKey(event.keyCode)
-                val sent = !shortPressIgnored && VoiceKeyPair.shared.allowCarPlayKey(event.eventTime) &&
+                val sent = !shortPressIgnored && VoiceKeyPair.shared.allowCarPlayKey(android.os.SystemClock.uptimeMillis()) &&
                     CarPlayBackgroundSession.snapshot()?.controller?.requestSiri() == true
                 note("CarPlay voice key ${event.keyCode}: Siri sent=$sent")
             }
