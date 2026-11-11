@@ -147,7 +147,7 @@ def append_translations(folder: Path, missing: dict[str, str]) -> None:
 
 
 def xml_escape(value: str) -> str:
-    return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("'", "\\'")
 
 
 def main() -> int:
