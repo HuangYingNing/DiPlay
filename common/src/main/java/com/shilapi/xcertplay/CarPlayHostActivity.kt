@@ -2733,7 +2733,7 @@ open class CarPlayHostActivity : ComponentActivity() {
 
     private fun refreshAppAppearance() {
         val nextNight = resolveAppNightNow(darkMode)
-        if (nextNight == appNight) return
+        if (nextNight == appNight && settingsMenu == null) return
         appNight = nextNight
 
         settingsMenu?.let { previous ->
@@ -4360,8 +4360,8 @@ open class CarPlayHostActivity : ComponentActivity() {
             setPadding(0, dp(8), 0, 0)
         }
         val modes = buildList {
-            add(WirelessHotspotMode.WIFI_P2P to getString(R.string.wifi_direct))
             add(WirelessHotspotMode.MANUAL to getString(R.string.built_in_car_hotspot))
+            add(WirelessHotspotMode.WIFI_P2P to getString(R.string.wifi_direct))
             add(WirelessHotspotMode.EXISTING_WIFI to getString(R.string.existing_wifi_title))
         }
         var selectedId = View.NO_ID
@@ -4673,16 +4673,18 @@ open class CarPlayHostActivity : ComponentActivity() {
         val resolution = if (native == null) {
             getString(R.string.handshake_resolution_waiting_for_display)
         } else {
+            val normalizedWidth = native.width and -2
+            val normalizedHeight = native.height and -2
             val negotiated = CarPlayDisplayScale.applyPercent(
                 AirPlayDisplayConfig(
-                    widthPixels = native.width,
-                    heightPixels = native.height,
+                    widthPixels = normalizedWidth,
+                    heightPixels = normalizedHeight,
                     widthPhysicalMm = widthPhysicalMm,
                     fps = fps,
                 ),
                 displayScalePercent,
             )
-            "${getString(R.string.resolution_handshake_prefix)}${native.width} x ${native.height} -> " +
+            "${getString(R.string.resolution_handshake_prefix)}$normalizedWidth x $normalizedHeight -> " +
                 "${negotiated.widthPixels} x ${negotiated.heightPixels}"
         }
         val softwareDecoderSelected = hevcSoftwareDecoderEnabled && hevcDecoders.any { !it.hardware }

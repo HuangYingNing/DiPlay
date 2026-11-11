@@ -537,13 +537,21 @@ class WheelSiriWindowTest {
             .apply { isAccessible = true }.invoke(settings, controls)
     }
 
-    private fun assignText(role: WheelZoomSettings.Role, key: WheelKey?) = settings.getString(R.string.wheel_key_assign,
-        settings.getString(when (role) {
+    private fun assignText(role: WheelZoomSettings.Role, key: WheelKey?): String {
+        val value = when {
+            WheelZoomSettings.assigned(settings, role) && role == WheelZoomSettings.Role.SIRI ->
+                key?.toString() ?: settings.getString(R.string.vehicle_map_key_saved)
+            WheelZoomSettings.assigned(settings, role) -> settings.getString(R.string.vehicle_map_key_saved)
+            key == null -> settings.getString(R.string.wheel_key_none)
+            else -> settings.getString(R.string.vehicle_map_key_default)
+        }
+        return settings.getString(R.string.wheel_key_assign, settings.getString(when (role) {
             WheelZoomSettings.Role.SIRI -> R.string.wheel_key_role_siri
             WheelZoomSettings.Role.MEDIA_PLAY_PAUSE -> R.string.wheel_key_role_media_play_pause
             WheelZoomSettings.Role.JOYSTICK -> R.string.wheel_key_role_joystick
             else -> error("no assign label for $role")
-        }), key?.toString() ?: settings.getString(R.string.wheel_key_none))
+        }), value)
+    }
 
     private fun assignButton(role: WheelZoomSettings.Role) = views(wheelControls()).filterIsInstance<android.widget.Button>()
         .single { it.text.toString() == assignText(role, WheelZoomSettings.key(settings, role)) }

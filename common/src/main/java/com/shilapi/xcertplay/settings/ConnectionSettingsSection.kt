@@ -1,7 +1,6 @@
 package com.shilapi.xcertplay.settings
 
 import android.content.Context
-import android.os.Build
 import com.shilapi.xcertplay.host.R
 import com.shilapi.xcertplay.orchestration.MfiTarget
 import com.shilapi.xcertplay.orchestration.WirelessHotspotMode
