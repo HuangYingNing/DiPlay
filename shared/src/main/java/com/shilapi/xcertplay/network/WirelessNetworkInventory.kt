@@ -22,9 +22,10 @@ object WirelessNetworkInventory {
         val connectivity = runCatching { app.getSystemService(ConnectivityManager::class.java) }
             .onFailure { failures += "connectivityManager:${it.javaClass.simpleName}" }.getOrNull()
         runCatching {
-            connectivity?.allNetworks.orEmpty().forEach { network ->
-                val capabilities = connectivity.getNetworkCapabilities(network)
-                val links = connectivity.getLinkProperties(network)
+            val activeConnectivity = connectivity ?: return@runCatching
+            activeConnectivity.allNetworks.forEach { network ->
+                val capabilities = activeConnectivity.getNetworkCapabilities(network)
+                val links = activeConnectivity.getLinkProperties(network)
                 val transports = buildList {
                     if (capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) add("wifi")
                     if (capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true) add("cellular")
