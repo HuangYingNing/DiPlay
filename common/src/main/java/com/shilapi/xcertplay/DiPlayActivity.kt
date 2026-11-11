@@ -5737,19 +5737,20 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     private fun carPlaySizeControl(parent: LinearLayout) {
         val title = getString(R.string.carplay_size)
         val savedWidth = AirPlayPersistence.loadWidthPhysicalMm(this)
-        val choices = carPlaySizeChoices(this, savedWidth)
         val savedLabel = getString(R.string.size_option_millimeters,
             com.shilapi.xcertplay.airplay.CarPlaySize.exact(savedWidth)?.localizedLabel(this)
                 ?: getString(R.string.option_size_custom), savedWidth)
         val control = button("$title · $savedLabel", false) {}
         control.setOnClickListener {
-            var selected = choices.indexOfFirst { it.widthMillimeters == savedWidth }.coerceAtLeast(0)
+            val currentWidth = AirPlayPersistence.loadWidthPhysicalMm(this)
+            val choices = carPlaySizeChoices(this, currentWidth)
+            var selected = choices.indexOfFirst { it.widthMillimeters == currentWidth }.coerceAtLeast(0)
             appDialogBuilder().setTitle(title)
                 .setSingleChoiceItems(choices.map { it.label }.toTypedArray(), selected) { _, index -> selected = index }
                 .setPositiveButton(getString(R.string.save)) { _, _ ->
                     val choice = choices[selected]
                     if (choice.custom) {
-                        showCarPlaySizeLengthDialog(savedWidth) { width ->
+                        showCarPlaySizeLengthDialog(currentWidth) { width ->
                             AirPlayPersistence.saveWidthPhysicalMm(this, width)
                             control.text = "$title · ${getString(R.string.option_size_custom)} · $width mm"
                             markReconnectNeeded()

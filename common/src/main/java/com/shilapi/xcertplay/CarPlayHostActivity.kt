@@ -2748,11 +2748,11 @@ open class CarPlayHostActivity : ComponentActivity() {
             settingsMenu = replacement
             parent.addView(replacement, index, FrameLayout.LayoutParams(-1, -1))
             replacementContentScroll?.let { scroll ->
-                scroll.viewTreeObserver.addOnGlobalLayoutListener(object : android.view.ViewTreeObserver.OnGlobalLayoutListener {
-                    override fun onGlobalLayout() {
-                        if (scroll.height <= 0) return
+                scroll.addOnLayoutChangeListener(object : View.OnLayoutChangeListener {
+                    override fun onLayoutChange(view: View, left: Int, top: Int, right: Int, bottom: Int,
+                        oldLeft: Int, oldTop: Int, oldRight: Int, oldBottom: Int) {
                         scroll.scrollTo(0, scrollY)
-                        scroll.viewTreeObserver.removeOnGlobalLayoutListener(this)
+                        if (scroll.scrollY == scrollY) scroll.removeOnLayoutChangeListener(this)
                     }
                 })
             }
