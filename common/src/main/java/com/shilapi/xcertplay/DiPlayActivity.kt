@@ -3351,7 +3351,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         if (target != MfiTarget.LOCAL && target != MfiTarget.USB_CH341) return
         val labels = arrayOf(getString(R.string.local_offline), getString(R.string.usb_ch341))
         val selected = if (target == MfiTarget.USB_CH341) 1 else 0
-        parent.addView(button("${getString(R.string.mfi_certificate_signing_target)} · ${labels[selected]}", false) {
+        lateinit var control: Button
+        control = button("${getString(R.string.mfi_certificate_signing_target)} · ${labels[selected]}", false) {
             var pending = selected
             appDialogBuilder().setTitle(getString(R.string.mfi_certificate_signing_target))
                 .setSingleChoiceItems(labels, selected) { _, which -> pending = which }
@@ -3359,13 +3360,14 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                     val value = if (pending == 1) MfiTarget.USB_CH341 else MfiTarget.LOCAL
                     if (value != target) {
                         AirPlayPersistence.saveMfiTarget(this, value)
+                        control.text = "${getString(R.string.mfi_certificate_signing_target)} · ${labels[pending]}"
                         markReconnectNeeded()
-                        render()
                     }
                 }
                 .setNegativeButton(R.string.cancel, null)
                 .show()
-        }, matchButton(12, 60))
+        }
+        parent.addView(control, matchButton(12, 60))
         parent.addView(label(getString(R.string.settings_mfi_target_description), 14, MUTED))
     }
 
