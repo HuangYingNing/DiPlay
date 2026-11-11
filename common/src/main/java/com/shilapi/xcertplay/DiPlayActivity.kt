@@ -3655,7 +3655,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         val ssid = AirPlayPersistence.loadManualHotspotSsid(this)
         val passphrase = AirPlayPersistence.loadManualHotspotPassphrase(this)
         if (ssid.isBlank()) {
-            val generated = com.shilapi.xcertplay.network.ManualHotspotProvisioning.generate()
+            val generated = com.shilapi.xcertplay.orchestration.ManualHotspotProvisioning.generate()
             AirPlayPersistence.saveManualHotspotSsid(this, generated.ssid)
             AirPlayPersistence.saveManualHotspotPassphrase(this, generated.passphrase)
             AirPlayPersistence.saveManualHotspotSecurity(this, ManualHotspotSecurity.WPA2)
@@ -6231,7 +6231,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     }
     private fun audioFocusControls(parent: LinearLayout) {
         toggle(parent, getString(R.string.settings_disable_media_key_audio_focus),
-            getString(R.string.settings_disable_media_key_audio_focus_desc),
+            getString(R.string.settings_disable_media_key_audio_focus_description),
             AirPlayPersistence.loadDisableMediaKeyAudioFocus(this)) {
             AirPlayPersistence.saveDisableMediaKeyAudioFocus(this, it)
             markReconnectNeeded()
@@ -6250,7 +6250,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             markReconnectNeeded()
         }
         toggle(dependent, getString(R.string.settings_navigation_prompt_audio_focus),
-            getString(R.string.settings_navigation_prompt_audio_focus_desc),
+            getString(R.string.settings_navigation_prompt_audio_focus_description),
             AirPlayPersistence.loadNavigationPromptAudioFocus(this)) {
             AirPlayPersistence.saveNavigationPromptAudioFocus(this, it)
             markReconnectNeeded()
