@@ -1503,6 +1503,14 @@ open class CarPlayHostActivity : ComponentActivity() {
                 appendLog("Cluster activity: requesting stream 111 at ${it.widthPixels}x${it.heightPixels}; safeArea=${it.safeArea} drawOutside=${it.safeAreaDrawOutside}; ADB task routing")
             }
         }
+        if (DiLink51ClusterLayout.supported()) {
+            clusterStreamOnDisplay = true
+            val size = DiLink51ClusterLayout.streamSize()
+            return DiLink51ClusterLayout.streamConfig(size.first, size.second).also {
+                MapMirrors.streamAspect = it.widthPixels.toDouble() / it.heightPixels
+                appendLog("Cluster map: DiLink 5.1 fixed ${it.widthPixels}x${it.heightPixels} stream negotiated before display")
+            }
+        }
         val theme = effectiveClusterTheme()
         val display = ClusterMapPresentation.findDisplay(this, theme)
         if (display != null) {
@@ -5169,6 +5177,9 @@ open class CarPlayHostActivity : ComponentActivity() {
                     if (controllerGeneration != restartGeneration) {
                         return@runOnUiThread
                     }
+                    if (activeAirPlaySession != null && activeAirPlaySession !== session) {
+                        clusterSurface?.let { oldSurface -> sink?.clearSurface(SCREEN_TYPE_ALT, oldSurface) }
+                    }
                     activeAirPlaySession = session
                     CarPlayBackgroundSession.active = true
                     callPopupSessionReady = true
@@ -5389,6 +5400,8 @@ open class CarPlayHostActivity : ComponentActivity() {
         controller = snapshot.controller
         updateClusterMapShown()
         sink = snapshot.sink
+        activeAirPlaySession = snapshot.controller.activeAirPlaySession()
+        CarPlayBackgroundSession.active = activeAirPlaySession != null
         snapshot.sink.setAudioOwnershipChangedListener(snapshot.controller::setBluetoothAudioOwnership)
         sessionDisplay = snapshot.display
         resetSidePanel()
@@ -5430,7 +5443,9 @@ open class CarPlayHostActivity : ComponentActivity() {
         snapshot.sink.setScreenStreamActiveChangedListener { type, active ->
             onScreenStreamStateChanged(restartGeneration, type, active)
         }
+        syncAirPlayDarkMode(ThemeModeDiagnostics.Source.SESSION_ACTIVE)
         currentSurface?.let(::attachSurface)
+        ensureClusterPresentation()
         val serviceReused = snapshot.controller.hasActiveAirPlayAttachment()
         appendLog(
             if (serviceReused) {

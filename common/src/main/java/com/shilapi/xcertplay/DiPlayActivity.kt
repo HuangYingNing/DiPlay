@@ -1321,8 +1321,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     }
 
     private fun openSettingsCategory(category: SettingsCategory) {
-        if (category == SettingsCategory.ABOUT) page = "about"
-        else settingsCategory = category
+        settingsCategory = category
+        page = if (category == SettingsCategory.ABOUT) "about" else "settings"
         render()
     }
 
