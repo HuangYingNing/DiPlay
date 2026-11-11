@@ -228,6 +228,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     private var settingsSearchBox: EditText? = null
     private var settingsSearchPopup: PopupWindow? = null
     private var settingsSearchIndex: List<SettingsSearchResult>? = null
+    private var settingsSearchExpanded = false
     private var settingsSearchQuery = ""
     private var settingsSearchIndexing = false
     private var settingsSearchRestoreFocus = false
@@ -833,7 +834,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
 
     private fun navigateBack() {
         // Back closes an open search first, like a system search bar.
-        if (page == "settings" && settingsSearchQuery.isNotEmpty()) {
+        if (page == "settings" && settingsSearchExpanded) {
             closeSettingsSearch()
             return
         }
@@ -875,17 +876,51 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     }
 
     private fun settingsHeader(compact: Boolean): LinearLayout = row().apply {
+        val controlHeight = dp(if (compact) 44 else 52)
+        val iconOnlySearch = compact || resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
         gravity = Gravity.CENTER_VERTICAL
         addView(headerButton(getString(R.string.back), R.drawable.ic_dp_back, compact, ::navigateBack),
             LinearLayout.LayoutParams(-2, if (compact) dp(44) else dp(52)))
-        addView(label(getString(R.string.settings), if (compact) 20 else 26, TEXT, true,
+        val settingsTitle = label(getString(R.string.settings), if (compact) 20 else 26, TEXT, true,
             centreGlyphs = true).apply {
             setPadding(dp(12), 0, dp(12), 0)
-        }, LinearLayout.LayoutParams(-2, if (compact) dp(44) else dp(52)))
-        addView(settingsSearchField(compact), LinearLayout.LayoutParams(0, if (compact) dp(44) else dp(52), 1f).apply {
-            marginEnd = dp(if (compact) 8 else 12)
-        })
-        addView(appearanceButton(), LinearLayout.LayoutParams(dp(if (compact) 44 else 52), dp(if (compact) 44 else 52)))
+            setSingleLine(true)
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        addView(settingsTitle, LinearLayout.LayoutParams(if (settingsSearchExpanded) -2 else 0, controlHeight,
+            if (settingsSearchExpanded) 0f else 1f))
+        val searchGap = dp(if (compact) SETTINGS_HEADER_COMPACT_GAP_DP else SETTINGS_HEADER_GAP_DP)
+        if (settingsSearchExpanded) {
+            val searchField = settingsSearchField(compact)
+            addView(searchField, LinearLayout.LayoutParams(0, controlHeight, 1f).apply { marginEnd = searchGap })
+            searchField.doOnLayout {
+                val requiredWidth = searchField.paint.measureText(searchField.hint.toString()) +
+                    searchField.compoundPaddingLeft + searchField.compoundPaddingRight
+                if (searchField.width < requiredWidth) {
+                    settingsTitle.visibility = View.GONE
+                    searchField.layoutParams = (searchField.layoutParams as LinearLayout.LayoutParams).apply {
+                        marginStart = searchGap
+                    }
+                }
+            }
+        } else {
+            val openSearch = {
+                settingsSearchIndex = buildSettingsSearchIndex()
+                settingsSearchExpanded = true
+                settingsSearchRestoreFocus = true
+                render()
+            }
+            val searchButton = if (iconOnlySearch) {
+                iconButton(R.drawable.ic_dp_search, getString(R.string.settings_search), openSearch).apply {
+                    imageTintList = ColorStateList.valueOf(TEXT)
+                }
+            } else headerButton(getString(R.string.settings_search_hint), R.drawable.ic_dp_search, compact, openSearch)
+            searchButton.apply { tag = SETTINGS_SEARCH_BUTTON_TAG; contentDescription = getString(R.string.settings_search) }
+            addView(searchButton, LinearLayout.LayoutParams(if (iconOnlySearch) controlHeight else -2, controlHeight).apply {
+                marginEnd = searchGap
+            })
+        }
+        addView(appearanceButton(), LinearLayout.LayoutParams(controlHeight, controlHeight))
     }
 
     private fun appearanceButton(): ImageButton = iconButton(
@@ -947,7 +982,10 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 false,
             ) { if (systemAccess) openWriteSettingsAccess() else openCarWifiSettings() }, matchButton(CONTROL_GAP_DP, 56))
         } else if (carHotspotOff()) {
-            card.addView(label(getString(R.string.msg_car_hotspot_off, AirPlayPersistence.loadManualHotspotSsid(this)), 15, WARNING).apply { setPadding(0, dp(14), 0, 0) })
+            val savedSsid = AirPlayPersistence.loadManualHotspotSsid(this)
+            val message = if (savedSsid.isBlank()) getString(R.string.hotspot_details_off)
+                else getString(R.string.msg_car_hotspot_off, savedSsid)
+            card.addView(label(message, 15, WARNING).apply { setPadding(0, dp(14), 0, 0) })
             if (!compact) card.addView(homeButton(getString(R.string.open_car_hotspot_settings), false) { openCarWifiSettings() }, matchButton(CONTROL_GAP_DP, 56))
         }
         card.addView(homeButton(getString(R.string.choose_iphone), false) { choosePhone() }, matchButton(if (compact) CONTROL_GAP_DP else 16, if (compact) 46 else 56))
@@ -1579,13 +1617,14 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         val box = settingsSearchBox
         setSearchKeyboard(box, false)
         clearSettingsSearchState()
-        box?.setText("")
         box?.clearFocus()
-        box?.isFocusableInTouchMode = false
+        render()
+        descendants(window.decorView).firstOrNull { it.tag == SETTINGS_SEARCH_BUTTON_TAG }?.requestFocus()
     }
 
     private fun clearSettingsSearchState() {
         settingsSearchQuery = ""
+        settingsSearchExpanded = false
         settingsSearchIndex = null
         settingsSearchRestoreFocus = false
         settingsSearchPopup?.dismiss()
@@ -1863,7 +1902,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             scheduleTimeControl(scheduleControls, start = false)
             card.addView(scheduleControls)
             card.addView(button(getString(R.string.picture_adjustments), false) {
-                startActivity(Intent(this, CarPlayHostActivity::class.java)
+                startActivity(CarPlayScreen.intent(this)
                     .putExtra("picture_controls", true).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
             }, matchButton(0, 56).apply { bottomMargin = dp(24) })
             carPlaySizeControl(card)
@@ -1904,6 +1943,12 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 AirPlayPersistence.loadHarmanFullscreen(this)) {
                 AirPlayPersistence.saveHarmanFullscreen(this, it)
                 applyFullscreenMode()
+            }
+            toggle(card, getString(R.string.settings_carplay_same_task),
+                getString(R.string.settings_carplay_same_task_description),
+                AirPlayPersistence.loadCarPlaySameTask(this)) {
+                AirPlayPersistence.saveCarPlaySameTask(this, it)
+                CarPlayScreen.closeIfElsewhere(this)
             }
             toggle(card, getString(R.string.split_screen_areas), getString(R.string.split_screen_areas_description),
                 SplitScreenSettings.enabled(this)) {
@@ -2153,17 +2198,31 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         // Cluster video does not require a BYD navigation broadcast receiver.
         filteredSection(content, SettingsSection.CLUSTER_MAP,
             getString(R.string.carplay_map_on_instrument_cluster_experimental), R.drawable.ic_dp_dashboard) { card ->
-            reconnectingToggle(card, getString(R.string.adb_cluster_activity_mode),
-                getString(R.string.adb_cluster_activity_description), AirPlayPersistence.loadAdbClusterEnabled(this)) {
-                AirPlayPersistence.saveAdbClusterEnabled(this, it)
-                ClusterActivityOutput.stopForSettings()
-                render()
-            }
-            reconnectingToggle(card, getString(R.string.platform21_cluster_mode),
-                getString(R.string.platform21_cluster_description), AirPlayPersistence.loadLegacyClusterEnabled(this)) {
-                AirPlayPersistence.saveLegacyClusterEnabled(this, it)
-                ClusterActivityOutput.stopForSettings()
-                render()
+            val diLink3 = com.shilapi.xcertplay.setup.DiLinkGeneration.current(this) ==
+                com.shilapi.xcertplay.setup.DiLinkGeneration.DILINK_3
+            if (diLink3) {
+                if (AirPlayPersistence.loadLegacyClusterEnabled(this) || AirPlayPersistence.loadAdbClusterEnabled(this)) {
+                    card.addView(label(getString(R.string.setup_cluster_route_conflict), 16, WARNING))
+                    card.addView(button(getString(R.string.setup_cluster_route_turn_off), true) {
+                        AirPlayPersistence.saveLegacyClusterEnabled(this, false)
+                        AirPlayPersistence.saveAdbClusterEnabled(this, false)
+                        ClusterActivityOutput.stopForSettings()
+                        render()
+                    }, matchButton(10, 56))
+                }
+            } else {
+                reconnectingToggle(card, getString(R.string.adb_cluster_activity_mode),
+                    getString(R.string.adb_cluster_activity_description), AirPlayPersistence.loadAdbClusterEnabled(this)) {
+                    AirPlayPersistence.saveAdbClusterEnabled(this, it)
+                    ClusterActivityOutput.stopForSettings()
+                    render()
+                }
+                reconnectingToggle(card, getString(R.string.platform21_cluster_mode),
+                    getString(R.string.platform21_cluster_description), AirPlayPersistence.loadLegacyClusterEnabled(this)) {
+                    AirPlayPersistence.saveLegacyClusterEnabled(this, it)
+                    ClusterActivityOutput.stopForSettings()
+                    render()
+                }
             }
             val adbCluster = AdbClusterRouter.enabled(this)
             if (adbCluster) {
@@ -3139,8 +3198,9 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
 
     private fun setupFeaturesStep(content: LinearLayout) {
         val generation = DiLinkGeneration.current(this)
-        setupTitle(content, R.string.setup_features_title, getString(R.string.setup_features_description,
-            dilinkLabel(generation)))
+        val description = if (generation == DiLinkGeneration.UNKNOWN) getString(R.string.setup_features_description_unknown)
+            else getString(R.string.setup_features_description, dilinkLabel(generation))
+        setupTitle(content, R.string.setup_features_title, description)
         if (SetupGuide.hasConflictingClusterRoute(generation, AirPlayPersistence.loadAdbClusterEnabled(this))) {
             val warning = card()
             warning.addView(label(getString(R.string.setup_cluster_route_conflict), 16, WARNING))
@@ -4111,6 +4171,12 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             (zoomAvailable && WheelZoomSettings.enabled(this))
         if (WheelZoomSettings.siriKey(this) || vehicleKeysOn) wheelKeyServiceControls(card)
         siriKeyControls(card)
+        toggle(card, getString(R.string.settings_external_controller), getString(R.string.settings_external_controller_description),
+            AirPlayPersistence.loadExternalController(this)) { AirPlayPersistence.saveExternalController(this, it) }
+        if (byd || WheelZoomSettings.siriLongPressOnly(this)) {
+            toggle(card, getString(R.string.wheel_siri_long_press_only), getString(R.string.wheel_siri_long_press_only_description),
+                WheelZoomSettings.siriLongPressOnly(this)) { WheelZoomSettings.setSiriLongPressOnly(this, it) }
+        }
         // Keep previously configured controls reachable even if package detection misses the car.
         if (byd || zoomAvailable || WheelZoomSettings.joystick(this) || WheelZoomSettings.mediaPlayPause(this)) {
             wheelKeyControls(card)
@@ -4242,34 +4308,35 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     }
 
     private fun wheelKeyAssignButton(card: LinearLayout, role: WheelZoomSettings.Role, name: String) {
-        fun current(key: WheelKey? = WheelZoomSettings.key(this, role)) =
-            getString(R.string.wheel_key_assign, name, getString(when {
-                WheelZoomSettings.assigned(this, role) -> R.string.vehicle_map_key_saved
-                key == null -> R.string.wheel_key_none
-                else -> R.string.vehicle_map_key_default
-            }))
+        fun current(key: WheelKey? = WheelZoomSettings.key(this, role)): String {
+            val value = when {
+                WheelZoomSettings.assigned(this, role) && role in listOf(WheelZoomSettings.Role.SIRI, WheelZoomSettings.Role.MEDIA_PLAY_PAUSE) ->
+                    key?.toString() ?: getString(R.string.vehicle_map_key_saved)
+                WheelZoomSettings.assigned(this, role) -> getString(R.string.vehicle_map_key_saved)
+                key == null -> getString(R.string.wheel_key_none)
+                else -> getString(R.string.vehicle_map_key_default)
+            }
+            return getString(R.string.wheel_key_assign, name, value)
+        }
         lateinit var assign: android.widget.Button
         fun learnAndroidKey() {
-            val cancelled = { runOnUiThread {
-                assign.text = current()
+            var listening = true
+            fun answer(show: () -> Unit) = runOnUiThread {
+                if (!listening) return@runOnUiThread
+                listening = false
+                cancelKeyLearning()
+                show()
                 applyPendingAppearanceRender()
-            } }
-            val refused = { taken: WheelZoomSettings.Role ->
-                runOnUiThread {
-                    assign.text = current()
-                    toast(getString(R.string.wheel_key_in_use, getString(wheelKeyRoleName(taken))))
-                    applyPendingAppearanceRender()
-                }
             }
-            val started = WheelKeyService.learn(role, cancelled, refused) { _, key -> runOnUiThread {
-                assign.text = current(key)
-                applyPendingAppearanceRender()
-            } } ||
-                // Without the service the Siri key is learnt from this window, so only keys that reach apps.
-                (role == WheelZoomSettings.Role.SIRI && learnInWindow(role, cancelled, refused) {
-                    assign.text = current(it)
-                    applyPendingAppearanceRender()
-                })
+            val cancelled = { answer { assign.text = current() } }
+            val refused = { taken: WheelZoomSettings.Role -> answer {
+                assign.text = current()
+                toast(getString(R.string.wheel_key_in_use, getString(wheelKeyRoleName(taken))))
+            } }
+            val done = { key: WheelKey -> answer { assign.text = current(key) } }
+            val inWindow = (role == WheelZoomSettings.Role.SIRI ||
+                role == WheelZoomSettings.Role.MEDIA_PLAY_PAUSE) && learnInWindow(role, cancelled, refused, done)
+            val started = WheelKeyService.learn(role, cancelled, refused) { _, key -> done(key) } || inWindow
             if (started) assign.text = getString(R.string.wheel_key_press, name)
             else toast(getString(R.string.wheel_keys_service_off))
         }
@@ -4372,11 +4439,14 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             BydOutputSettings.setClusterSong(this, it)
             if (it) checkAdbState(mayAsk = true)
             BydNavigationOutputs.clusterSongChanged(it)
+            render()
         }
-        toggle(card, getString(R.string.cluster_song_on_change), getString(R.string.cluster_song_on_change_description),
-            BydOutputSettings.clusterSongOnChange(this), enabled = !adbSwitchChangePending) {
-            BydOutputSettings.setClusterSongOnChange(this, it)
-            BydNavigationOutputs.clusterSongOnChangeChanged()
+        if (BydOutputSettings.clusterSong(this)) {
+            toggle(card, getString(R.string.cluster_song_on_change), getString(R.string.cluster_song_on_change_description),
+                BydOutputSettings.clusterSongOnChange(this), enabled = !adbSwitchChangePending) {
+                BydOutputSettings.setClusterSongOnChange(this, it)
+                BydNavigationOutputs.clusterSongOnChangeChanged()
+            }
         }
         toggle(card, getString(R.string.carplay_call_controls_experimental),
             getString(R.string.carplay_call_controls_experimental_description),
@@ -4825,6 +4895,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                     vehicleProbeOutcome = null
                 }
                 render()
+                if (mayAsk) toast(status?.state?.let(::adbLinkStatusText) ?: getString(R.string.adb_check_failed))
                 // Unreadable data keeps the current connection; the page shows what is missing.
                 if (!legacy && vehicleDataReconnectPending && status?.state == BydAdbAccess.State.READY &&
                     enabledVehicleDataReadable(null, status)) {
@@ -5701,7 +5772,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         else open()
     }
     private fun openProjection() {
-        startActivity(Intent(this, CarPlayHostActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+        startActivity(CarPlayScreen.intent(this).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
     }
     private fun chooseIphoneButtonTitle(): String = if (DiPlayPreferences.phoneAddress(this) == null) {
         getString(R.string.choose_iphone)
@@ -5884,6 +5955,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         appendLine("CarPlay size: ${com.shilapi.xcertplay.airplay.CarPlaySize.fromWidthMillimeters(AirPlayPersistence.loadWidthPhysicalMm(appContext)).label}")
         appendLine("Saved resolution preference (may differ from active session): ${AirPlayPersistence.loadDisplayScalePercent(appContext)}%")
         appendLine("Session: ${if (CarPlayBackgroundSession.active) "active" else if (CarPlayBackgroundSession.hasSession()) "connecting" else "stopped"}")
+        appendLine(CarPlayScreen.report(appContext))
         appendLine(PhoneWakeDiagnostics.report(appContext))
         appendLine("Wireless runtime permissions: " +
             WirelessPermissions.required(Build.VERSION.SDK_INT).joinToString { permission ->
@@ -6256,6 +6328,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             markReconnectNeeded()
         }
         parent.addView(dependent)
+        dependent.visibility = if (enabled) View.VISIBLE else View.GONE
     }
 
 
@@ -6876,5 +6949,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         private const val NOTE_LINE_GAP_DP = 4
         private const val NOTE_ATTACH_GAP_DP = 6
         private const val SETTINGS_BLOCK_GAP_DP = 16
+        private const val SETTINGS_HEADER_COMPACT_GAP_DP = 8
+        private const val SETTINGS_HEADER_GAP_DP = 12
+        private const val SETTINGS_SEARCH_BUTTON_TAG = "settings_search_button"
     }
 }

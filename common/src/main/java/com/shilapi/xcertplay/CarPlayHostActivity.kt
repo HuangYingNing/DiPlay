@@ -153,6 +153,7 @@ open class CarPlayHostActivity : ComponentActivity() {
     private data class SettingsBaseline(
         val safeAreaRects: MutableMap<DisplaySize, SafeAreaRect?>,
         val customIconBytes: ByteArray?,
+        val hotspotStatus: HotspotStatus,
     )
 
     private data class PendingAssignedSiriDoublePress(
@@ -560,10 +561,15 @@ open class CarPlayHostActivity : ComponentActivity() {
     private var gestureTracking = false
     private var gestureStartX = 0f
     private var gestureStartY = 0f
+    private var heldTouch: MotionEvent? = null
+    private var heldTouchContent: CarPlayVideoLayout? = null
+    private var heldTouchX = 0f
+    private var heldTouchY = 0f
     private var recoveryPendingAfterMenu = false
     private var failurePendingAfterMenu: CarPlayStatus.Failed? = null
     private val shuttingDown = AtomicBoolean(false)
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val sendHeldTouch = Runnable { flushHeldTouch() }
     private val requestDelayedAssignedSiri = Runnable {
         val pending = delayedDoubleSiri
         delayedDoubleSiri = null
@@ -737,6 +743,7 @@ open class CarPlayHostActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (CarPlayScreen.forwarded(this)) return
         val bluetoothState = IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(bluetoothOnReceiver, bluetoothState, Context.RECEIVER_NOT_EXPORTED)
@@ -1415,7 +1422,10 @@ open class CarPlayHostActivity : ComponentActivity() {
                 !adbClusterConfigured && controller != null) {
                 ClusterActivityOutput.setStreamActive(false)
                 reconnectAfterLoss("DiLink 4 cluster confirmed; requesting its native stream")
-            } else sink?.setSurface(SCREEN_TYPE_ALT, surface)
+            } else if (clusterOutputReady() &&
+                (!AdbClusterRouter.enabled(this) || ClusterActivityOutput.hasConfirmedRoute())) {
+                sink?.setSurface(SCREEN_TYPE_ALT, surface)
+            }
         }
         updateClusterMapShown()
     }
@@ -1478,8 +1488,8 @@ open class CarPlayHostActivity : ComponentActivity() {
             return config
         }
         if (!AirPlayPersistence.loadClusterMapEnabled(this)) return null
-        if (AdbClusterRouter.enabled(this) && ClusterActivityOutput.hasConfirmedRoute()) {
-            adbClusterConfigured = true
+        if (AdbClusterRouter.enabled(this)) {
+            adbClusterConfigured = ClusterActivityOutput.hasConfirmedRoute()
             clusterStreamOnDisplay = true
             return DiLink4ClusterDisplay.streamConfig(AirPlayPersistence.loadClusterContent(this),
                 safeAreaRect = AirPlayPersistence.loadClusterSafeAreaRect(this),
@@ -1495,6 +1505,17 @@ open class CarPlayHostActivity : ComponentActivity() {
             val size = ClusterMapPresentation.sizeOf(display)
             if (size.x > 0 && size.y > 0) {
                 clusterStreamOnDisplay = true
+                if (GeelyClusterDisplay.supported() && GeelyClusterDisplay.matches(display, size.x, size.y)) {
+                    return GeelyClusterDisplay.streamConfig(
+                        AirPlayPersistence.loadClusterContent(this),
+                        safeAreaRect = AirPlayPersistence.loadClusterSafeAreaRect(this),
+                        markerXPercent = AirPlayPersistence.loadClusterMarkerXPercent(this),
+                        markerYPercent = AirPlayPersistence.loadClusterMarkerYPercent(this),
+                    ).also {
+                        MapMirrors.streamAspect = it.widthPixels.toDouble() / it.heightPixels
+                        appendLog("Cluster map: Geely instrument ${size.x}x${size.y}; stream ${it.widthPixels}x${it.heightPixels}; safeArea=${it.safeArea}")
+                    }
+                }
                 if (DiLink51ClusterLayout.supported()) {
                     val plan = DiLink51ClusterLayout.plan(size.x, size.y, theme) ?: return null
                     return DiLink51ClusterLayout.streamConfig().also {
@@ -1567,7 +1588,7 @@ open class CarPlayHostActivity : ComponentActivity() {
         if (downOrUp && physicalKey in legacySiriPresses) {
             if (event.action == KeyEvent.ACTION_UP) {
                 legacySiriPresses.remove(physicalKey)
-                requestLegacySiri(event.keyCode)
+                requestLegacySiri(event.keyCode, event.eventTime)
             }
             return true
         }
@@ -1692,13 +1713,13 @@ open class CarPlayHostActivity : ComponentActivity() {
         if (!CarPlayMediaButton.opensSiri(event.keyCode)) return super.dispatchKeyEvent(event)
         if (event.action == KeyEvent.ACTION_DOWN) legacySiriPresses.add(physicalKey)
         if (event.action == KeyEvent.ACTION_UP) {
-            requestLegacySiri(event.keyCode)
+            requestLegacySiri(event.keyCode, event.eventTime)
         }
         return true
     }
 
-    private fun requestLegacySiri(keyCode: Int) {
-        val sent = VoiceKeyPair.shared.allowGenericKey(SystemClock.uptimeMillis()) && controller?.requestSiri() == true
+    private fun requestLegacySiri(keyCode: Int, eventTime: Long) {
+        val sent = VoiceKeyPair.shared.allowGenericKey(eventTime) && controller?.requestSiri() == true
         appendLog("Siri: voice key $keyCode sent=$sent")
     }
 
@@ -1819,6 +1840,8 @@ open class CarPlayHostActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        CarPlayScreen.destroyed(this)
+        dropHeldTouch()
         runCatching { unregisterReceiver(bluetoothOnReceiver) }
         // carlito | A background session deliberately retains its owner after the view is gone.
         // Preserve that owner's recovery; shutdown and ownership transfer cancel obsolete work.
@@ -1962,14 +1985,14 @@ open class CarPlayHostActivity : ComponentActivity() {
         }
         panel.addView(gestureHint)
         paintWaitingScreen = {
-            val colors = WaitingScreenColors.of(darkMode)
+            val colors = WaitingScreenColors.of(appNight)
             viewport.setBackgroundColor(colors.background)
             title.setTextColor(colors.text)
             stage.setTextColor(colors.text)
             instructions.setTextColor(colors.secondary)
             help.setTextColor(colors.secondary)
             gestureHint.setTextColor(colors.secondary)
-            val buttonPalette = DiPlayPalette.of(darkMode)
+            val buttonPalette = DiPlayPalette.of(appNight)
             back.setTextColor(buttonPalette.onAccent)
             back.background = GradientDrawable().apply {
                 setColor(buttonPalette.accent)
@@ -3427,6 +3450,7 @@ open class CarPlayHostActivity : ComponentActivity() {
                 safeAreaSize?.let { put(it, AirPlayPersistence.loadSafeAreaRect(this@CarPlayHostActivity, it.width, it.height)) }
             },
             customIconBytes = customIconBytes,
+            hotspotStatus = hotspotStatus,
         )
     }
 
@@ -3436,6 +3460,7 @@ open class CarPlayHostActivity : ComponentActivity() {
             hideBottomBar != AirPlayPersistence.loadHideBottomBar(this) ||
             harmanFullscreenEnabled != AirPlayPersistence.loadHarmanFullscreen(this)
         loadPersistedSettings()
+        hotspotStatus = baseline.hotspotStatus
         baseline.safeAreaRects.forEach { (size, savedRect) ->
             savedRect?.let { rect ->
                 AirPlayPersistence.saveSafeAreaRect(
@@ -5155,6 +5180,7 @@ open class CarPlayHostActivity : ComponentActivity() {
                         reconnectAfterLoss("Cluster small-window navi ${if (smallWindowActive()) "on" else "off"}")
                     }
                     if (menuOpen) return@runOnUiThread
+                    ensureClusterPresentation()
                     appendLog("AirPlay session active")
                 }
             }
@@ -5974,9 +6000,10 @@ open class CarPlayHostActivity : ComponentActivity() {
 
     private fun openSettingsMenu() {
         if (menuOpen) return
-        controller?.sendTouch(emptyList())
-        loadPersistedSettings()
+        releaseCarPlayTouches()
         settingsBaseline = captureSettingsBaseline()
+        loadPersistedSettings()
+        hotspotStatus = settingsBaseline?.hotspotStatus ?: hotspotStatus
         menuSettingsSignature = menuSettingsSignature()
         // Rebuild controls from saved values so a cancelled edit cannot reappear on reopening.
         settingsMenu?.let { previous ->
@@ -6236,7 +6263,7 @@ open class CarPlayHostActivity : ComponentActivity() {
                     gestureActiveFingerCount = event.pointerCount
                     gestureStartX = pointerCentroid(event, horizontal = true)
                     gestureStartY = pointerCentroid(event, horizontal = false)
-                    controller?.sendTouch(emptyList())
+                    releaseCarPlayTouches()
                     appendLog("Settings swipe tracking started; fingers=$gestureFingerCount")
                     return true
                 }
@@ -6304,6 +6331,8 @@ open class CarPlayHostActivity : ComponentActivity() {
             }
             return true
         }
+        if (gestureFingerCount > 0 && holdTouch(event, content)) return true
+        flushHeldTouch()
         val contacts = CarPlayTouchMapper.contacts(event, content)
         val queued = controller?.sendTouch(contacts) ?: false
         when (event.actionMasked) {
@@ -6318,6 +6347,56 @@ open class CarPlayHostActivity : ComponentActivity() {
             )
         }
         return true
+    }
+
+    private fun releaseCarPlayTouches() {
+        dropHeldTouch()
+        controller?.sendTouch(emptyList())
+    }
+
+    private fun holdTouch(event: MotionEvent, content: CarPlayVideoLayout): Boolean {
+        return when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                dropHeldTouch()
+                heldTouch = MotionEvent.obtain(event)
+                heldTouchContent = content
+                heldTouchX = event.x
+                heldTouchY = event.y
+                mainHandler.postDelayed(sendHeldTouch, SETTINGS_SWIPE_HOLD_MILLIS)
+                true
+            }
+            MotionEvent.ACTION_CANCEL -> if (heldTouch != null) {
+                dropHeldTouch()
+                true
+            } else false
+            MotionEvent.ACTION_MOVE, MotionEvent.ACTION_POINTER_DOWN -> {
+                val held = heldTouch ?: return false
+                val moved = Math.hypot((event.getX(0) - heldTouchX).toDouble(),
+                    (event.getY(0) - heldTouchY).toDouble())
+                if (moved > android.view.ViewConfiguration.get(this).scaledTouchSlop) return false
+                true
+            }
+            else -> false
+        }
+    }
+
+    private fun flushHeldTouch() {
+        mainHandler.removeCallbacks(sendHeldTouch)
+        val held = heldTouch ?: return
+        val content = heldTouchContent
+        heldTouch = null
+        heldTouchContent = null
+        val queued = content != null && controller?.sendTouch(CarPlayTouchMapper.contacts(held, content)) == true
+        Log.i(TAG, "touch action=ACTION_DOWN pointers=${held.pointerCount} queued=$queued " +
+            "heldMs=${SystemClock.uptimeMillis() - held.downTime}")
+        held.recycle()
+    }
+
+    private fun dropHeldTouch() {
+        mainHandler.removeCallbacks(sendHeldTouch)
+        heldTouch?.recycle()
+        heldTouch = null
+        heldTouchContent = null
     }
 
     private fun pointerCentroid(event: MotionEvent, horizontal: Boolean): Float {

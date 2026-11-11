@@ -61,6 +61,7 @@ internal object CarPlayMediaKeys {
     private var focusOwner: Any? = null
     private var focusEventRevision = 0L
     private var focusHeld = false
+    private var transientFocusLost = false
     private var manageAudioFocus = true
     private var appContext: Context? = null
     // carlito | The independent bridge owns all OEM input implementation and interception.
@@ -164,7 +165,7 @@ internal object CarPlayMediaKeys {
     private fun onIphonePlaying(expected: CarPlayController, playing: Boolean) {
         if (playing) mainHandler.post {
             synchronized(this) {
-                if (controller === expected) regainFocusLocked()
+                if (controller === expected) regainFocusLocked(iphoneResumed = true)
             }
         }
     }
@@ -496,12 +497,16 @@ internal object CarPlayMediaKeys {
     // Another car app (its own Spotify, the radio) took audio focus and with it the steering-wheel
     // keys. When CarPlay starts playing again it becomes the car's media source again, as any player
     // would; only the start counts, so a car source picked while the iPhone plays on is not undone.
-    private fun regainFocusLocked() {
+    private fun regainFocusLocked(iphoneResumed: Boolean = false) {
         val request = focusRequest ?: return
         if (focusHeld) return
+        if (transientFocusLost && !iphoneResumed) return
         val audio = appContext?.getSystemService(AudioManager::class.java) ?: return
         focusHeld = request.request(audio) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-        if (focusHeld) forwardGrantedFocusLocked()
+        if (focusHeld) {
+            transientFocusLost = false
+            forwardGrantedFocusLocked()
+        }
         Log.i(TAG, "audio focus regained=$focusHeld")
     }
 
@@ -557,9 +562,16 @@ internal object CarPlayMediaKeys {
                 (grantedRevision != null && grantedRevision != focusEventRevision)) false
             else {
                 focusEventRevision += 1
-                // Only permanent loss moves media keys elsewhere; transient losses come back.
-                if (change == AudioManager.AUDIOFOCUS_LOSS) focusHeld = false
-                else if (change == AudioManager.AUDIOFOCUS_GAIN) focusHeld = true
+                if (change == AudioManager.AUDIOFOCUS_LOSS) {
+                    focusHeld = false
+                    transientFocusLost = false
+                } else if (change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+                    focusHeld = false
+                    transientFocusLost = true
+                } else if (change == AudioManager.AUDIOFOCUS_GAIN) {
+                    focusHeld = true
+                    transientFocusLost = false
+                }
                 true
             }
         }
@@ -597,6 +609,7 @@ internal object CarPlayMediaKeys {
         focusRequest?.let { request -> appContext?.getSystemService(AudioManager::class.java)?.let(request::abandon) }
         focusRequest = null
         focusHeld = false
+        transientFocusLost = false
         if (learning != null) syncGeelyInputLocked()
     }
 
