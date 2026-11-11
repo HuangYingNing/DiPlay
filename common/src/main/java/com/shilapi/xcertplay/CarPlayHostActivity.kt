@@ -433,6 +433,7 @@ open class CarPlayHostActivity : ComponentActivity() {
     private var displayDiagnosticAttempt: String? = null
     private var hevcEnabled = true
     private var hevcSoftwareDecoderEnabled = false
+    private val hevcDecoders by lazy { HevcSupport.decoders() }
     private var advancedAudioChannelMappingSupported = false
     private var advancedAudioChannelMapping = false
     private var navigationStreamType = 14
@@ -3521,7 +3522,6 @@ open class CarPlayHostActivity : ComponentActivity() {
         }
         settingsBaseline = null
         locationPermissionAvailable = hasFineLocationPermission()
-        hotspotStatus = HotspotStatus(state = if (wirelessEnabled) getString(R.string.hotspot_state_stopped) else getString(R.string.hotspot_state_off))
         syncMfiSettingsControls()
         updateManualHotspotFields()
         updateAirPlayIconPreview()
@@ -4557,6 +4557,7 @@ open class CarPlayHostActivity : ComponentActivity() {
             val error = com.shilapi.xcertplay.orchestration.ManualHotspotValidation.error(existingWifiSsid, existingWifiPassphrase)
             existingWifiErrorView?.text = error?.let { getString(it.messageResource()) }.orEmpty()
             existingWifiErrorView?.visibility = if (error == null) View.GONE else View.VISIBLE
+            if (error != null) existingWifiErrorView?.let { revealInSettingsMenu(it) }
             return error == null
         }
         if (wirelessHotspotMode != WirelessHotspotMode.MANUAL) return true
@@ -4580,6 +4581,7 @@ open class CarPlayHostActivity : ComponentActivity() {
         }
         manualHotspotErrorView?.text = error.orEmpty()
         manualHotspotErrorView?.visibility = if (error == null) View.GONE else View.VISIBLE
+        if (error != null) manualHotspotErrorView?.let { revealInSettingsMenu(it) }
         return error == null
     }
 
@@ -4607,10 +4609,11 @@ open class CarPlayHostActivity : ComponentActivity() {
         if (!wirelessEnabled) return
         hotspotStatus = when (status) {
             CarPlayStatus.StartingHotspot -> HotspotStatus(state = getString(R.string.starting))
-            is CarPlayStatus.HotspotReady -> HotspotStatus(
-                state = getString(R.string.ready),
-                ssid = status.ssid,
-            )
+            is CarPlayStatus.HotspotReady -> {
+                CarPlayBackgroundSession.hotspotReady = status
+                HotspotStatus(state = getString(R.string.ready), ssid = status.ssid, band = status.band,
+                    channel = status.channel, backend = status.backend)
+            }
             CarPlayStatus.WaitingForPairedIphone ->
                 hotspotStatus.copy(state = getString(R.string.waiting_for_paired_iphone))
             CarPlayStatus.ConnectingBluetooth ->
@@ -4671,8 +4674,9 @@ open class CarPlayHostActivity : ComponentActivity() {
             "${getString(R.string.resolution_handshake_prefix)}${native.width} x ${native.height} -> " +
                 "${negotiated.widthPixels} x ${negotiated.heightPixels}"
         }
+        val softwareDecoderSelected = hevcSoftwareDecoderEnabled && hevcDecoders.any { !it.hardware }
         val transport = if (!hevcEnabled) "H.264" else getString(R.string.preview_transport_hevc,
-            getString(if (hevcSoftwareDecoderEnabled) R.string.preview_decoder_software else R.string.preview_decoder_hardware))
+            getString(if (softwareDecoderSelected) R.string.preview_decoder_software else R.string.preview_decoder_hardware))
         val fullscreen = buildString {
             append(if (hideTopBar) getString(R.string.fullscreen_top_hidden) else getString(R.string.fullscreen_top_shown))
             append(getString(R.string.preview_list_separator))
@@ -5330,6 +5334,8 @@ open class CarPlayHostActivity : ComponentActivity() {
             LastConnectionProblem.follow(this, status)
         }
         if (status is CarPlayStatus.RunningControl || status is CarPlayStatus.RunningWireless) {
+            cancelReconnect()
+            reconnectAttempts = 0
             LastConnectionProblem.clear(this)
             showConnectionHelp(null)
         } else if (status is CarPlayStatus.Failed) {
@@ -5432,6 +5438,10 @@ open class CarPlayHostActivity : ComponentActivity() {
         adbClusterConfigured = AdbClusterRouter.enabled(this) && snapshot.controller.configuredClusterSize() ==
             (DiLink4ClusterDisplay.STREAM_WIDTH to DiLink4ClusterDisplay.STREAM_HEIGHT)
         controller = snapshot.controller
+        CarPlayBackgroundSession.hotspotReady?.let { ready ->
+            hotspotStatus = HotspotStatus(state = getString(R.string.ready), ssid = ready.ssid, band = ready.band,
+                channel = ready.channel, backend = ready.backend)
+        }
         updateClusterMapShown()
         sink = snapshot.sink
         activeAirPlaySession = snapshot.controller.activeAirPlaySession()
@@ -6773,6 +6783,9 @@ open class CarPlayHostActivity : ComponentActivity() {
     private data class HotspotStatus(
         val state: String,
         val ssid: String? = null,
+        val band: String? = null,
+        val channel: Int? = null,
+        val backend: String? = null,
     )
 }
 
