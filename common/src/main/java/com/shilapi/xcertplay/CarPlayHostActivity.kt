@@ -2747,8 +2747,16 @@ open class CarPlayHostActivity : ComponentActivity() {
             val replacementContentScroll = settingsMenuContentScroll
             settingsMenu = replacement
             parent.addView(replacement, index, FrameLayout.LayoutParams(-1, -1))
+            replacementContentScroll?.let { scroll ->
+                scroll.viewTreeObserver.addOnGlobalLayoutListener(object : android.view.ViewTreeObserver.OnGlobalLayoutListener {
+                    override fun onGlobalLayout() {
+                        if (scroll.height <= 0) return
+                        scroll.scrollTo(0, scrollY)
+                        scroll.viewTreeObserver.removeOnGlobalLayoutListener(this)
+                    }
+                })
+            }
             replacement.post {
-                replacementContentScroll?.let { scroll -> scroll.post { scroll.scrollTo(0, scrollY) } }
                 if (focusDescription != null) {
                     findDescendants(replacement).firstOrNull {
                         it.contentDescription?.toString() == focusDescription

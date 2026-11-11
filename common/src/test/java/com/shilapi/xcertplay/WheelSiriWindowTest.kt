@@ -539,7 +539,9 @@ class WheelSiriWindowTest {
 
     private fun assignText(role: WheelZoomSettings.Role, key: WheelKey?): String {
         val value = when {
-            WheelZoomSettings.assigned(settings, role) && role == WheelZoomSettings.Role.SIRI ->
+            WheelZoomSettings.assigned(settings, role) && role in listOf(
+                WheelZoomSettings.Role.SIRI, WheelZoomSettings.Role.MEDIA_PLAY_PAUSE,
+            ) ->
                 key?.toString() ?: settings.getString(R.string.vehicle_map_key_saved)
             WheelZoomSettings.assigned(settings, role) -> settings.getString(R.string.vehicle_map_key_saved)
             key == null -> settings.getString(R.string.wheel_key_none)

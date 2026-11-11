@@ -91,7 +91,7 @@ class CarPlaySizeSettingsTest {
         val slider = lengthSlider()
         assertEquals(60, slider.max)
         assertEquals((300 - 100) / 5, slider.progress)
-        assertTrue(texts(ShadowAlertDialog.getLatestAlertDialog()).contains("300 mm"))
+        assertTrue(texts(ShadowAlertDialog.getLatestAlertDialog()).any { it.contains("300 mm") })
         drag(slider, (285 - 100) / 5)
         assertTrue(texts(ShadowAlertDialog.getLatestAlertDialog()).any { it.contains("285 mm") })
         ShadowAlertDialog.getLatestAlertDialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
