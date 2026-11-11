@@ -67,6 +67,7 @@ import com.shilapi.xcertplay.media.AmbientColorSource
 import com.shilapi.xcertplay.media.AmbientIdleBehavior
 import com.shilapi.xcertplay.media.AmbientMusicController
 import com.shilapi.xcertplay.media.MtkDecoderTuning
+import com.shilapi.xcertplay.orchestration.MfiTarget
 import com.shilapi.xcertplay.media.AmbientMusicSettings
 import com.shilapi.xcertplay.AmbientSwatchGrid
 import com.shilapi.xcertplay.backup.SettingsBackupCodec
@@ -1703,6 +1704,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             getString(R.string.connection_setup), R.drawable.ic_dp_connection) { card ->
             card.addView(label(getString(R.string.choose_how_to_connect_follow_the_setup_steps_and_save_your), 16, MUTED))
             card.addView(button(getString(R.string.open_connection_setup), false, ::openConnectionSetupFromSettings), matchButton(12, 60))
+            mfiTargetControl(card)
         }
         filteredSection(content, SettingsSection.USB_CONNECTION,
             getString(R.string.settings_usb_connection), R.drawable.ic_dp_connection) { card ->
@@ -1979,6 +1981,19 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         // Opt-in controls that can cost sound or video on some head units.
         filteredSection(content, SettingsSection.ADVANCED_MEDIA,
             getString(R.string.settings_advanced_media), R.drawable.ic_dp_advanced) { card ->
+            toggle(card, getString(R.string.settings_call_at_call_rate),
+                getString(R.string.settings_call_at_call_rate_description), AirPlayPersistence.loadCallAtCallRate(this)) {
+                AirPlayPersistence.saveCallAtCallRate(this, it)
+                markReconnectNeeded()
+            }
+            selectedMtkDecoderName(if (AirPlayPersistence.loadHevcEnabled(this)) "video/hevc" else "video/avc")?.let { decoder ->
+                toggle(card, getString(R.string.settings_mtk_decoder_tuning),
+                    getString(R.string.settings_mtk_decoder_tuning_description, decoder),
+                    AirPlayPersistence.loadMtkDecoderTuning(this)) {
+                    AirPlayPersistence.saveMtkDecoderTuning(this, it)
+                    markReconnectNeeded()
+                }
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && CarHotspotSetup.isBydHeadUnit(this)) {
                 toggle(card, getString(R.string.settings_hide_byd_call_popup),
                     getString(R.string.settings_hide_byd_call_popup_description),
@@ -2522,7 +2537,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             getString(R.string.permissions_and_connection_help), R.drawable.ic_dp_permissions) { card ->
             card.addView(label(getString(R.string.nearby_devices_connects_your_iphone_microphone_enables_sir), 16, MUTED))
             card.addView(button(getString(R.string.app_permissions), false) { openSystem(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) }, matchButton(16, 60))
-            card.addView(button(getString(R.string.bluetooth_settings), false) { openSystem(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }, matchButton(10, 60))
+            card.addView(button(getString(R.string.bluetooth_settings), false, ::openBluetoothSettings), matchButton(10, 60))
             card.addView(button(getString(R.string.wireless_connection_help), false) { wirelessHelp() }, matchButton(10, 60))
         }
         languageSettings(content)
@@ -2737,6 +2752,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         updateMessage = null
         updateStage = UpdateStage.AVAILABLE
         page = "about"
+        settingsCategory = SettingsCategory.ABOUT
         render()
     }
 
@@ -3068,6 +3084,13 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
 
     private fun openCarWifiSettings() {
         val hotspot = Intent("com.android.settings.WIFI_TETHER_SETTINGS")
+        if (answeredByBydDecoy("com.android.settings.WIFI_TETHER_SETTINGS")) {
+            runCatching {
+                startActivity(Intent().setClassName("com.byd.vehiclesettings",
+                    "com.byd.vehiclesettings.link.hotspot.PerHospotActivity"))
+            }.onFailure { toast(getString(R.string.open_this_setting_from_your_car_s_settings_app)) }
+            return
+        }
         val target = packageManager.resolveActivity(hotspot, 0)?.activityInfo?.packageName
         if (target == null) {
             openSystem(Intent(Settings.ACTION_WIRELESS_SETTINGS))
@@ -3078,6 +3101,20 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         }
         if (runCatching { startActivity(hotspot) }.isSuccess) return
         openSystem(Intent(Settings.ACTION_WIRELESS_SETTINGS))
+    }
+
+    private val targetedByBydSettingsWork get() = Build.VERSION.SDK_INT == Build.VERSION_CODES.N_MR1
+
+    private fun answeredByBydDecoy(action: String): Boolean {
+        if (!targetedByBydSettingsWork) return false
+        val info = packageManager.resolveActivity(Intent(action), 0)?.activityInfo ?: return false
+        return info.packageName == "com.byd.vehiclesettings" && info.name.contains("unsupport", ignoreCase = true)
+    }
+
+    private fun openBluetoothSettings() {
+        if (answeredByBydDecoy(Settings.ACTION_BLUETOOTH_SETTINGS)) {
+            openSystem(Intent().setClassName("com.byd.btsetting", "com.byd.btsetting.BluetoothManagerDialog"))
+        } else openSystem(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
     }
 
     private fun openCarClientWifiSettings() {
@@ -3303,6 +3340,29 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             card.addView(label(getString(R.string.use_a_usb_data_cable_and_the_car_s_usb_data_port_unlock_yo), 16, MUTED))
             card.addView(button(getString(R.string.connect_with_usb), false) { connect(false) }, matchButton(12, 60))
         }
+    }
+
+    private fun mfiTargetControl(parent: LinearLayout) {
+        val target = AirPlayPersistence.loadMfiTarget(this)
+        if (target != MfiTarget.LOCAL && target != MfiTarget.USB_CH341) return
+        val labels = arrayOf(getString(R.string.local_offline), getString(R.string.usb_ch341))
+        val selected = if (target == MfiTarget.USB_CH341) 1 else 0
+        parent.addView(button("${getString(R.string.mfi_certificate_signing_target)} · ${labels[selected]}", false) {
+            var pending = selected
+            appDialogBuilder().setTitle(getString(R.string.mfi_certificate_signing_target))
+                .setSingleChoiceItems(labels, selected) { _, which -> pending = which }
+                .setPositiveButton(android.R.string.ok) { _, _ ->
+                    val value = if (pending == 1) MfiTarget.USB_CH341 else MfiTarget.LOCAL
+                    if (value != target) {
+                        AirPlayPersistence.saveMfiTarget(this, value)
+                        markReconnectNeeded()
+                        render()
+                    }
+                }
+                .setNegativeButton(R.string.cancel, null)
+                .show()
+        }, matchButton(12, 60))
+        parent.addView(label(getString(R.string.settings_mfi_target_description), 14, MUTED))
     }
 
     private fun wirelessLinkControls(parent: LinearLayout) {
@@ -5800,7 +5860,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 .setMessage(message)
                 .setPositiveButton(getString(R.string.open_bluetooth)) { _, _ ->
                     prefs.edit().putBoolean("bluetooth_settings_visited_from_chooser", true).apply()
-                    openSystem(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+                    openBluetoothSettings()
                 }
                 .setNegativeButton(getString(R.string.later), null).show(); return
         }
@@ -5808,7 +5868,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         if (devices.isEmpty()) {
             appDialogBuilder().setTitle(getString(R.string.pair_your_iphone))
                 .setMessage(getString(R.string.on_your_iphone_open_settings_bluetooth_and_pair_with_the_c))
-                .setPositiveButton(getString(R.string.open_bluetooth)) { _, _ -> openSystem(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }
+                .setPositiveButton(getString(R.string.open_bluetooth)) { _, _ -> openBluetoothSettings() }
                 .setNegativeButton(getString(R.string.got_it), null).show(); return
         }
         if (devices.size == 1) {
@@ -5830,7 +5890,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 val start = pendingWireless; pendingWireless = false
                 render()
                 if (start) connect(true)
-            }.setNeutralButton(getString(R.string.pair_another)) { _, _ -> openSystem(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }
+            }.setNeutralButton(getString(R.string.pair_another)) { _, _ -> openBluetoothSettings() }
             .setNegativeButton(getString(R.string.cancel)) { _, _ -> pendingWireless = false }.show()
     }
 
