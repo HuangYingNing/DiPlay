@@ -2744,10 +2744,11 @@ open class CarPlayHostActivity : ComponentActivity() {
             val focusDescription = previous.findFocus()?.contentDescription?.toString()
             parent.removeView(previous)
             val replacement = buildSettingsMenu().apply { visibility = visible }
+            val replacementContentScroll = settingsMenuContentScroll
             settingsMenu = replacement
             parent.addView(replacement, index, FrameLayout.LayoutParams(-1, -1))
             replacement.post {
-                settingsMenuContentScroll?.scrollTo(0, scrollY)
+                replacementContentScroll?.let { scroll -> scroll.post { scroll.scrollTo(0, scrollY) } }
                 if (focusDescription != null) {
                     findDescendants(replacement).firstOrNull {
                         it.contentDescription?.toString() == focusDescription
