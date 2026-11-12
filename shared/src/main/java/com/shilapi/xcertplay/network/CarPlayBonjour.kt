@@ -38,6 +38,12 @@ data class CarPlayBonjourEndpoint(
     val bluetoothId: String?,
 )
 
+internal fun normalizeCarPlayBluetoothAddress(value: String?): String? {
+    val compact = value?.replace(":", "")?.uppercase()?.takeIf { it.matches(Regex("[0-9A-F]{12}")) }
+        ?: return null
+    return compact.chunked(2).joinToString(":")
+}
+
 sealed interface CarPlayBonjourEvent {
     data class Discovery(val stage: Stage, val ipv4Count: Int = 0, val ipv6Count: Int = 0) : CarPlayBonjourEvent {
         enum class Stage { ADDED, NO_MATCHING_ADDRESS, INVALID_PORT }

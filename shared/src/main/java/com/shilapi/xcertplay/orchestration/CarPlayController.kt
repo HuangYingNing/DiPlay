@@ -47,7 +47,9 @@ import com.shilapi.xcertplay.mfi.MfiAuthenticationClient
 import com.shilapi.xcertplay.mfi.RemoteMfiAuthenticationClient
 import com.shilapi.xcertplay.mfi.LocalMfiAuthenticationClient
 import com.shilapi.xcertplay.network.CarPlayBonjour
+import com.shilapi.xcertplay.network.CarPlayBonjourEvent
 import com.shilapi.xcertplay.network.diagnosticSummary
+import com.shilapi.xcertplay.network.normalizeCarPlayBluetoothAddress
 import com.shilapi.xcertplay.network.CarPlayVpnService
 import com.shilapi.xcertplay.network.LocalOnlyHotspotManager
 import com.shilapi.xcertplay.network.ManualHotspotManager
@@ -110,6 +112,7 @@ import java.net.NetworkInterface
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -1467,7 +1470,13 @@ class CarPlayController(
                 try {
                     selectWirelessBluetoothDevice(adapter, bluetoothInventory)
                 } catch (error: ConnectionFailureException) {
-                    if (BluetoothRadioCheck.shouldIgnoreReportedOffOnBroadcastMode(
+                    if (broadcastBluetoothMode && error.reason == ConnectionFailureCause.NO_PAIRED_IPHONE) {
+                        connectionDiagnostic(
+                            "broadcast Bluetooth mode has no Android-visible iPhone target at preflight; " +
+                                "defer target discovery until hotspot CarPlay Bonjour is active",
+                        )
+                        null
+                    } else if (BluetoothRadioCheck.shouldIgnoreReportedOffOnBroadcastMode(
                             usesBroadcastBluetooth = broadcastBluetoothMode,
                             state = adapter.state,
                             pausedByDiPlay = BydBluetoothSuspend.isSuspendedByUs(appContext),
@@ -1606,12 +1615,28 @@ class CarPlayController(
             }
             val handshakeBluetoothInventory = WirelessBluetoothInventory.capture(appContext)
             connectionDiagnostic("wireless Bluetooth handshake inventory ${handshakeBluetoothInventory.reportLine()}")
-            val device = selectedBluetoothTarget ?: selectWirelessBluetoothDevice(adapter, handshakeBluetoothInventory)
+            val androidVisibleDevice = selectedBluetoothTarget ?: if (broadcastBluetoothMode) {
+                runCatching { selectWirelessBluetoothDevice(adapter, handshakeBluetoothInventory) }
+                    .onFailure { error ->
+                        if (error !is ConnectionFailureException ||
+                            error.reason != ConnectionFailureCause.NO_PAIRED_IPHONE
+                        ) throw error
+                        connectionDiagnostic(
+                            "broadcast Bluetooth mode has no Android-visible handshake target; " +
+                                "waiting for iPhone CarPlay Bonjour identity",
+                        )
+                    }
+                    .getOrNull()
+            } else {
+                selectWirelessBluetoothDevice(adapter, handshakeBluetoothInventory)
+            }
             val hostBluetoothMac = accessoryBluetoothMac(adapter)
-            debugLog(
-                "wireless selected Bluetooth target name=${device.name ?: "unknown"} " +
-                    "address=${device.address} localBt=$hostBluetoothMac",
-            )
+            androidVisibleDevice?.let { device ->
+                debugLog(
+                    "wireless selected Bluetooth target name=${device.name ?: "unknown"} " +
+                        "address=${device.address} localBt=$hostBluetoothMac",
+                )
+            } ?: connectionDiagnostic("wireless Bluetooth target will be resolved from CarPlay Bonjour")
             val wirelessAirPlayConfig = airPlayConfig.copy(
                 deviceId = deviceIdentifier,
                 btMac = hostBluetoothMac,
@@ -1656,6 +1681,8 @@ class CarPlayController(
                 return
             }
 
+            val discoveredBluetoothAddresses = ConcurrentHashMap.newKeySet<String>()
+            val discoveredBluetooth = CountDownLatch(1)
             val bonjourClient = CarPlayBonjour(
                 context = appContext,
                 config = advertisedAirPlayConfig,
@@ -1665,7 +1692,14 @@ class CarPlayController(
                 // The car hotspot previously used system NSD, which could resolve another interface
                 // or IPv6 while the listener/probe was bound to the AP's IPv4 address.
                 useInterfaceMdns = true,
-                onEvent = { event -> debugLog("wireless bonjour: ${event.diagnosticSummary()}") },
+                onEvent = { event ->
+                    debugLog("wireless bonjour: ${event.diagnosticSummary()}")
+                    if (event is CarPlayBonjourEvent.Resolved) {
+                        normalizeCarPlayBluetoothAddress(event.endpoint.bluetoothId)?.let { address ->
+                            if (discoveredBluetoothAddresses.add(address)) discoveredBluetooth.countDown()
+                        }
+                    }
+                },
                 additionalAddresses = hotspotInfo.hostAddresses.filter { it != hostAddress },
             )
             synchronized(wirelessResourceLock) {
@@ -1680,6 +1714,13 @@ class CarPlayController(
             if (isStaleWirelessRun(generation)) {
                 return
             }
+
+            val device = androidVisibleDevice ?: awaitBonjourBluetoothTarget(
+                adapter = adapter,
+                discoveredAddresses = discoveredBluetoothAddresses,
+                discovered = discoveredBluetooth,
+                generation = generation,
+            )
 
             onStatus(CarPlayStatus.ConnectingBluetooth)
             debugLog(
@@ -2814,6 +2855,54 @@ class CarPlayController(
             return@synchronized
         }
         (wifiScanPause ?: WifiScanPause(appContext, ::debugLog).also { wifiScanPause = it }).pause()
+    }
+
+    private fun awaitBonjourBluetoothTarget(
+        adapter: BluetoothAdapter,
+        discoveredAddresses: MutableSet<String>,
+        discovered: CountDownLatch,
+        generation: Int,
+    ): BluetoothDevice {
+        connectionDiagnostic("waiting for iPhone CarPlay Bonjour Bluetooth identity timeoutMs=20000")
+        val deadline = SystemClock.elapsedRealtime() + 20_000L
+        while (discovered.count > 0 && SystemClock.elapsedRealtime() < deadline) {
+            if (isStaleWirelessRun(generation)) throw IOException("CarPlay Bonjour target discovery was cancelled")
+            discovered.await(250, TimeUnit.MILLISECONDS)
+        }
+        if (discovered.count > 0) {
+            connectionDiagnostic("iPhone CarPlay Bonjour Bluetooth identity not received before timeout")
+            throw ConnectionFailureException(
+                ConnectionFailureCause.NO_PAIRED_IPHONE,
+                "No iPhone CarPlay control service was discovered on the active hotspot",
+            )
+        }
+
+        // 给 IPv4/IPv6 回调留出短暂汇总时间，避免重复识别同一手机或误选先到的多台手机。
+        val settleDeadline = SystemClock.elapsedRealtime() + 900L
+        while (SystemClock.elapsedRealtime() < settleDeadline) {
+            if (isStaleWirelessRun(generation)) throw IOException("CarPlay Bonjour target discovery was cancelled")
+            Thread.sleep(100L)
+        }
+        val candidates = discoveredAddresses.toSet()
+        if (candidates.size != 1) {
+            connectionDiagnostic("iPhone CarPlay Bonjour identity candidates=${candidates.size}")
+            throw ConnectionFailureException(
+                ConnectionFailureCause.IPHONE_NOT_CHOSEN,
+                if (candidates.isEmpty()) "The iPhone CarPlay service did not include a usable Bluetooth identity"
+                else "Multiple iPhone CarPlay control services were discovered",
+            )
+        }
+        val address = candidates.single()
+        connectionDiagnostic("iPhone CarPlay Bonjour supplied one Bluetooth target; attempting RFCOMM")
+        return try {
+            adapter.getRemoteDevice(address)
+        } catch (error: IllegalArgumentException) {
+            throw ConnectionFailureException(
+                ConnectionFailureCause.NO_PAIRED_IPHONE,
+                "The discovered iPhone Bluetooth identity is not accepted by the system Bluetooth adapter",
+                error,
+            )
+        }
     }
 
     private fun selectWirelessBluetoothDevice(adapter: BluetoothAdapter): BluetoothDevice =
