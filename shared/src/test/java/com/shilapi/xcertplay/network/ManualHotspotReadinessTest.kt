@@ -16,7 +16,8 @@ class ManualHotspotReadinessTest {
     private fun snapshot(vararg interfaces: HotspotInterfaceSnapshot, ap: Set<String>? = null,
         wifi: Set<String>? = emptySet(), default: String? = null, consistent: Boolean = true) =
         HotspotNetworkSnapshot(interfaces.toList(), ap, wifi, default, consistent)
-    private fun select(value: HotspotNetworkSnapshot) = selectHotspotInterface(value) {}
+    private fun select(value: HotspotNetworkSnapshot, allowWifiUpstream: Boolean = false) =
+        selectHotspotInterface(value, allowWifiUpstream = allowWifiUpstream) {}
     private var now = 0L
     private fun await(timeout: Long = 1_500, cancel: () -> Boolean = { false },
         sample: () -> HotspotNetworkSnapshot): HotspotSelection = ManualHotspotReadiness(
