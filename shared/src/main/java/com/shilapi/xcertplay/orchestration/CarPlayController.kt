@@ -47,9 +47,8 @@ import com.shilapi.xcertplay.mfi.MfiAuthenticationClient
 import com.shilapi.xcertplay.mfi.RemoteMfiAuthenticationClient
 import com.shilapi.xcertplay.mfi.LocalMfiAuthenticationClient
 import com.shilapi.xcertplay.network.CarPlayBonjour
-import com.shilapi.xcertplay.network.CarPlayBonjourEvent
 import com.shilapi.xcertplay.network.diagnosticSummary
-import com.shilapi.xcertplay.network.normalizeCarPlayBluetoothAddress
+import com.shilapi.xcertplay.network.MdnsPacketObserver
 import com.shilapi.xcertplay.network.CarPlayVpnService
 import com.shilapi.xcertplay.network.LocalOnlyHotspotManager
 import com.shilapi.xcertplay.network.ManualHotspotManager
@@ -63,6 +62,7 @@ import com.shilapi.xcertplay.network.WirelessHotspotBackend
 import com.shilapi.xcertplay.network.WirelessNetworkInventory
 import com.shilapi.xcertplay.transport.FlymeAutoCompatibility
 import com.shilapi.xcertplay.transport.WirelessBluetoothInventory
+import com.shilapi.xcertplay.transport.GeelyHeadUnitWirelessDiagnostics
 import com.shilapi.xcertplay.network.WirelessHotspotManager
 import com.shilapi.xcertplay.network.WirelessInterfaceDiagnostics
 import com.shilapi.xcertplay.network.WirelessReceiveDiagnostics
@@ -112,7 +112,6 @@ import java.net.NetworkInterface
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -314,6 +313,7 @@ class CarPlayController(
     @Volatile private var hotspot: WirelessHotspotManager? = null
     @Volatile private var wifiScanPause: WifiScanPause? = null
     @Volatile private var bonjour: CarPlayBonjour? = null
+    @Volatile private var wirelessMdnsObserver: MdnsPacketObserver? = null
     private val wirelessResourceLock = Any()
     private val wirelessFailureReported = AtomicBoolean(false)
     @Volatile private var instantBluetoothLink: InstantBluetoothLink? = null
@@ -1576,6 +1576,7 @@ class CarPlayController(
                     "${WirelessInterfaceDiagnostics.snapshot(hotspotInfo.interfaceName)} " +
                         "${startedHotspot?.connectionDiagnosticSnapshot() ?: "association=unknown"} " +
                         (startedBonjour?.diagnosticSnapshot() ?: "bonjour=not_started") + "\n" +
+                        (wirelessMdnsObserver?.snapshot() ?: "mDNS observer=not_started") + "\n" +
                         receiveDiagnostics.snapshot()
                 },
                 log = { message -> if (!isStaleWirelessRun(generation)) debugLog(message) },
@@ -1636,7 +1637,10 @@ class CarPlayController(
                     "wireless selected Bluetooth target name=${device.name ?: "unknown"} " +
                         "address=${device.address} localBt=$hostBluetoothMac",
                 )
-            } ?: connectionDiagnostic("wireless Bluetooth target will be resolved from CarPlay Bonjour")
+            } ?: connectionDiagnostic(
+                "wireless RFCOMM target is unavailable through Android Bluetooth; " +
+                    "CarPlay Bonjour observation will not be used as a Bluetooth pairing substitute",
+            )
             val wirelessAirPlayConfig = airPlayConfig.copy(
                 deviceId = deviceIdentifier,
                 btMac = hostBluetoothMac,
@@ -1681,8 +1685,6 @@ class CarPlayController(
                 return
             }
 
-            val discoveredBluetoothAddresses = ConcurrentHashMap.newKeySet<String>()
-            val discoveredBluetooth = CountDownLatch(1)
             val bonjourClient = CarPlayBonjour(
                 context = appContext,
                 config = advertisedAirPlayConfig,
@@ -1692,14 +1694,7 @@ class CarPlayController(
                 // The car hotspot previously used system NSD, which could resolve another interface
                 // or IPv6 while the listener/probe was bound to the AP's IPv4 address.
                 useInterfaceMdns = true,
-                onEvent = { event ->
-                    debugLog("wireless bonjour: ${event.diagnosticSummary()}")
-                    if (event is CarPlayBonjourEvent.Resolved) {
-                        normalizeCarPlayBluetoothAddress(event.endpoint.bluetoothId)?.let { address ->
-                            if (discoveredBluetoothAddresses.add(address)) discoveredBluetooth.countDown()
-                        }
-                    }
-                },
+                onEvent = { event -> debugLog("wireless bonjour: ${event.diagnosticSummary()}") },
                 additionalAddresses = hotspotInfo.hostAddresses.filter { it != hostAddress },
             )
             synchronized(wirelessResourceLock) {
@@ -1711,16 +1706,25 @@ class CarPlayController(
             startedBonjour = bonjourClient
             diagnostics.start()
             debugLog("wireless Bonjour services started mode=interface iface=${hotspotInfo.interfaceName ?: "unknown"}")
+            if (androidVisibleDevice == null && broadcastBluetoothMode) {
+                val observer = MdnsPacketObserver(hotspotInfo.interfaceName)
+                wirelessMdnsObserver = observer
+                observer.start()
+                connectionDiagnostic("wireless ${observer.snapshot()}")
+                connectionDiagnostic(
+                    "Geely/Flyme Auto head-unit wireless system ${GeelyHeadUnitWirelessDiagnostics.capture(appContext)}",
+                )
+                awaitWirelessBroadcastObservation(observer, generation, timeoutMillis = 8_000L)
+                throw ConnectionFailureException(
+                    ConnectionFailureCause.NO_PAIRED_IPHONE,
+                    "Flyme Auto does not expose an RFCOMM target to Android Bluetooth; see Bluetooth, ADB and mDNS diagnostics",
+                )
+            }
             if (isStaleWirelessRun(generation)) {
                 return
             }
 
-            val device = androidVisibleDevice ?: awaitBonjourBluetoothTarget(
-                adapter = adapter,
-                discoveredAddresses = discoveredBluetoothAddresses,
-                discovered = discoveredBluetooth,
-                generation = generation,
-            )
+            val device = androidVisibleDevice ?: selectWirelessBluetoothDevice(adapter, handshakeBluetoothInventory)
 
             onStatus(CarPlayStatus.ConnectingBluetooth)
             debugLog(
@@ -2857,52 +2861,21 @@ class CarPlayController(
         (wifiScanPause ?: WifiScanPause(appContext, ::debugLog).also { wifiScanPause = it }).pause()
     }
 
-    private fun awaitBonjourBluetoothTarget(
-        adapter: BluetoothAdapter,
-        discoveredAddresses: MutableSet<String>,
-        discovered: CountDownLatch,
+    private fun awaitWirelessBroadcastObservation(
+        observer: MdnsPacketObserver,
         generation: Int,
-    ): BluetoothDevice {
-        connectionDiagnostic("waiting for iPhone CarPlay Bonjour Bluetooth identity timeoutMs=20000")
-        val deadline = SystemClock.elapsedRealtime() + 20_000L
-        while (discovered.count > 0 && SystemClock.elapsedRealtime() < deadline) {
-            if (isStaleWirelessRun(generation)) throw IOException("CarPlay Bonjour target discovery was cancelled")
-            discovered.await(250, TimeUnit.MILLISECONDS)
+        timeoutMillis: Long,
+    ) {
+        connectionDiagnostic(
+            "Bluetooth discovery is unavailable because the standard adapter reports OFF; " +
+                "passively observing mDNS for ${timeoutMillis}ms",
+        )
+        val deadline = SystemClock.elapsedRealtime() + timeoutMillis
+        while (SystemClock.elapsedRealtime() < deadline) {
+            if (isStaleWirelessRun(generation)) throw IOException("Wireless broadcast observation was cancelled")
+            Thread.sleep(250L)
         }
-        if (discovered.count > 0) {
-            connectionDiagnostic("iPhone CarPlay Bonjour Bluetooth identity not received before timeout")
-            throw ConnectionFailureException(
-                ConnectionFailureCause.NO_PAIRED_IPHONE,
-                "No iPhone CarPlay control service was discovered on the active hotspot",
-            )
-        }
-
-        // 给 IPv4/IPv6 回调留出短暂汇总时间，避免重复识别同一手机或误选先到的多台手机。
-        val settleDeadline = SystemClock.elapsedRealtime() + 900L
-        while (SystemClock.elapsedRealtime() < settleDeadline) {
-            if (isStaleWirelessRun(generation)) throw IOException("CarPlay Bonjour target discovery was cancelled")
-            Thread.sleep(100L)
-        }
-        val candidates = discoveredAddresses.toSet()
-        if (candidates.size != 1) {
-            connectionDiagnostic("iPhone CarPlay Bonjour identity candidates=${candidates.size}")
-            throw ConnectionFailureException(
-                ConnectionFailureCause.IPHONE_NOT_CHOSEN,
-                if (candidates.isEmpty()) "The iPhone CarPlay service did not include a usable Bluetooth identity"
-                else "Multiple iPhone CarPlay control services were discovered",
-            )
-        }
-        val address = candidates.single()
-        connectionDiagnostic("iPhone CarPlay Bonjour supplied one Bluetooth target; attempting RFCOMM")
-        return try {
-            adapter.getRemoteDevice(address)
-        } catch (error: IllegalArgumentException) {
-            throw ConnectionFailureException(
-                ConnectionFailureCause.NO_PAIRED_IPHONE,
-                "The discovered iPhone Bluetooth identity is not accepted by the system Bluetooth adapter",
-                error,
-            )
-        }
+        connectionDiagnostic("wireless ${observer.snapshot()}")
     }
 
     private fun selectWirelessBluetoothDevice(adapter: BluetoothAdapter): BluetoothDevice =
@@ -3109,6 +3082,12 @@ class CarPlayController(
             val diagnostics = wirelessDiagnostics
             wirelessDiagnostics = null
             diagnostics?.close()
+            val mdnsObserver = wirelessMdnsObserver
+            wirelessMdnsObserver = null
+            if (mdnsObserver != null) {
+                connectionDiagnostic("wireless ${mdnsObserver.snapshot()}")
+                closeBestEffort("mDNS packet observer") { mdnsObserver.close() }
+            }
             wirelessConnectionProof.clear()
             media.setIapTunnelHandler(null)
             val activeTunnel = wirelessTunnelChannel

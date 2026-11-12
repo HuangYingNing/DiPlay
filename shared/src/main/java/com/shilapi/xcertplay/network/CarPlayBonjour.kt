@@ -35,14 +35,7 @@ data class CarPlayBonjourEndpoint(
     val serviceName: String,
     val host: String,
     val port: Int,
-    val bluetoothId: String?,
 )
-
-internal fun normalizeCarPlayBluetoothAddress(value: String?): String? {
-    val compact = value?.replace(":", "")?.uppercase()?.takeIf { it.matches(Regex("[0-9A-F]{12}")) }
-        ?: return null
-    return compact.chunked(2).joinToString(":")
-}
 
 sealed interface CarPlayBonjourEvent {
     data class Discovery(val stage: Stage, val ipv4Count: Int = 0, val ipv6Count: Int = 0) : CarPlayBonjourEvent {
@@ -224,7 +217,6 @@ class CarPlayBonjour(
             if (!seenServices.add("${event.name}|${address is Inet4Address}")) return
             val endpoint = CarPlayBonjourEndpoint(
                 event.name, address.hostAddress ?: return, info.port,
-                info.getPropertyString("id"),
             )
             interfaceServices.offer(endpoint to address)
         }
@@ -445,15 +437,10 @@ class CarPlayBonjour(
         if (port !in 1..65535) return
         val serviceName = resolved.serviceName ?: service.serviceName ?: return
         val host = address.hostAddress ?: return
-        val bluetoothId = resolved.attributes
-            ?.get("id")
-            ?.let(::decodeTxtValue)
-            ?.takeIf { it.isNotBlank() }
         val endpoint = CarPlayBonjourEndpoint(
             serviceName = serviceName,
             host = host,
             port = port,
-            bluetoothId = bluetoothId,
         )
         emit(CarPlayBonjourEvent.Resolved(endpoint))
         probe(endpoint, address)?.let(::emit)

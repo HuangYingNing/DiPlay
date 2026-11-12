@@ -8,15 +8,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class CarPlayBonjourTest {
-    @Test fun normalizesDiscoveredBluetoothIdentifiers() {
-        assertEquals("AA:BB:CC:DD:EE:FF", normalizeCarPlayBluetoothAddress("aa:bb:cc:dd:ee:ff"))
-        assertEquals("AA:BB:CC:DD:EE:FF", normalizeCarPlayBluetoothAddress("AABBCCDDEEFF"))
-        assertEquals(null, normalizeCarPlayBluetoothAddress("unknown"))
-        assertEquals(null, normalizeCarPlayBluetoothAddress("AA:BB:CC:DD:EE"))
-    }
-
     @Test fun discoveryDiagnosticsKeepOutcomeWithoutPhoneIdentifiers() {
-        val endpoint = CarPlayBonjourEndpoint("Private phone", "192.168.43.25", 7000, "AA:BB:CC:DD:EE:FF")
+        val endpoint = CarPlayBonjourEndpoint("Private phone", "192.168.43.25", 7000)
         assertEquals("control resolved family=IPv4 port=7000", CarPlayBonjourEvent.Resolved(endpoint).diagnosticSummary())
         assertEquals("control probe attempts=2 status=200 error=none",
             CarPlayBonjourEvent.Probed(endpoint, 2, "HTTP/1.1 200 Private phone", null).diagnosticSummary())
