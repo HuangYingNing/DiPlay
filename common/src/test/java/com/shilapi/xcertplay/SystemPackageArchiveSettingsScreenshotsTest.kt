@@ -47,6 +47,9 @@ class SystemPackageArchiveSettingsScreenshotsTest {
                 assertTrue(views(layout).filterIsInstance<TextView>().any {
                     it.text.toString() == activity.getString(R.string.system_package_export)
                 })
+                assertTrue(views(layout).filterIsInstance<TextView>().any {
+                    it.text.toString() == activity.getString(R.string.system_package_upload)
+                })
                 val width = (widthDp * activity.resources.displayMetrics.density).toInt()
                 layout.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
                     View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))

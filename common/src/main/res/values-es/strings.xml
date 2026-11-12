@@ -1216,4 +1216,7 @@
     <string name="system_package_export">Exportar APK del sistema</string>
     <string name="system_package_export_description">Guarda en un ZIP local los APK del sistema accesibles relacionados con Flyme, Bluetooth y Wi-Fi. Solo se envía si decides compartirlo. No se incluyen archivos protegidos.</string>
     <string name="system_package_export_result">APK recopilados: %1$d; omitidos: %2$d.\nGuardado en: %3$s</string>
+    <string name="system_package_upload">Subir ZIP del sistema</string>
+    <string name="system_package_upload_description">Al pulsar, recopila un ZIP nuevo y lo sube a Filebin público. Cualquiera con el enlace puede descargarlo. Se elimina tras unos 7 días y el enlace queda en el registro de diagnóstico.</string>
+    <string name="system_package_upload_result">ZIP del sistema subido.\nLocal: %1$s\nDescarga: %2$s\nCaduca: %3$s</string>
 </resources>

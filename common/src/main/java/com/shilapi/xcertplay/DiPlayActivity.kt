@@ -213,6 +213,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     private var notificationTransport = true
     private var exportInProgress = false
     private var reportUploadInProgress = false
+    private var systemPackageUploadInProgress = false
     private var reportIssueDescription = ""
     private var usbPermissionOperation: UsbPermissionSetup.Operation? = null
     private var usbPermissionDialog: AlertDialog? = null
@@ -224,6 +225,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     private var toneStop: Runnable? = null
     private var exportButton: Button? = null
     private var reportUploadButton: Button? = null
+    private var systemPackageUploadButton: Button? = null
     private var reportIssueInput: EditText? = null
     private var lastConnectionProblemView: TextView? = null
     private var developerVersionTaps = 0
@@ -683,6 +685,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         reportIssueDescription = reportIssueInput?.text?.toString() ?: reportIssueDescription
         reportIssueInput = null
         reportUploadButton = null
+        systemPackageUploadButton = null
         enforceInterfaceSize()
         refreshAppearance()
         applyWindowAppearance()
@@ -1744,6 +1747,12 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             card.addView(button(getString(R.string.choose_save_location), false) { chooseReportDestination() }, matchButton(10, 60))
             card.addView(button(getString(R.string.system_package_export), false) { exportSystemPackages() }, matchButton(10, 60))
             card.addView(label(getString(R.string.system_package_export_description), 14, MUTED))
+            systemPackageUploadButton = button(
+                if (systemPackageUploadInProgress) getString(R.string.uploading_to_cloud) else getString(R.string.system_package_upload),
+                false,
+            ) { uploadSystemPackages() }.apply { isEnabled = !systemPackageUploadInProgress }
+            card.addView(systemPackageUploadButton, matchButton(10, 60))
+            card.addView(label(getString(R.string.system_package_upload_description), 14, MUTED))
             card.addView(button(getString(R.string.settings_report_on_phone), false) {
                 backupOpenedFrom = SettingsCategory.DIAGNOSTICS
                 page = "backup"
@@ -6204,7 +6213,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         appendLine("--- ADB allow attempts ---")
         appendLine(AdbEnableDiagnostics.report(appContext).ifEmpty { "No ADB allow attempt has been recorded." })
         appendLine()
-        for (name in SessionLogFile.REPORT_NAMES) {
+        for (name in SessionLogFile.REPORT_NAMES + "system-packages.log") {
             val file = File(appContext.filesDir, "logs/$name")
             if (file.isFile) {
                 appendLine("--- $name ---")
@@ -6288,6 +6297,47 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 }
             }
         }, "diplay-system-package-export").start()
+    }
+
+    private fun uploadSystemPackages() {
+        if (systemPackageUploadInProgress) return
+        systemPackageUploadInProgress = true
+        systemPackageUploadButton?.apply { isEnabled = false; text = getString(R.string.uploading_to_cloud) }
+        val appContext = applicationContext
+        Thread({
+            fun record(message: String) {
+                SessionLogFile(File(appContext.filesDir, "logs/system-packages.log")).use { it.appendNow(message) }
+                Log.i("DiPlay-SystemPackages", message)
+            }
+            var localFile: File? = null
+            val result = runCatching {
+                val archive = SystemPackageArchive.create(appContext)
+                localFile = archive.file
+                record("SYSTEM_PACKAGE_UPLOAD prepared local=${archive.file.absolutePath} bytes=${archive.file.length()} copied=${archive.copied} skipped=${archive.skipped}")
+                FilebinPackageUpload.upload(archive.file)
+            }
+            result.onSuccess { uploaded ->
+                record("SYSTEM_PACKAGE_UPLOAD completed local=${uploaded.localFile.absolutePath} url=${uploaded.downloadUrl} sha256=${uploaded.sha256} expires=${uploaded.expiresAt}")
+            }.onFailure { error ->
+                record("SYSTEM_PACKAGE_UPLOAD failed local=${localFile?.absolutePath ?: "none"} reason=${error.javaClass.simpleName}:${error.message.orEmpty().take(120)}")
+                Log.w("DiPlay-SystemPackages", "系统包采集或上传失败", error)
+            }
+            runOnUiThread {
+                systemPackageUploadInProgress = false
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                systemPackageUploadButton?.apply { isEnabled = true; text = getString(R.string.system_package_upload) }
+                result.onSuccess { uploaded ->
+                    appDialogBuilder().setTitle(getString(R.string.report_uploaded))
+                        .setMessage(getString(R.string.system_package_upload_result,
+                            uploaded.localFile.absolutePath, uploaded.downloadUrl, uploaded.expiresAt))
+                        .setPositiveButton(getString(R.string.done), null).show()
+                }.onFailure { error ->
+                    appDialogBuilder().setTitle(getString(R.string.report_upload_failed))
+                        .setMessage(error.message ?: error.javaClass.simpleName)
+                        .setPositiveButton(getString(R.string.close), null).show()
+                }
+            }
+        }, "diplay-system-package-upload").start()
     }
 
     private fun exportDiagnostics(uri: Uri? = null) {

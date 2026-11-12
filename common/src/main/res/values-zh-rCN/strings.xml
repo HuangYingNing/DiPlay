@@ -1119,4 +1119,7 @@
     <string name="system_package_export">导出系统包</string>
     <string name="system_package_export_description">将可读取的 Flyme、蓝牙和 Wi-Fi 相关系统 APK 保存为本地 ZIP；只有主动分享才会发送。受保护文件无法收集。</string>
     <string name="system_package_export_result">已收集 %1$d 个 APK，跳过 %2$d 个。\n保存位置：%3$s</string>
+    <string name="system_package_upload">上传系统包</string>
+    <string name="system_package_upload_description">点击后重新采集并上传到公开的 Filebin；持有链接的人均可下载，约 7 天后删除。下载链接会写入诊断日志。</string>
+    <string name="system_package_upload_result">系统包已上传。\n本地：%1$s\n下载：%2$s\n过期：%3$s</string>
 </resources>
