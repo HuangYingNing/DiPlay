@@ -17,6 +17,8 @@ PasteDB 可绕过代理直接访问。读取 PasteDB 失败时，先检查代理
 
 网络连接默认直连，不经过代理；直连失败后，才尝试使用已配置的代理服务器。
 
+研究项目相关的外部资料时，必须把已确认的资料、来源地址、检索关键词及获取方法记录到本地 `.private/` 目录，供后续分析复用；不得将资料或说明上传 Git。`.private/` 已由 `.gitignore` 忽略，提交前仍须确认其中内容没有进入暂存区。
+
 PasteDB is used for public diagnostic logs. The user accepts that the API key can be
 recovered from the APK. Include only the AES-GCM encrypted key and its decryption key
 in the APK through build-time injection. Keep both source values in Git-ignored
