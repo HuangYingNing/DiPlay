@@ -989,4 +989,7 @@
     <string name="cluster_projection_shape_description">На пів екрана швидкість і стан, які панель зазвичай показує, залишаються поруч із картою; на весь екран карта займає всю панель. DiPlay задає цей вигляд щоразу, коли з&#8217;являється карта CarPlay, інакше він перекриває вигляд, вибраний в автомобілі. Потрібен ADB через мережу на головному пристрої.</string>
     <string name="settings_cluster_speedometer_album_color">Колір альбому для тла спідометра</string>
     <string name="settings_cluster_speedometer_album_color_description">Плавно змінює тло на колір рамки альбому. Зберігає вибрану непрозорість.</string>
+    <string name="system_package_export">Експорт системних APK</string>
+    <string name="system_package_export_description">Зберігає доступні системні APK Flyme, Bluetooth і Wi-Fi у локальний ZIP. Надсилається лише після вашого вибору. Захищені файли недоступні.</string>
+    <string name="system_package_export_result">Зібрано APK: %1$d; пропущено: %2$d.\nЗбережено: %3$s</string>
 </resources>

@@ -1231,4 +1231,7 @@
     <string name="wifi_direct">Wi-Fi Direct</string>
     <string name="wpa2">WPA2</string>
     <string name="wpa3">WPA3</string>
+    <string name="system_package_export">Esporta APK di sistema</string>
+    <string name="system_package_export_description">Salva gli APK di sistema leggibili relativi a Flyme, Bluetooth e Wi-Fi in uno ZIP locale. Vengono inviati solo se scegli di condividerli. I file protetti non possono essere inclusi.</string>
+    <string name="system_package_export_result">APK raccolti: %1$d; ignorati: %2$d.\nSalvato in: %3$s</string>
 </resources>

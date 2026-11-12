@@ -1228,4 +1228,7 @@
     <string name="vehicle_map_visible_height">지도에서 보이는 높이(픽셀, 0 = 최대 높이)</string>
     <string name="vehicle_map_waiting">내비게이션 지도를 기다리는 중</string>
     <string name="vehicle_probe">차량 자산 스캔</string>
+    <string name="system_package_export">시스템 APK 내보내기</string>
+    <string name="system_package_export_description">읽을 수 있는 Flyme, Bluetooth, Wi-Fi 관련 시스템 APK를 로컬 ZIP으로 저장합니다. 공유를 선택한 경우에만 전송됩니다. 보호된 파일은 수집할 수 없습니다.</string>
+    <string name="system_package_export_result">APK %1$d개 수집, %2$d개 건너뜀.\n저장 위치: %3$s</string>
 </resources>

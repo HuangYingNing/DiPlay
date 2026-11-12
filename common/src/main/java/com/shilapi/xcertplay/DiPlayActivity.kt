@@ -1742,6 +1742,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             }.apply { isEnabled = !exportInProgress }
             card.addView(exportButton, matchButton(10, 60))
             card.addView(button(getString(R.string.choose_save_location), false) { chooseReportDestination() }, matchButton(10, 60))
+            card.addView(button(getString(R.string.system_package_export), false) { exportSystemPackages() }, matchButton(10, 60))
+            card.addView(label(getString(R.string.system_package_export_description), 14, MUTED))
             card.addView(button(getString(R.string.settings_report_on_phone), false) {
                 backupOpenedFrom = SettingsCategory.DIAGNOSTICS
                 page = "backup"
@@ -6254,6 +6256,38 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 }
             }
         }, "diplay-report-upload").start()
+    }
+
+    private fun exportSystemPackages() {
+        Thread({
+            val result = runCatching { SystemPackageArchive.create(applicationContext) }
+            runOnUiThread {
+                result.onSuccess { archive ->
+                    appDialogBuilder()
+                        .setTitle(getString(R.string.system_package_export))
+                        .setMessage(getString(R.string.system_package_export_result,
+                            archive.copied, archive.skipped, archive.file.absolutePath))
+                        .setPositiveButton(getString(R.string.share)) { _, _ ->
+                            runCatching {
+                                val uri = SystemPackageArchive.shareUri(this, archive.file)
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "application/zip"
+                                    putExtra(Intent.EXTRA_STREAM, uri)
+                                    clipData = android.content.ClipData.newRawUri("DiPlay", uri)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                startActivity(Intent.createChooser(intent, getString(R.string.share)))
+                            }.onFailure { toast(getString(R.string.report_share_failed)) }
+                        }
+                        .setNegativeButton(getString(R.string.close), null)
+                        .show()
+                }.onFailure { error ->
+                    appDialogBuilder().setTitle(getString(R.string.could_not_save_the_report))
+                        .setMessage(error.message ?: error.javaClass.simpleName)
+                        .setPositiveButton(getString(R.string.close), null).show()
+                }
+            }
+        }, "diplay-system-package-export").start()
     }
 
     private fun exportDiagnostics(uri: Uri? = null) {

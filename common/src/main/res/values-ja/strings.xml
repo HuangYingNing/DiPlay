@@ -1238,4 +1238,7 @@
     <string name="vehicle_map_visible_height">マップの表示高さ（ピクセル、0＝全体）</string>
     <string name="vehicle_map_waiting">ナビマップを待機中</string>
     <string name="vehicle_probe">車両プロパティのスキャン</string>
+    <string name="system_package_export">システム APK を出力</string>
+    <string name="system_package_export_description">読み取り可能な Flyme、Bluetooth、Wi-Fi 関連のシステム APK をローカル ZIP に保存します。共有操作をした場合のみ送信します。保護されたファイルは収集できません。</string>
+    <string name="system_package_export_result">APK を %1$d 件収集し、%2$d 件をスキップしました。\n保存先: %3$s</string>
 </resources>

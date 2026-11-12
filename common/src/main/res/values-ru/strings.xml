@@ -1167,4 +1167,7 @@
     <string name="ui_open_upstream_source">Откройте исходный код из вышестоящего источника</string>
     <string name="ui_project_link_failed">Не удалось открыть ссылку на проект.</string>
     <string name="ui_project_source">Источник проекта</string>
+    <string name="system_package_export">Экспорт системных APK</string>
+    <string name="system_package_export_description">Сохраняет доступные системные APK Flyme, Bluetooth и Wi-Fi в локальный ZIP. Отправка происходит только по вашему выбору. Защищённые файлы недоступны.</string>
+    <string name="system_package_export_result">Собрано APK: %1$d; пропущено: %2$d.\nСохранено: %3$s</string>
 </resources>

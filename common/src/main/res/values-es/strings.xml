@@ -1213,4 +1213,7 @@
     <string name="wireless_startup_retries_exhausted">Los reintentos automáticos se han detenido. Compruebe la conexión e inténtelo de nuevo manualmente.</string>
     <string name="wpa2">WPA2</string>
     <string name="wpa3">WPA3</string>
+    <string name="system_package_export">Exportar APK del sistema</string>
+    <string name="system_package_export_description">Guarda en un ZIP local los APK del sistema accesibles relacionados con Flyme, Bluetooth y Wi-Fi. Solo se envía si decides compartirlo. No se incluyen archivos protegidos.</string>
+    <string name="system_package_export_result">APK recopilados: %1$d; omitidos: %2$d.\nGuardado en: %3$s</string>
 </resources>
