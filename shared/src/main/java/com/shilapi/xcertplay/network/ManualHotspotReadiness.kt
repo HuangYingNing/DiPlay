@@ -36,6 +36,7 @@ internal data class HotspotSelection(val name: String, val index: Int, val addre
 internal fun selectHotspotInterface(
     snapshot: HotspotNetworkSnapshot,
     configuredInterface: String? = null,
+    allowWifiUpstream: Boolean = false,
     log: (String) -> Unit,
 ): HotspotSelection? {
     if (!snapshot.consistent) {
@@ -60,8 +61,9 @@ internal fun selectHotspotInterface(
             !iface.up || iface.index <= 0 -> "interface_down"
             address == null -> "address_unavailable"
             // carlito | A reported AP client can overlap the STA subnet; observed ownership wins.
-            upstream && !owned -> "wifi_upstream"
             vendorAddress != null -> "ecarx_client_route"
+            upstream && !owned && !allowWifiUpstream -> "wifi_upstream"
+            upstream && !owned -> "flyme_wifi_upstream"
             snapshot.apEnabled == false -> "android_ap_off"
             owned -> "platform_ap"
             snapshot.apInterfaces != null -> "not_platform_ap"
@@ -82,6 +84,7 @@ internal fun selectHotspotInterface(
         val priority = when (reason) {
             "ecarx_client_route" -> 150
             "platform_ap" -> 100
+            "flyme_wifi_upstream" -> 80
             "wireless_non_upstream" -> 0
             else -> return@mapNotNull null
         }
@@ -97,6 +100,7 @@ internal class ManualHotspotReadiness(
     private val nowMillis: () -> Long = { System.nanoTime() / 1_000_000 },
     private val log: (String) -> Unit = {},
     private val configuredInterface: String? = null,
+    private val allowWifiUpstream: Boolean = false,
 ) {
     fun await(timeoutMillis: Long): HotspotSelection {
         val deadline = nowMillis() + timeoutMillis
@@ -119,7 +123,7 @@ internal class ManualHotspotReadiness(
                 )
             }
             val snapshot = sample().also { lastSnapshot = it }
-            val selected = selectHotspotInterface(snapshot, configuredInterface, log)
+            val selected = selectHotspotInterface(snapshot, configuredInterface, allowWifiUpstream, log)
             if (cancelled()) throw InterruptedIOException("Hotspot readiness cancelled")
             stable = if (selected != null && previous?.sameAddress(selected) == true) stable + 1 else 1
             previous = selected

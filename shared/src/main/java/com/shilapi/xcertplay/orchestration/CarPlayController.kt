@@ -2763,6 +2763,7 @@ class CarPlayController(
                 onDiagnostic = { debugLog("generation=$generation $it") },
                 isCancelled = { isStaleWirelessRun(generation) },
                 preferredInterface = config.manualHotspotInterface,
+                allowWifiUpstream = geelyHeadUnit,
             )
         }
         synchronized(wirelessResourceLock) {

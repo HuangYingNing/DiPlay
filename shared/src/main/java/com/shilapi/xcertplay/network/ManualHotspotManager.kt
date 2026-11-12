@@ -34,6 +34,7 @@ class ManualHotspotManager(
     private val onDiagnostic: (String) -> Unit = {},
     private val isCancelled: () -> Boolean = { false },
     private val preferredInterface: String? = null,
+    private val allowWifiUpstream: Boolean = false,
 ) : WirelessHotspotManager {
     private val appContext = context.applicationContext
     private val interfaces = ManualHotspotInterfaces(appContext, onDiagnostic)
@@ -78,7 +79,7 @@ class ManualHotspotManager(
             sample = {
                 interfaces.sample().also { snapshot ->
                     val messages = mutableListOf<String>()
-                    selectHotspotInterface(snapshot, preferredInterface, messages::add)
+                    selectHotspotInterface(snapshot, preferredInterface, allowWifiUpstream, messages::add)
                     if (messages != lastSampleLog) {
                         messages.forEach(onDiagnostic)
                         lastSampleLog = messages
@@ -89,6 +90,7 @@ class ManualHotspotManager(
             pause = { millis -> synchronized(waitLock) { if (!closed && !isCancelled()) waitLock.wait(millis) } },
             log = {},
             configuredInterface = preferredInterface,
+            allowWifiUpstream = allowWifiUpstream,
         ).let { readiness ->
             try {
                 readiness.await(timeoutMillis)
@@ -173,7 +175,9 @@ class ManualHotspotManager(
         val expected = confirmed ?: throw WirelessStartupException(
             WirelessStartupFailure.HOTSPOT_NOT_READY, "Hotspot network is not ready",
         )
-        val current = selectHotspotInterface(interfaces.sample(), preferredInterface, onDiagnostic)
+        val current = selectHotspotInterface(
+            interfaces.sample(), preferredInterface, allowWifiUpstream, onDiagnostic,
+        )
         if (closed || isCancelled() || current == null || !expected.sameAddress(current)) {
             throw WirelessStartupException(WirelessStartupFailure.HOTSPOT_NOT_READY,
                 "Hotspot interface or address changed before publication")

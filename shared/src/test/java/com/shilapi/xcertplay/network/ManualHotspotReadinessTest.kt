@@ -49,6 +49,14 @@ class ManualHotspotReadinessTest {
         }
     }
 
+    @Test fun flymeAutoMayUseItsActiveWifiUpstream() {
+        val network = snapshot(iface("eth0", index = 28788), wifi = setOf("eth0"), default = "eth0")
+        assertNull(select(network))
+        val selected = select(network, allowWifiUpstream = true)
+        assertEquals("eth0", selected?.name)
+        assertEquals(ipv4, selected?.address)
+    }
+
     @Test fun absentDefaultNetworkDoesNotHideAnObservedSta() {
         assertNull(select(snapshot(iface(), wifi = setOf("wlan0"))))
         assertEquals("wlan0", select(snapshot(iface()))?.name)
@@ -65,6 +73,18 @@ class ManualHotspotReadinessTest {
 
     @Test fun alreadyRunningHotspotDoesNotNeedANewInterface() {
         assertEquals("wlan0", await { snapshot(iface()) }.name)
+        assertEquals(500L, now)
+    }
+
+    @Test fun flymeAutoReadinessWaitsForStableActiveWifiUpstream() {
+        val selected = ManualHotspotReadiness(
+            sample = { snapshot(iface("eth0", index = 28788), wifi = setOf("eth0"), default = "eth0") },
+            cancelled = { false },
+            pause = { now += it },
+            nowMillis = { now },
+            allowWifiUpstream = true,
+        ).await(1_500)
+        assertEquals("eth0", selected.name)
         assertEquals(500L, now)
     }
 
