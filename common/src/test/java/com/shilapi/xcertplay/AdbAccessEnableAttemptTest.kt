@@ -51,7 +51,7 @@ class AdbAccessEnableAttemptTest {
     }
 
     @Test
-    fun approvalPromptDoesNotGetCoveredByDeveloperSettings() {
+    fun unapprovedRequestNeedsSettingsFallbackAfterPromptTimeout() {
         val result = AdbAccessEnableAttempt.run(
             operations(
                 permission = false,
@@ -64,6 +64,9 @@ class AdbAccessEnableAttemptTest {
         ) { _, _ -> }
 
         assertEquals(AdbAccessEnableAttempt.Outcome.AUTHORIZATION_REQUIRED, result.outcome)
+        assertTrue(AdbAccessEnableAttempt.requiresSettingsFallback(result.outcome))
+        assertTrue(AdbAccessEnableAttempt.requiresSettingsFallback(AdbAccessEnableAttempt.Outcome.SETTINGS_REQUIRED))
+        assertFalse(AdbAccessEnableAttempt.requiresSettingsFallback(AdbAccessEnableAttempt.Outcome.READY))
     }
 
     private fun operations(

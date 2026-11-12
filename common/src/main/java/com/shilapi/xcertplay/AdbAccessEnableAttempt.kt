@@ -26,6 +26,9 @@ internal object AdbAccessEnableAttempt {
         val localAccess: LocalAdb.Access?,
     )
 
+    internal fun requiresSettingsFallback(outcome: Outcome): Boolean =
+        outcome == Outcome.AUTHORIZATION_REQUIRED || outcome == Outcome.SETTINGS_REQUIRED
+
     internal data class Operations(
         val hasSecureSettingsPermission: () -> Boolean,
         val readEnabled: () -> Int?,

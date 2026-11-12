@@ -4740,9 +4740,9 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                     onSuccess = { attempt ->
                         when (attempt.outcome) {
                             AdbAccessEnableAttempt.Outcome.READY -> R.string.settings_allow_adb_ready
-                            AdbAccessEnableAttempt.Outcome.AUTHORIZATION_REQUIRED ->
-                                R.string.settings_allow_adb_authorization_required
-                            AdbAccessEnableAttempt.Outcome.SETTINGS_REQUIRED -> if (openAdbSettings()) {
+                            else -> if (AdbAccessEnableAttempt.requiresSettingsFallback(attempt.outcome) &&
+                                openAdbSettings()
+                            ) {
                                 R.string.settings_allow_adb_settings_opened
                             } else {
                                 R.string.settings_allow_adb_failed
