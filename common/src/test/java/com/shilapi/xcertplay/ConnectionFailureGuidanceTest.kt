@@ -41,6 +41,10 @@ class ConnectionFailureGuidanceTest {
             "No unambiguous bonded iPhone found; pair one iPhone and retry", known = ConnectionFailureCause.NO_PAIRED_IPHONE))
         assertEquals(R.string.connection_help_choose_iphone, guide(
             "No unambiguous bonded iPhone found; pair one iPhone and retry", known = ConnectionFailureCause.IPHONE_NOT_CHOSEN))
+        assertEquals(R.string.adb_not_approved, guide(
+            "Flyme Auto does not expose its Bluetooth target", known = ConnectionFailureCause.ADB_AUTHORIZATION_REQUIRED))
+        assertEquals(R.string.request_adb_authorization,
+            ConnectionFailureGuidance.stage(ConnectionFailureCause.ADB_AUTHORIZATION_REQUIRED))
         assertEquals(R.string.connection_help_wifi_direct_channel, guide(channelRejected,
             known = ConnectionFailureCause.WIFI_DIRECT_CHANNEL_UNAVAILABLE, mode = WirelessHotspotMode.WIFI_P2P))
     }

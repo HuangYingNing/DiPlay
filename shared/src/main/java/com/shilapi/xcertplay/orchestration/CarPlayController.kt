@@ -1473,7 +1473,8 @@ class CarPlayController(
                     if (broadcastBluetoothMode && error.reason == ConnectionFailureCause.NO_PAIRED_IPHONE) {
                         connectionDiagnostic(
                             "broadcast Bluetooth mode has no Android-visible iPhone target at preflight; " +
-                                "defer target discovery until hotspot CarPlay Bonjour is active",
+                                "standard Android Bluetooth cannot supply an iPhone RFCOMM target; " +
+                                "Bonjour will not be treated as a Bluetooth identity source",
                         )
                         null
                     } else if (BluetoothRadioCheck.shouldIgnoreReportedOffOnBroadcastMode(
@@ -1624,7 +1625,7 @@ class CarPlayController(
                         ) throw error
                         connectionDiagnostic(
                             "broadcast Bluetooth mode has no Android-visible handshake target; " +
-                                "waiting for iPhone CarPlay Bonjour identity",
+                                "continuing diagnostics without deriving an RFCOMM address from Bonjour TXT",
                         )
                     }
                     .getOrNull()
@@ -1711,10 +1712,15 @@ class CarPlayController(
                 wirelessMdnsObserver = observer
                 observer.start()
                 connectionDiagnostic("wireless ${observer.snapshot()}")
-                connectionDiagnostic(
-                    "Geely/Flyme Auto head-unit wireless system ${GeelyHeadUnitWirelessDiagnostics.capture(appContext)}",
-                )
+                val headUnitSystem = GeelyHeadUnitWirelessDiagnostics.capture(appContext)
+                connectionDiagnostic("Geely/Flyme Auto head-unit wireless system $headUnitSystem")
                 awaitWirelessBroadcastObservation(observer, generation, timeoutMillis = 8_000L)
+                if ("headUnitAdb=NOT_APPROVED" in headUnitSystem) {
+                    throw ConnectionFailureException(
+                        ConnectionFailureCause.ADB_AUTHORIZATION_REQUIRED,
+                        "Flyme Auto does not expose the connected iPhone to Android Bluetooth and DiPlay ADB is not approved",
+                    )
+                }
                 throw ConnectionFailureException(
                     ConnectionFailureCause.NO_PAIRED_IPHONE,
                     "Flyme Auto does not expose an RFCOMM target to Android Bluetooth; see Bluetooth, ADB and mDNS diagnostics",

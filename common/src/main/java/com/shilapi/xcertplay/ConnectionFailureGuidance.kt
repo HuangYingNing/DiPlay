@@ -21,6 +21,7 @@ internal object ConnectionFailureGuidance {
             ConnectionFailureCause.CHOSEN_IPHONE_NOT_PAIRED -> return R.string.connection_help_chosen_iphone_not_paired
             ConnectionFailureCause.NO_PAIRED_IPHONE -> return R.string.on_your_iphone_open_settings_bluetooth_and_pair_with_the_c
             ConnectionFailureCause.IPHONE_NOT_CHOSEN -> return R.string.connection_help_choose_iphone
+            ConnectionFailureCause.ADB_AUTHORIZATION_REQUIRED -> return R.string.adb_not_approved
             ConnectionFailureCause.WIFI_DIRECT_CHANNEL_UNAVAILABLE -> return R.string.connection_help_wifi_direct_channel
             ConnectionFailureCause.CAR_HOTSPOT_OFF -> return R.string.connection_help_car_hotspot_off
             ConnectionFailureCause.CAR_HOTSPOT_DETAILS_DIFFER -> return R.string.connection_help_car_hotspot_details_differ
@@ -66,6 +67,7 @@ internal object ConnectionFailureGuidance {
         ConnectionFailureCause.CHOSEN_IPHONE_NOT_PAIRED -> R.string.chosen_iphone_not_paired
         ConnectionFailureCause.NO_PAIRED_IPHONE -> R.string.pair_your_iphone
         ConnectionFailureCause.IPHONE_NOT_CHOSEN -> R.string.choose_your_iphone
+        ConnectionFailureCause.ADB_AUTHORIZATION_REQUIRED -> R.string.request_adb_authorization
         ConnectionFailureCause.WIFI_DIRECT_CHANNEL_UNAVAILABLE -> R.string.wifi_direct_channel_unavailable
         ConnectionFailureCause.CAR_HOTSPOT_OFF -> R.string.car_hotspot_is_off
         ConnectionFailureCause.CAR_HOTSPOT_DETAILS_DIFFER -> R.string.car_hotspot_details_differ

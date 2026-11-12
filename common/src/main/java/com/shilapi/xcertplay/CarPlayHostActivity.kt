@@ -104,6 +104,7 @@ import com.shilapi.xcertplay.network.WirelessStartupFailure
 import com.shilapi.xcertplay.network.WirelessStartupPolicy
 import com.shilapi.xcertplay.orchestration.CarPlayStatus
 import com.shilapi.xcertplay.orchestration.CarPlayTransport
+import com.shilapi.xcertplay.orchestration.ConnectionFailureCause
 import com.shilapi.xcertplay.orchestration.ManualHotspotBand
 import com.shilapi.xcertplay.orchestration.ManualHotspotSecurity
 import com.shilapi.xcertplay.orchestration.MfiTarget
@@ -5434,7 +5435,12 @@ open class CarPlayHostActivity : ComponentActivity() {
                     if (startupFailureGeneration == controllerGeneration) return@report
                     startupFailureGeneration = controllerGeneration
                 }
-                reconnectAfterLoss(description, status.startupFailure, failureStage = stage)
+                reconnectAfterLoss(
+                    description,
+                    status.startupFailure,
+                    failureStage = stage,
+                    knownCause = status.knownCause,
+                )
             }
             CarPlayStatus.ControlEnded -> reconnectAfterLoss(description)
             else -> Unit
@@ -5945,10 +5951,19 @@ open class CarPlayHostActivity : ComponentActivity() {
         startupFailure: WirelessStartupFailure? = null,
         recoverableBySession: Boolean = false,
         failureStage: String? = null,
+        knownCause: ConnectionFailureCause? = null,
     ) {
         if (!CarPlayBackgroundSession.isOwner(this)) return
         if (menuOpen) recoveryPendingAfterMenu = true
-        if (shuttingDown.get() || menuOpen || handshakeResetInProgress || startupRetryStopped) return
+        if (shuttingDown.get() || menuOpen || handshakeResetInProgress) return
+        if (knownCause == ConnectionFailureCause.ADB_AUTHORIZATION_REQUIRED) {
+            cancelReconnect()
+            startupRetryStopped = true
+            startupRetryButton?.visibility = View.VISIBLE
+            appendLog("automatic reconnect stopped; authorize DiPlay ADB in car settings, then retry manually")
+            return
+        }
+        if (startupRetryStopped) return
         if (reconnectScheduled) {
             // carlito | A later control fault upgrades an existing optional recovery to mandatory.
             reconnectRecoverableBySession = reconnectRecoverableBySession && recoverableBySession
