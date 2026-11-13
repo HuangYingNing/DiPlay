@@ -18,10 +18,19 @@ internal object SystemPackageArchive {
     private const val MAX_TOTAL_BYTES = 256L * 1024 * 1024
     private const val MAX_FILE_BYTES = 96L * 1024 * 1024
     private val keywords = listOf("flyme", "meizu", "geely", "ecarx", "autolink", "carplay", "bluetooth", "wifi", "connect")
+    private val corePackages = setOf(
+        "com.android.car", "com.android.settings", "com.android.networkstack",
+        "com.android.networkstack.tethering", "com.reachauto.messagechannel",
+    )
+    private val vendorBridgePackages = setOf("com.geely.gc.settingcenter", "com.reachauto.messagechannel")
 
     data class Result(val file: File, val copied: Int, val skipped: Int)
 
-    fun matches(packageName: String): Boolean = keywords.any { it in packageName.lowercase() }
+    fun matches(packageName: String): Boolean = packageName in corePackages ||
+        keywords.any { it in packageName.lowercase() }
+
+    fun shouldCollect(packageName: String, systemApp: Boolean): Boolean = matches(packageName) &&
+        (systemApp || packageName in vendorBridgePackages)
 
     @Suppress("DEPRECATION")
     fun create(context: Context): Result {
@@ -34,7 +43,8 @@ internal object SystemPackageArchive {
             val installed = context.packageManager.getInstalledPackages(0)
             val packages = installed
                 .filter { info -> info.applicationInfo?.let { app ->
-                    app.flags and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0 && matches(info.packageName)
+                    shouldCollect(info.packageName,
+                        app.flags and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0)
                 } == true }
                 .sortedBy(PackageInfo::packageName)
             val entries = JSONArray()

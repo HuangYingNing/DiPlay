@@ -41,6 +41,8 @@ internal class MdnsPacketObserver(
             "peerCarPlayControlHints=${peerCarPlayControlHints.get()} airPlayHints=${airPlayHints.get()} " +
             "peerAirPlayHints=${peerAirPlayHints.get()}"
 
+    fun hasPeerPackets(): Boolean = peerPackets.get() > 0L
+
     private fun observe() {
         var activeSocket: MulticastSocket? = null
         try {

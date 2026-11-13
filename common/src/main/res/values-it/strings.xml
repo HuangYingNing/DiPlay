@@ -1238,4 +1238,6 @@
     <string name="system_package_upload_description">Al tocco raccoglie un nuovo ZIP e lo carica su Filebin pubblico. Chiunque abbia il link può scaricarlo. Viene eliminato dopo circa 7 giorni e il link resta nei log diagnostici.</string>
     <string name="system_package_upload_result">ZIP di sistema caricato.\nLocale: %1$s\nDownload: %2$s\nScadenza: %3$s</string>
     <string name="update_retrying_after_failure">Download non riuscito. Nuovo tentativo tra 5 secondi…</string>
+    <string name="head_unit_wireless_unavailable">Dati wireless dell’auto non disponibili</string>
+    <string name="connection_help_head_unit_wireless_unavailable">Android non vede l’iPhone connesso e non riceve i suoi pacchetti sull’interfaccia di rete selezionata. Verifica se Flyme Auto consente a DiPlay di accedere a Bluetooth e hotspot. L’autorizzazione ADB serve solo alla diagnosi.</string>
 </resources>

@@ -1235,4 +1235,6 @@
     <string name="system_package_upload_description">누르면 새로 수집한 ZIP을 공개 Filebin에 업로드합니다. 링크가 있는 사람은 누구나 다운로드할 수 있습니다. 약 7일 뒤 삭제되며 링크는 진단 로그에 저장됩니다.</string>
     <string name="system_package_upload_result">시스템 ZIP을 업로드했습니다.\n로컬: %1$s\n다운로드: %2$s\n만료: %3$s</string>
     <string name="update_retrying_after_failure">다운로드에 실패했습니다. 5초 후 다시 시도합니다…</string>
+    <string name="head_unit_wireless_unavailable">차량 무선 데이터에 접근할 수 없음</string>
+    <string name="connection_help_head_unit_wireless_unavailable">Android에서 연결된 iPhone이 보이지 않고 선택한 네트워크에서도 iPhone 패킷을 받지 못했습니다. Flyme Auto가 DiPlay에 블루투스 및 핫스팟 접근을 허용하는지 확인하세요. ADB 권한은 진단에만 사용됩니다.</string>
 </resources>

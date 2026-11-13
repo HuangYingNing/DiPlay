@@ -45,6 +45,10 @@ class ConnectionFailureGuidanceTest {
             "Flyme Auto does not expose its Bluetooth target", known = ConnectionFailureCause.ADB_AUTHORIZATION_REQUIRED))
         assertEquals(R.string.request_adb_authorization,
             ConnectionFailureGuidance.stage(ConnectionFailureCause.ADB_AUTHORIZATION_REQUIRED))
+        assertEquals(R.string.connection_help_head_unit_wireless_unavailable, guide(
+            "No peer mDNS packets", known = ConnectionFailureCause.HEAD_UNIT_WIRELESS_UNAVAILABLE))
+        assertEquals(R.string.head_unit_wireless_unavailable,
+            ConnectionFailureGuidance.stage(ConnectionFailureCause.HEAD_UNIT_WIRELESS_UNAVAILABLE))
         assertEquals(R.string.connection_help_wifi_direct_channel, guide(channelRejected,
             known = ConnectionFailureCause.WIFI_DIRECT_CHANNEL_UNAVAILABLE, mode = WirelessHotspotMode.WIFI_P2P))
     }

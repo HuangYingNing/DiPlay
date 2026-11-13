@@ -1715,10 +1715,10 @@ class CarPlayController(
                 val headUnitSystem = GeelyHeadUnitWirelessDiagnostics.capture(appContext)
                 connectionDiagnostic("Geely/Flyme Auto head-unit wireless system $headUnitSystem")
                 awaitWirelessBroadcastObservation(observer, generation, timeoutMillis = 8_000L)
-                if ("headUnitAdb=NOT_APPROVED" in headUnitSystem) {
+                if (!observer.hasPeerPackets()) {
                     throw ConnectionFailureException(
-                        ConnectionFailureCause.ADB_AUTHORIZATION_REQUIRED,
-                        "Flyme Auto does not expose the connected iPhone to Android Bluetooth and DiPlay ADB is not approved",
+                        ConnectionFailureCause.HEAD_UNIT_WIRELESS_UNAVAILABLE,
+                        "Android Bluetooth has no iPhone target and the selected network interface received no peer mDNS packets; ADB status is diagnostic only",
                     )
                 }
                 throw ConnectionFailureException(

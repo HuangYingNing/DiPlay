@@ -5956,11 +5956,12 @@ open class CarPlayHostActivity : ComponentActivity() {
         if (!CarPlayBackgroundSession.isOwner(this)) return
         if (menuOpen) recoveryPendingAfterMenu = true
         if (shuttingDown.get() || menuOpen || handshakeResetInProgress) return
-        if (knownCause == ConnectionFailureCause.ADB_AUTHORIZATION_REQUIRED) {
+        if (knownCause == ConnectionFailureCause.ADB_AUTHORIZATION_REQUIRED ||
+            knownCause == ConnectionFailureCause.HEAD_UNIT_WIRELESS_UNAVAILABLE) {
             cancelReconnect()
             startupRetryStopped = true
             startupRetryButton?.visibility = View.VISIBLE
-            appendLog("automatic reconnect stopped; authorize DiPlay ADB in car settings, then retry manually")
+            appendLog("automatic reconnect stopped; head-unit Bluetooth target or peer network packets are unavailable to DiPlay")
             return
         }
         if (startupRetryStopped) return

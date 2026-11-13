@@ -1220,4 +1220,6 @@
     <string name="system_package_upload_description">Al pulsar, recopila un ZIP nuevo y lo sube a Filebin público. Cualquiera con el enlace puede descargarlo. Se elimina tras unos 7 días y el enlace queda en el registro de diagnóstico.</string>
     <string name="system_package_upload_result">ZIP del sistema subido.\nLocal: %1$s\nDescarga: %2$s\nCaduca: %3$s</string>
     <string name="update_retrying_after_failure">Falló la descarga. Se reintentará en 5 segundos…</string>
+    <string name="head_unit_wireless_unavailable">Datos inalámbricos del coche no disponibles</string>
+    <string name="connection_help_head_unit_wireless_unavailable">Android no ve el iPhone conectado ni recibe sus paquetes en la interfaz de red seleccionada. Comprueba si Flyme Auto permite a DiPlay acceder a Bluetooth y al punto de acceso. La autorización ADB solo sirve para el diagnóstico.</string>
 </resources>
