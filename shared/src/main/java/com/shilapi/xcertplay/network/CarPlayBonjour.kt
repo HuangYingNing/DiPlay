@@ -168,7 +168,8 @@ class CarPlayBonjour(
     fun diagnosticSnapshot(): String =
         "bonjourAdded=${addedCount.get()} bonjourResolved=${resolvedCount.get()} " +
             "bonjourAddressMismatch=${addressMismatchCount.get()} connectProbes=${probeCount.get()} " +
-            "connectProbe2xx=${successfulProbeCount.get()} lastProbe=${lastProbe.get()} " +
+            "connectProbe2xx=${successfulProbeCount.get()} multicastLockHeld=${multicastLock.isHeld} " +
+            "lastProbe=${lastProbe.get()} " +
             "mdnsFamilies=$publishedFamilies"
     private val multicastLock = (context.applicationContext ?: context)
         .getSystemService(WifiManager::class.java)

@@ -1032,6 +1032,6 @@
     <string name="system_package_upload_result">系統包已上傳。\n本機：%1$s\n下載：%2$s\n到期：%3$s</string>
     <string name="update_retrying_after_failure">下載失敗，5 秒後重試…</string>
     <string name="head_unit_wireless_unavailable">車機無線資料無法使用</string>
-    <string name="connection_help_head_unit_wireless_unavailable">Android 介面看不到已連接的 iPhone，所選網路介面也沒有收到手機封包。請檢查 Flyme Auto 是否向 DiPlay 開放藍牙與熱點存取；ADB 授權僅用於診斷。</string>
+    <string name="connection_help_head_unit_wireless_unavailable">Android 藍牙介面看不到 iPhone，所選網卡未觀察到其他裝置的 mDNS 封包；僅憑這點無法證明熱點資料遭阻斷。請檢查 Flyme Auto 是否提供藍牙與網路橋接介面；ADB 授權僅供診斷。</string>
     <string name="system_package_reused">本機已有相同檔案，未重複收集：%1$d 個 APK。</string>
 </resources>

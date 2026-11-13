@@ -1247,6 +1247,6 @@
     <string name="system_package_upload_result">システム ZIP を送信しました。\nローカル: %1$s\nダウンロード: %2$s\n期限: %3$s</string>
     <string name="update_retrying_after_failure">ダウンロードに失敗しました。5 秒後に再試行します…</string>
     <string name="head_unit_wireless_unavailable">車載機の無線データを利用できません</string>
-    <string name="connection_help_head_unit_wireless_unavailable">Android から接続済みの iPhone が見えず、選択したネットワークでも iPhone からのパケットを受信していません。Flyme Auto が DiPlay に Bluetooth とホットスポットへのアクセスを許可しているか確認してください。ADB の許可は診断用です。</string>
+    <string name="connection_help_head_unit_wireless_unavailable">Android の Bluetooth から iPhone が見えず、選択したネットワークでは他の機器の mDNS パケットも確認できませんでした。これだけではホットスポット通信が遮断されているとは判断できません。Flyme Auto が DiPlay に Bluetooth とネットワークの接続手段を提供するか確認してください。ADB の許可は診断用です。</string>
     <string name="system_package_reused">ローカルに同一ファイルがあるため再収集しなかった APK: %1$d 件。</string>
 </resources>

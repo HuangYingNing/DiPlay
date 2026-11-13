@@ -1204,6 +1204,6 @@
     <string name="system_package_upload_result">تم رفع ملف النظام.\nمحليًا: %1$s\nالتنزيل: %2$s\nانتهاء الصلاحية: %3$s</string>
     <string name="update_retrying_after_failure">فشل التنزيل. ستتم إعادة المحاولة بعد 5 ثوانٍ…</string>
     <string name="head_unit_wireless_unavailable">بيانات الاتصال اللاسلكي بالسيارة غير متاحة</string>
-    <string name="connection_help_head_unit_wireless_unavailable">لا يرى Android جهاز iPhone المتصل ولا يستقبل حزمًا منه على واجهة الشبكة المحددة. تحقق من سماح Flyme Auto لتطبيق DiPlay بالوصول إلى البلوتوث ونقطة الاتصال. إذن ADB للتشخيص فقط.</string>
+    <string name="connection_help_head_unit_wireless_unavailable">لا يرى Android جهاز iPhone عبر البلوتوث، ولم تُرصد حزم mDNS من جهاز آخر على الواجهة المحددة. هذا وحده لا يثبت حجب بيانات نقطة الاتصال. تحقق من توفر واجهة Bluetooth وشبكة من Flyme Auto لتطبيق DiPlay. إذن ADB للتشخيص فقط.</string>
     <string name="system_package_reused">ملفات APK المطابقة المؤرشفة محليًا ولم تُجمع مرة أخرى: %1$d.</string>
 </resources>

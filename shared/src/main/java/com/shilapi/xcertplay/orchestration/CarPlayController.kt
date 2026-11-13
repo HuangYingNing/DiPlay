@@ -1717,10 +1717,13 @@ class CarPlayController(
                 connectionDiagnostic("Geely/Flyme Auto head-unit wireless system $headUnitSystem")
                 connectionDiagnostic("Geely/Flyme Auto message channel ${GeelyMessageChannelDiagnostics.capture(appContext)}")
                 awaitWirelessBroadcastObservation(observer, generation, timeoutMillis = 8_000L)
+                receiveDiagnostics.snapshot().lineSequence().forEach { line ->
+                    connectionDiagnostic("wireless broadcast receive $line")
+                }
                 if (!observer.hasPeerPackets()) {
                     throw ConnectionFailureException(
                         ConnectionFailureCause.HEAD_UNIT_WIRELESS_UNAVAILABLE,
-                        "Android Bluetooth has no iPhone target and the selected network interface received no peer mDNS packets; ADB status is diagnostic only",
+                        "Android Bluetooth has no iPhone target and no peer mDNS was observed on the selected interface; mDNS silence alone does not prove hotspot packets are inaccessible",
                     )
                 }
                 throw ConnectionFailureException(

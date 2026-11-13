@@ -1240,6 +1240,6 @@
     <string name="system_package_upload_result">ZIP di sistema caricato.\nLocale: %1$s\nDownload: %2$s\nScadenza: %3$s</string>
     <string name="update_retrying_after_failure">Download non riuscito. Nuovo tentativo tra 5 secondi…</string>
     <string name="head_unit_wireless_unavailable">Dati wireless dell’auto non disponibili</string>
-    <string name="connection_help_head_unit_wireless_unavailable">Android non vede l’iPhone connesso e non riceve i suoi pacchetti sull’interfaccia di rete selezionata. Verifica se Flyme Auto consente a DiPlay di accedere a Bluetooth e hotspot. L’autorizzazione ADB serve solo alla diagnosi.</string>
+    <string name="connection_help_head_unit_wireless_unavailable">Android non vede l’iPhone via Bluetooth e non sono stati osservati pacchetti mDNS di altri dispositivi sull’interfaccia scelta. Questo da solo non dimostra che il traffico hotspot sia bloccato. Verifica se Flyme Auto offre a DiPlay un’interfaccia Bluetooth e di rete. ADB serve solo alla diagnosi.</string>
     <string name="system_package_reused">APK identici già archiviati localmente e non raccolti di nuovo: %1$d.</string>
 </resources>

@@ -1237,6 +1237,6 @@
     <string name="system_package_upload_result">시스템 ZIP을 업로드했습니다.\n로컬: %1$s\n다운로드: %2$s\n만료: %3$s</string>
     <string name="update_retrying_after_failure">다운로드에 실패했습니다. 5초 후 다시 시도합니다…</string>
     <string name="head_unit_wireless_unavailable">차량 무선 데이터에 접근할 수 없음</string>
-    <string name="connection_help_head_unit_wireless_unavailable">Android에서 연결된 iPhone이 보이지 않고 선택한 네트워크에서도 iPhone 패킷을 받지 못했습니다. Flyme Auto가 DiPlay에 블루투스 및 핫스팟 접근을 허용하는지 확인하세요. ADB 권한은 진단에만 사용됩니다.</string>
+    <string name="connection_help_head_unit_wireless_unavailable">Android 블루투스에서 iPhone이 보이지 않고 선택한 인터페이스에서도 다른 기기의 mDNS 패킷이 관찰되지 않았습니다. 이것만으로 핫스팟 트래픽이 차단되었다고 단정할 수 없습니다. Flyme Auto가 DiPlay에 블루투스 및 네트워크 연결 경로를 제공하는지 확인하세요. ADB 권한은 진단용입니다.</string>
     <string name="system_package_reused">로컬에 동일한 파일이 있어 다시 수집하지 않은 APK: %1$d개.</string>
 </resources>

@@ -1222,6 +1222,6 @@
     <string name="system_package_upload_result">ZIP del sistema subido.\nLocal: %1$s\nDescarga: %2$s\nCaduca: %3$s</string>
     <string name="update_retrying_after_failure">Falló la descarga. Se reintentará en 5 segundos…</string>
     <string name="head_unit_wireless_unavailable">Datos inalámbricos del coche no disponibles</string>
-    <string name="connection_help_head_unit_wireless_unavailable">Android no ve el iPhone conectado ni recibe sus paquetes en la interfaz de red seleccionada. Comprueba si Flyme Auto permite a DiPlay acceder a Bluetooth y al punto de acceso. La autorización ADB solo sirve para el diagnóstico.</string>
+    <string name="connection_help_head_unit_wireless_unavailable">Android no ve el iPhone por Bluetooth y no se observaron paquetes mDNS de otro dispositivo en la interfaz elegida. Esto por sí solo no demuestra que el tráfico del punto de acceso esté bloqueado. Comprueba si Flyme Auto ofrece a DiPlay una interfaz Bluetooth y de red. ADB solo sirve para el diagnóstico.</string>
     <string name="system_package_reused">APK idénticos ya archivados localmente y no recopilados de nuevo: %1$d.</string>
 </resources>

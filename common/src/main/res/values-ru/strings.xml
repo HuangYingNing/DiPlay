@@ -1176,6 +1176,6 @@
     <string name="system_package_upload_result">Системный ZIP загружен.\nЛокально: %1$s\nСкачать: %2$s\nИстекает: %3$s</string>
     <string name="update_retrying_after_failure">Сбой загрузки. Повтор через 5 секунд…</string>
     <string name="head_unit_wireless_unavailable">Беспроводные данные автомобиля недоступны</string>
-    <string name="connection_help_head_unit_wireless_unavailable">Android не видит подключённый iPhone и не получает его пакеты через выбранный сетевой интерфейс. Проверьте, предоставляет ли Flyme Auto приложению DiPlay доступ к Bluetooth и точке доступа. Разрешение ADB нужно только для диагностики.</string>
+    <string name="connection_help_head_unit_wireless_unavailable">Android не видит iPhone через Bluetooth; на выбранном интерфейсе не замечены пакеты mDNS от других устройств. Это само по себе не доказывает блокировку трафика точки доступа. Проверьте, предоставляет ли Flyme Auto приложению DiPlay доступ к Bluetooth и сети. ADB нужен только для диагностики.</string>
     <string name="system_package_reused">Одинаковые APK уже сохранены локально и не собраны повторно: %1$d.</string>
 </resources>
