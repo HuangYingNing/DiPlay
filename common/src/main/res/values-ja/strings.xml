@@ -1137,7 +1137,7 @@
     <string name="settings_allow_adb_description">実験的機能：標準のAndroid切り替えを試し、localhost:5555でDiPlayを承認してから、Flyme Autoが直接アクセスを制限する場合は開発者設定を開きます。車を停車してから使用してください。各手順は診断ログに記録されます。</string>
     <string name="settings_allow_adb_failed">ADBを許可できず、対応する設定画面も見つかりませんでした。診断ログをアップロードして解析してください。</string>
     <string name="settings_allow_adb_ready">ADBが有効になり、DiPlayも承認されました。</string>
-    <string name="settings_allow_adb_settings_opened">Flyme Autoが直接アクセスを許可しませんでした。開いた設定でADBまたはネットワークデバッグを有効にして戻り、ADBアクセスを確認してください。</string>
+    <string name="settings_allow_adb_settings_opened">システム設定を開きました。端末情報が表示された場合はビルド番号を7回タップして開発者向けオプションを有効にし、USBまたはネットワークデバッグを有効にしてADBを確認してください。車両によってはメーカーの許可が必要です。</string>
     <string name="settings_allow_adb_working">ADBの許可を試行中…</string>
     <string name="settings_vehicle_map_experimental">車両マップ（実験的機能）</string>
     <string name="status_wireless_ready">ワイヤレス接続の準備完了：%1$s</string>

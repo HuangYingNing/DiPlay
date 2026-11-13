@@ -4813,6 +4813,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         val attemptId = System.currentTimeMillis().toString(36)
         val candidates = listOf(
             Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS),
+            Intent(Settings.ACTION_DEVICE_INFO_SETTINGS),
             Intent(Settings.ACTION_SETTINGS),
         )
         for (intent in candidates) {
@@ -4824,6 +4825,15 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 "action=${intent.action} component=${resolved?.flattenToShortString() ?: "none"}",
             )
             if (resolved == null) continue
+            if (resolved.className.endsWith("DevelopmentSettingsDisabledActivity")) {
+                AdbEnableDiagnostics.append(
+                    applicationContext,
+                    attemptId,
+                    "skip-disabled-settings",
+                    "component=${resolved.flattenToShortString()}",
+                )
+                continue
+            }
             val started = runCatching { startActivity(intent) }
             AdbEnableDiagnostics.append(
                 applicationContext,

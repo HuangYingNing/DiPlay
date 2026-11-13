@@ -64,6 +64,7 @@ import com.shilapi.xcertplay.transport.FlymeAutoCompatibility
 import com.shilapi.xcertplay.transport.WirelessBluetoothInventory
 import com.shilapi.xcertplay.transport.GeelyHeadUnitWirelessDiagnostics
 import com.shilapi.xcertplay.transport.GeelyMessageChannelDiagnostics
+import com.shilapi.xcertplay.transport.GeelyOneOsBluetoothProbe
 import com.shilapi.xcertplay.network.WirelessHotspotManager
 import com.shilapi.xcertplay.network.WirelessInterfaceDiagnostics
 import com.shilapi.xcertplay.network.WirelessReceiveDiagnostics
@@ -1716,6 +1717,7 @@ class CarPlayController(
                 val headUnitSystem = GeelyHeadUnitWirelessDiagnostics.capture(appContext)
                 connectionDiagnostic("Geely/Flyme Auto head-unit wireless system $headUnitSystem")
                 connectionDiagnostic("Geely/Flyme Auto message channel ${GeelyMessageChannelDiagnostics.capture(appContext)}")
+                connectionDiagnostic("Geely/Flyme Auto OneOS Bluetooth ${GeelyOneOsBluetoothProbe.capture(appContext)}")
                 awaitWirelessBroadcastObservation(observer, generation, timeoutMillis = 8_000L)
                 receiveDiagnostics.snapshot().lineSequence().forEach { line ->
                     connectionDiagnostic("wireless broadcast receive $line")

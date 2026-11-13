@@ -500,7 +500,7 @@
     <string name="settings_allow_adb_working">正在嘗試允許 ADB…</string>
     <string name="settings_allow_adb_ready">ADB 已開啟，且已授權 DiPlay。</string>
     <string name="settings_allow_adb_authorization_required">ADB 已回應。請在車機螢幕上允許 DiPlay，然後檢查 ADB 存取權限。</string>
-    <string name="settings_allow_adb_settings_opened">Flyme Auto 未允許直接存取。請在已開啟的設定中啟用 ADB 或網路除錯，然後返回檢查 ADB 存取權限。</string>
+    <string name="settings_allow_adb_settings_opened">已開啟系統設定。若顯示裝置資訊，請連續點選版本號七次以啟用開發人員選項，再啟用 USB 或網路除錯並檢查 ADB。部分車機需要廠商授權。</string>
     <string name="settings_allow_adb_failed">無法允許 ADB，也找不到相容的設定頁面。請上傳診斷記錄以供分析。</string>
     <string name="adb_checking">正在檢查 ADB 存取權限…</string>
     <string name="adb_checking_may_ask">正在檢查 ADB 存取權限…如果車機詢問，請允許 DiPlay 並勾選「永遠允許」。</string>

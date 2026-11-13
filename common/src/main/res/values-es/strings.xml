@@ -466,7 +466,7 @@
     <string name="settings_allow_adb_working">Intentando permitir ADB…</string>
     <string name="settings_allow_adb_ready">ADB está activado y DiPlay está autorizado.</string>
     <string name="settings_allow_adb_authorization_required">ADB responde. Autoriza DiPlay en la pantalla del coche y después comprueba el acceso ADB.</string>
-    <string name="settings_allow_adb_settings_opened">Flyme Auto no permitió el acceso directo. Activa ADB o la depuración por red en los ajustes abiertos, vuelve y comprueba el acceso.</string>
+    <string name="settings_allow_adb_settings_opened">Se abrieron los ajustes. Si aparece Información del dispositivo, pulsa siete veces Número de compilación para activar las opciones de desarrollador. Activa la depuración USB o de red y comprueba ADB. Algunos coches requieren autorización del fabricante.</string>
     <string name="settings_allow_adb_failed">No se pudo permitir ADB ni se encontró una pantalla de ajustes compatible. Sube el diagnóstico para analizarlo.</string>
     <string name="adb_checking">Comprobando el acceso ADB…</string>
     <string name="adb_checking_may_ask">Comprobando el acceso ADB… Si el coche lo pide, permite DiPlay y marca «Permitir siempre».</string>

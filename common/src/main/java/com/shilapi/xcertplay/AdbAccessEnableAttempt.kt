@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.UserManager
 import android.provider.Settings
 import com.shilapi.xcertplay.adb.AdbKeys
 import com.shilapi.xcertplay.adb.LocalAdb
@@ -48,6 +49,23 @@ internal object AdbAccessEnableAttempt {
             "manufacturer=${Build.MANUFACTURER} model=${Build.MODEL} product=${Build.PRODUCT} " +
                 "sdk=${Build.VERSION.SDK_INT} uid=${android.os.Process.myUid()}",
         )
+        log(
+            "system-policy",
+            "developerOptions=${runCatching {
+                Settings.Global.getInt(appContext.contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0)
+            }.getOrNull() ?: "unknown"} " +
+                "deviceProvisioned=${runCatching {
+                    Settings.Global.getInt(appContext.contentResolver, Settings.Global.DEVICE_PROVISIONED, 0)
+                }.getOrNull() ?: "unknown"} " +
+                "adminUser=${runCatching {
+                    (appContext.getSystemService(Context.USER_SERVICE) as? UserManager)?.isAdminUser
+                }.getOrNull() ?: "unknown"} " +
+                "debuggingRestricted=${runCatching {
+                    (appContext.getSystemService(Context.USER_SERVICE) as? UserManager)
+                        ?.hasUserRestriction(UserManager.DISALLOW_DEBUGGING_FEATURES)
+                }.getOrNull() ?: "unknown"} " +
+                "tcpPortProperty=${readSystemProperty("service.adb.tcp.port")}",
+        )
         return run(
             Operations(
                 hasSecureSettingsPermission = {
@@ -72,6 +90,22 @@ internal object AdbAccessEnableAttempt {
             ),
             log,
         )
+    }
+
+    private fun readSystemProperty(name: String): String {
+        val process = runCatching { ProcessBuilder("getprop", name).start() }.getOrNull() ?: return "unavailable"
+        return try {
+            if (!process.waitFor(500, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+                process.destroyForcibly()
+                "timeout"
+            } else {
+                process.inputStream.bufferedReader().use { it.readLine()?.take(16) }.orEmpty().ifEmpty { "unset" }
+            }
+        } catch (_: Exception) {
+            "unavailable"
+        } finally {
+            process.destroy()
+        }
     }
 
     internal fun run(operations: Operations, log: (String, String) -> Unit): Result {

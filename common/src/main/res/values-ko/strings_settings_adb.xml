@@ -5,7 +5,7 @@
     <string name="settings_allow_adb_working">ADB 허용 시도 중…</string>
     <string name="settings_allow_adb_ready">ADB가 활성화되었고 DiPlay가 승인되었습니다.</string>
     <string name="settings_allow_adb_authorization_required">ADB가 응답합니다. 차량 화면에서 DiPlay를 승인한 다음 ADB 접근을 확인하세요.</string>
-    <string name="settings_allow_adb_settings_opened">Flyme Auto가 직접 접근을 허용하지 않았습니다. 열린 설정에서 ADB 또는 네트워크 디버깅 스위치를 켠 다음 돌아와 ADB 접근을 확인하세요.</string>
+    <string name="settings_allow_adb_settings_opened">시스템 설정을 열었습니다. 기기 정보가 보이면 빌드 번호를 일곱 번 눌러 개발자 옵션을 켜세요. 그런 다음 USB 또는 네트워크 디버깅을 켜고 ADB 접근을 확인하세요. 일부 차량은 제조사 승인이 필요합니다.</string>
     <string name="settings_allow_adb_failed">ADB를 허용할 수 없고 호환되는 설정 화면도 찾지 못했습니다. 분석을 위해 진단 로그를 업로드하세요.</string>
     <string name="settings_vehicle_map_experimental">차량 지도 (실험 기능)</string>
 </resources>

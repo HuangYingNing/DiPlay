@@ -547,7 +547,7 @@
     <string name="settings_allow_adb_working">Trying to allow ADB…</string>
     <string name="settings_allow_adb_ready">ADB is enabled and DiPlay is authorized.</string>
     <string name="settings_allow_adb_authorization_required">ADB is responding. Approve DiPlay on the car screen, then check ADB access.</string>
-    <string name="settings_allow_adb_settings_opened">Flyme Auto did not allow direct access. Use the ADB or network debugging switch in the opened settings, then return and check ADB access.</string>
+    <string name="settings_allow_adb_settings_opened">System settings opened. If Device info appears, tap Build number seven times to enable Developer options, then enable USB or network debugging and check ADB access. Some head units require manufacturer authorization.</string>
     <string name="settings_allow_adb_failed">ADB could not be allowed and no compatible settings screen was found. Upload diagnostics for analysis.</string>
     <string name="adb_checking">Checking ADB access…</string>
     <string name="adb_checking_may_ask">Checking ADB access… If the car asks, allow DiPlay and tick “Always allow”.</string>

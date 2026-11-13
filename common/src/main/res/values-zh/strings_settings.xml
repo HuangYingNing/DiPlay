@@ -38,7 +38,7 @@
     <string name="settings_allow_adb_working">正在尝试允许 ADB…</string>
     <string name="settings_allow_adb_ready">ADB 已开启，并已授权 DiPlay。</string>
     <string name="settings_allow_adb_authorization_required">ADB 已响应。请在车机屏幕上允许 DiPlay，然后检查 ADB 访问。</string>
-    <string name="settings_allow_adb_settings_opened">Flyme Auto 未允许直接访问。请在已打开的设置中开启 ADB 或网络调试，然后返回检查 ADB 访问。</string>
+    <string name="settings_allow_adb_settings_opened">已開啟系統設定。若顯示裝置資訊，請連續點選版本號七次以啟用開發人員選項，再啟用 USB 或網路除錯並檢查 ADB。部分車機需要廠商授權。</string>
     <string name="settings_allow_adb_failed">无法允许 ADB，也没有找到兼容的设置页面。请上传诊断日志以便分析。</string>
     <string name="settings_background_update_checks">在后台检查更新</string>
     <string name="settings_background_update_checks_description">DiPlay 每天会在 GitHub 上检查一次新版本，并显示在主屏幕上。未经你点击，绝不会下载。</string>
