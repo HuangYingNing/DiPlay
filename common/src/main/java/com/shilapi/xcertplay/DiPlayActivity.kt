@@ -254,6 +254,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     private var adbCheckMayAsk = false
     private var adbCheckFailed = false
     private var adbEnableInProgress = false
+    private var adbEnableResultMessage: Int? = null
     private var adbEnableGeneration = 0
     private var vehicleProbeAuthorizationInProgress = false
     private var vehicleProbeInProgress = false
@@ -4742,10 +4743,6 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             adbAccessState == null -> getString(R.string.adb_not_checked)
             else -> adbLinkStatusText(requireNotNull(adbAccessState))
         }
-        val healthy = !adbCheckFailed && vehicleProbeOutcome?.error == null &&
-            (adbAccessState == null || adbAccessState == BydAdbAccess.State.READY)
-        card.addView(label(adbText, 14, if (healthy) MUTED else WARNING)
-            .apply { setPadding(0, dp(12), 0, 0) })
         val busy = vehicleProbeAuthorizationInProgress || adbCheckInProgress || vehicleProbeInProgress ||
             adbEnableInProgress
         if (!busy && adbAccessState == BydAdbAccess.State.READY) {
@@ -4756,24 +4753,33 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 .apply { setPadding(0, dp(10), 0, 0) })
         }
         showVehicleDataSettings(card, capabilities = null)
-        if (!busy) {
-            card.addView(button(getString(R.string.check_adb_access), false) {
-                checkAdbState(mayAsk = true)
-            }.apply { isEnabled = !adbSwitchChangePending }, matchButton(10, 56))
-            card.addView(button(getString(R.string.settings_allow_abd), false) {
-                allowAdbAccess()
-            }.apply { isEnabled = !adbSwitchChangePending }, matchButton(10, 56))
-            card.addView(label(getString(R.string.settings_allow_adb_description), 14, MUTED))
-        } else if (adbEnableInProgress) {
-            card.addView(label(getString(R.string.settings_allow_adb_working), 14, MUTED)
-                .apply { setPadding(0, dp(10), 0, 0) })
+        card.addView(button(getString(R.string.check_adb_access), false) {
+            checkAdbState(mayAsk = true)
+        }.apply { isEnabled = !adbSwitchChangePending && !busy }, matchButton(10, 56))
+        val healthy = !adbCheckFailed && vehicleProbeOutcome?.error == null &&
+            (adbAccessState == null || adbAccessState == BydAdbAccess.State.READY)
+        val checking = vehicleProbeAuthorizationInProgress || adbCheckInProgress || vehicleProbeInProgress
+        card.addView(label(adbText, 14, if (checking || !healthy) WARNING else MUTED)
+            .apply { setPadding(0, dp(SETTINGS_BLOCK_GAP_DP), 0, 0) })
+        card.addView(button(getString(R.string.settings_allow_abd), false) {
+            allowAdbAccess()
+        }.apply { isEnabled = !adbSwitchChangePending && !busy }, matchButton(10, 56))
+        val enableMessage = when {
+            adbEnableInProgress -> R.string.settings_allow_adb_working
+            else -> adbEnableResultMessage
         }
+        enableMessage?.let { message ->
+            card.addView(label(getString(message), 14, if (adbEnableInProgress) WARNING else MUTED)
+                .apply { setPadding(0, dp(SETTINGS_BLOCK_GAP_DP), 0, 0) })
+        }
+        card.addView(label(getString(R.string.settings_allow_adb_description), 14, MUTED))
     }
 
     private fun allowAdbAccess() {
         if (adbEnableInProgress || vehicleAdbWorkInProgress()) return
         val generation = ++adbEnableGeneration
         adbEnableInProgress = true
+        adbEnableResultMessage = null
         render()
         BydVehicleSettingsBackendProvider.current.execute("diplay-allow-adb") {
             val result = runCatching { AdbAccessEnableAttempt.run(applicationContext) }
@@ -4803,6 +4809,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                         R.string.settings_allow_adb_failed
                     },
                 )
+                adbEnableResultMessage = message
                 render()
                 toast(getString(message))
             }

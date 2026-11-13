@@ -116,16 +116,42 @@ class BydSettingsReconnectTest {
         assertNull(shadowOf(activity).nextStartedActivity)
     }
 
-    @Test fun allowAdbIsImmediatelyBelowCheckAdbAccess() {
+    @Test fun adbButtonsRemainVisibleWithTheirOwnStatusRowsWhileWorking() {
+        ReflectionHelpers.setField(activity, "adbCheckInProgress", true)
+        ReflectionHelpers.setField(activity, "adbCheckMayAsk", true)
+        val checking = LinearLayout(activity)
+        ReflectionHelpers.callInstanceMethod<Unit>(activity, "defaultVehicleData",
+            ReflectionHelpers.ClassParameter.from(LinearLayout::class.java, checking))
+        val checkButton = descendants(checking).filterIsInstance<TextView>().single {
+            it.text == activity.getString(com.shilapi.xcertplay.host.R.string.check_adb_access)
+        }
+        val checkStatus = descendants(checking).filterIsInstance<TextView>().single {
+            it.text == activity.getString(com.shilapi.xcertplay.host.R.string.adb_checking_may_ask)
+        }
+        assertFalse(checkButton.isEnabled)
+        assertEquals(checking.indexOfChild(checkButton) + 1, checking.indexOfChild(checkStatus))
+        assertTrue(checkStatus.paddingTop > 0)
+        assertTrue(checkStatus.currentTextColor in setOf(
+            DiPlayPalette.of(true).warning, DiPlayPalette.of(false).warning,
+        ))
+
+        ReflectionHelpers.setField(activity, "adbCheckInProgress", false)
+        ReflectionHelpers.setField(activity, "adbEnableInProgress", true)
         val card = LinearLayout(activity)
         ReflectionHelpers.callInstanceMethod<Unit>(activity, "defaultVehicleData",
             ReflectionHelpers.ClassParameter.from(LinearLayout::class.java, card))
-
-        val labels = descendants(card).filterIsInstance<TextView>().map { it.text.toString() }.toList()
-        assertEquals(
-            labels.indexOf(activity.getString(com.shilapi.xcertplay.host.R.string.check_adb_access)) + 1,
-            labels.indexOf(activity.getString(com.shilapi.xcertplay.host.R.string.settings_allow_abd)),
-        )
+        val allowButton = descendants(card).filterIsInstance<TextView>().single {
+            it.text == activity.getString(com.shilapi.xcertplay.host.R.string.settings_allow_abd)
+        }
+        val allowStatus = descendants(card).filterIsInstance<TextView>().single {
+            it.text == activity.getString(com.shilapi.xcertplay.host.R.string.settings_allow_adb_working)
+        }
+        assertFalse(allowButton.isEnabled)
+        assertEquals(card.indexOfChild(allowButton) + 1, card.indexOfChild(allowStatus))
+        assertTrue(allowStatus.paddingTop > 0)
+        assertTrue(allowStatus.currentTextColor in setOf(
+            DiPlayPalette.of(true).warning, DiPlayPalette.of(false).warning,
+        ))
     }
 
     private fun beginBatteryReconnect() {
