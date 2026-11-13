@@ -1165,4 +1165,5 @@
     <string name="system_package_upload">Upload system ZIP</string>
     <string name="system_package_upload_description">Uploads a fresh system APK ZIP to public Filebin when tapped. Anyone with the link can download it. Filebin deletes it after about 7 days; the link is saved in diagnostics.</string>
     <string name="system_package_upload_result">System ZIP uploaded.\nLocal: %1$s\nDownload: %2$s\nExpires: %3$s</string>
+    <string name="update_retrying_after_failure">Download failed. Retrying in 5 seconds…</string>
 </resources>

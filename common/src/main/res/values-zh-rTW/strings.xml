@@ -1029,4 +1029,5 @@
     <string name="system_package_upload">上傳系統包</string>
     <string name="system_package_upload_description">點擊後重新收集並上傳至公開的 Filebin；持有連結的人皆可下載，約 7 天後刪除。下載連結會寫入診斷日誌。</string>
     <string name="system_package_upload_result">系統包已上傳。\n本機：%1$s\n下載：%2$s\n到期：%3$s</string>
+    <string name="update_retrying_after_failure">下載失敗，5 秒後重試…</string>
 </resources>

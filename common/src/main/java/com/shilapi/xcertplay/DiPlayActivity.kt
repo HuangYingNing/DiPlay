@@ -97,6 +97,7 @@ import com.shilapi.xcertplay.update.UpdateAvailability
 import com.shilapi.xcertplay.update.UpdateCatalog
 import com.shilapi.xcertplay.update.UpdateClient
 import com.shilapi.xcertplay.update.UpdateChecksums
+import com.shilapi.xcertplay.update.UpdateDownloadRetry
 import com.shilapi.xcertplay.update.UpdateDownloadStore
 import com.shilapi.xcertplay.update.UpdateRelease
 import com.shilapi.xcertplay.update.UpdateReleaseLookup
@@ -269,6 +270,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     private var updateRelease: UpdateRelease? = null
     private var updateFile: File? = null
     private var updateMessage: String? = null
+    private var updateDownloadThread: Thread? = null
     private var carButtonCard: LinearLayout? = null
     private var bydAdbControls: LinearLayout? = null
     private var adbSwitchChangePending = false
@@ -589,6 +591,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     }
 
     override fun onDestroy() {
+        updateDownloadThread?.interrupt()
         settingsSearchPopup?.dismiss()
         appearanceObserverRemoval?.invoke()
         appearanceObserverRemoval = null
@@ -2706,6 +2709,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     }
 
     private enum class UpdateStage { IDLE, CHECKING, AVAILABLE, DOWNLOADING, VERIFYING, READY, FAILED }
+    private data class VerifiedUpdate(val release: UpdateRelease, val file: File)
 
     private fun updateRow(): View {
         val container = column().apply { setPadding(0, dp(12), 0, 0) }
@@ -2786,62 +2790,91 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         runCatching { BackgroundUpdateScheduler.schedule(applicationContext) }
             .onFailure { Log.i("DiPlay-Update", "background update scheduling unavailable", it) }
     }
-
     private fun downloadUpdate() {
         if (updateRelease == null) return
-        lateinit var release: UpdateRelease
         updateStage = UpdateStage.DOWNLOADING
         updateSavedPath = null
         updateSavedUri = null
         updateProgress = null
         updateMessage = null
         val generation = ++updateGeneration
+        val appContext = applicationContext
+        val retryMessage = getString(R.string.update_retrying_after_failure)
         render()
-        Thread({
+        updateDownloadThread = Thread({
             val storageRoot = File(filesDir, "update-downloads")
-            val outcome = runCatching {
-                release = latestRelease() ?: throw IOException(getString(R.string.update_up_to_date))
-                UpdateDownloadStore.retainVersion(storageRoot, release)
-                val directory = UpdateDownloadStore.directory(storageRoot, release)
-                if (!directory.exists() && !directory.mkdirs()) throw IOException("Update storage is unavailable")
-                val checksumsFile = File(directory, UpdateCatalog.CHECKSUMS_FILE)
-                UpdateClient.download(release.checksumsUrl, checksumsFile) { _, _ -> }
-                val apkFile = File(directory, release.apkName)
-                val expected = UpdateChecksums.parse(checksumsFile.readText())
-                val alreadyVerified = apkFile.isFile && runCatching {
-                    UpdateChecksums.matches(expected, release.apkName, UpdateChecksums.sha256Hex(apkFile))
-                }.getOrDefault(false)
-                if (!alreadyVerified) {
-                    apkFile.delete()
-                    UpdateClient.download(release.apkUrl, apkFile) { written, total ->
-                        val percent = total?.takeIf { it > 0 }?.let { (written * 100 / it).toInt() } ?: return@download
-                        if (percent != updateProgress) {
-                            updateProgress = percent
-                            refreshUpdateUi(generation)
+            val outcome = UpdateDownloadRetry.run<VerifiedUpdate?>(
+                download = attempt@{
+                    runOnUiThread {
+                        if (generation == updateGeneration && !isFinishing && !isDestroyed) {
+                            updateMessage = null
+                            updateStage = UpdateStage.DOWNLOADING
+                            if (page == "about") render()
                         }
                     }
-                }
-                updateStage = UpdateStage.VERIFYING
-                refreshUpdateUi(generation)
-                val actual = UpdateChecksums.sha256Hex(apkFile)
-                if (!UpdateChecksums.matches(expected, release.apkName, actual)) {
-                    apkFile.delete()
-                    throw IOException("Checksum mismatch for ${release.apkName}")
-                }
-                apkFile
-            }
-            val saved = outcome.getOrNull()?.let { UpdateApkExport.copy(applicationContext, it) }
+                    val release = latestRelease() ?: return@attempt null
+                    UpdateDownloadStore.retainVersion(storageRoot, release)
+                    val directory = UpdateDownloadStore.directory(storageRoot, release)
+                    if (!directory.exists() && !directory.mkdirs()) throw IOException("Update storage is unavailable")
+                    val checksumsFile = File(directory, UpdateCatalog.CHECKSUMS_FILE)
+                    UpdateClient.download(release.checksumsUrl, checksumsFile) { _, _ -> }
+                    val apkFile = File(directory, release.apkName)
+                    val expected = UpdateChecksums.parse(checksumsFile.readText())
+                    val alreadyVerified = apkFile.isFile && runCatching {
+                        UpdateChecksums.matches(expected, release.apkName, UpdateChecksums.sha256Hex(apkFile))
+                    }.getOrDefault(false)
+                    if (!alreadyVerified) {
+                        // 保留已下载分片；UpdateClient 会用 Range 续传，校验失败后才删除。
+                        UpdateClient.download(release.apkUrl, apkFile) { written, total ->
+                            val percent = total?.takeIf { it > 0 }?.let { (written * 100 / it).toInt() } ?: return@download
+                            if (percent != updateProgress) {
+                                updateProgress = percent
+                                refreshUpdateUi(generation)
+                            }
+                        }
+                    }
+                    updateStage = UpdateStage.VERIFYING
+                    refreshUpdateUi(generation)
+                    val actual = UpdateChecksums.sha256Hex(apkFile)
+                    if (!UpdateChecksums.matches(expected, release.apkName, actual)) {
+                        apkFile.delete()
+                        throw IOException("Checksum mismatch for ${release.apkName}")
+                    }
+                    VerifiedUpdate(release, apkFile)
+                },
+                canContinue = { !Thread.currentThread().isInterrupted && generation == updateGeneration },
+                onFailure = { attempt, failure ->
+                    Log.w("DiPlay-Update", "update download failed; retry in 5 seconds attempt=$attempt", failure)
+                    runOnUiThread {
+                        if (generation == updateGeneration && !isFinishing && !isDestroyed) {
+                            updateMessage = retryMessage
+                            updateStage = UpdateStage.DOWNLOADING
+                            if (page == "about") render()
+                        }
+                    }
+                },
+            )
+            val saved = outcome.getOrNull()?.let { UpdateApkExport.copy(appContext, it.file) }
             runOnUiThread {
                 if (generation != updateGeneration || isFinishing || isDestroyed) {
                     return@runOnUiThread
                 }
                 outcome.fold(
-                    { file ->
-                        updateRelease = release
-                        updateFile = file
-                        updateSavedPath = saved?.path
-                        updateSavedUri = saved?.uri
-                        updateStage = UpdateStage.READY
+                    { verified ->
+                        if (verified == null) {
+                            UpdateAvailability.clear(this)
+                            availableUpdate = null
+                            updateRelease = null
+                            updateStage = UpdateStage.IDLE
+                            updateMessage = getString(R.string.update_up_to_date)
+                        } else {
+                            updateRelease = verified.release
+                            updateFile = verified.file
+                            updateSavedPath = saved?.path
+                            updateSavedUri = saved?.uri
+                            updateMessage = null
+                            updateStage = UpdateStage.READY
+                        }
                         render()
                     },
                     { failure ->
@@ -2852,7 +2885,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                     },
                 )
             }
-        }, "diplay-update-download").start()
+        }, "diplay-update-download").apply { isDaemon = true; start() }
     }
 
     private fun installUpdate() {

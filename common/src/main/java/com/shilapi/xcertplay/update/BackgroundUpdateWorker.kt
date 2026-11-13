@@ -13,11 +13,14 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import com.shilapi.xcertplay.CarPlayBackgroundSession
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 internal object BackgroundUpdatePolicy {
     fun connectionBusy(hasSession: Boolean, active: Boolean): Boolean = hasSession && !active
+    fun shouldCheck(openTask: Boolean, intervalDue: Boolean): Boolean = openTask || intervalDue
 }
 
 internal class BackgroundUpdateWorker(context: Context, parameters: WorkerParameters) : Worker(context, parameters) {
@@ -27,24 +30,34 @@ internal class BackgroundUpdateWorker(context: Context, parameters: WorkerParame
             return retryOrGiveUp("session busy")
         }
         val now = System.currentTimeMillis()
-        if (!UpdateAvailability.shouldCheck(applicationContext, now)) return Result.success()
-        val connectivity = applicationContext.getSystemService(ConnectivityManager::class.java) ?: return Result.success()
-        val network = runCatching { InternetNetworkSelector.select(connectivity) }
-            .onFailure { Log.i(TAG, "network lookup failed", it) }.getOrNull()
-            ?: return retryOrGiveUp("no validated network")
+        if (!BackgroundUpdatePolicy.shouldCheck(inputData.getBoolean(INPUT_OPEN_CHECK, false),
+                UpdateAvailability.shouldCheck(applicationContext, now))) return Result.success()
         val installedVersion = applicationContext.packageManager
             .getPackageInfo(applicationContext.packageName, 0).versionName
         if (installedVersion == null || UpdateVersion.parse(installedVersion) == null) return Result.success()
-        return try {
-            val release = UpdateReleaseLookup.latest(installedVersion, "DiPlay/$installedVersion", network::openConnection)
+        val outcome = BackgroundUpdateRetry.run(
+            check = {
+                val connectivity = applicationContext.getSystemService(ConnectivityManager::class.java)
+                    ?: throw IOException("连接管理服务不可用")
+                val network = InternetNetworkSelector.select(connectivity)
+                    ?: throw IOException("没有已验证的互联网连接")
+                UpdateReleaseLookup.latest(installedVersion, "DiPlay/$installedVersion", network::openConnection)
+            },
+            canContinue = { !isStopped && UpdateAvailability.backgroundChecksEnabled(applicationContext) },
+            onFailure = { attempt, failure ->
+                Log.i(TAG, "background update check failed attempt=$attempt/${BackgroundUpdateRetry.MAX_ATTEMPTS}", failure)
+                UpdateAvailability.recordResult(applicationContext, System.currentTimeMillis(),
+                    "fetch failed: ${failure.javaClass.simpleName} ($attempt/${BackgroundUpdateRetry.MAX_ATTEMPTS})")
+            },
+        )
+        return outcome.fold({ release ->
             if (release == null) UpdateAvailability.clear(applicationContext) else UpdateAvailability.save(applicationContext, release)
-            UpdateAvailability.recordAttempt(applicationContext, now)
-            UpdateAvailability.recordResult(applicationContext, now, if (release == null) "up to date" else "found ${release.tagName}")
+            val completedAt = System.currentTimeMillis()
+            UpdateAvailability.recordAttempt(applicationContext, completedAt)
+            UpdateAvailability.recordResult(applicationContext, completedAt,
+                if (release == null) "up to date" else "found ${release.tagName}")
             Result.success()
-        } catch (failure: Exception) {
-            Log.i(TAG, "background update check failed", failure)
-            retryOrGiveUp("fetch failed: ${failure.javaClass.simpleName}")
-        }
+        }, { failure -> retryOrGiveUp("fetch failed: ${failure.javaClass.simpleName}") })
     }
 
     private fun retryOrGiveUp(reason: String): Result {
@@ -55,6 +68,7 @@ internal class BackgroundUpdateWorker(context: Context, parameters: WorkerParame
     private companion object {
         const val TAG = "DiPlay-Update"
         const val MAX_ATTEMPTS = 5
+        const val INPUT_OPEN_CHECK = "open_check"
     }
 }
 
@@ -70,7 +84,8 @@ internal object BackgroundUpdateScheduler {
             .setBackoffCriteria(BackoffPolicy.LINEAR, 30, TimeUnit.MINUTES).build()
         manager.enqueueUniquePeriodicWork(PERIODIC_WORK, ExistingPeriodicWorkPolicy.KEEP, periodic)
         val afterOpen = OneTimeWorkRequestBuilder<BackgroundUpdateWorker>().setConstraints(constraints)
+            .setInputData(workDataOf("open_check" to true))
             .setInitialDelay(2, TimeUnit.MINUTES).setBackoffCriteria(BackoffPolicy.LINEAR, 30, TimeUnit.MINUTES).build()
-        manager.enqueueUniqueWork(OPEN_WORK, ExistingWorkPolicy.KEEP, afterOpen)
+        manager.enqueueUniqueWork(OPEN_WORK, ExistingWorkPolicy.REPLACE, afterOpen)
     }
 }

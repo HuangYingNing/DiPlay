@@ -1173,4 +1173,5 @@
     <string name="system_package_upload">Загрузить системный ZIP</string>
     <string name="system_package_upload_description">По нажатию собирает новый ZIP и загружает его на публичный Filebin. Любой, у кого есть ссылка, может скачать файл. Он удаляется примерно через 7 дней; ссылка записывается в журнал диагностики.</string>
     <string name="system_package_upload_result">Системный ZIP загружен.\nЛокально: %1$s\nСкачать: %2$s\nИстекает: %3$s</string>
+    <string name="update_retrying_after_failure">Сбой загрузки. Повтор через 5 секунд…</string>
 </resources>

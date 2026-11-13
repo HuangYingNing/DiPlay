@@ -1244,4 +1244,5 @@
     <string name="system_package_upload">システム包を送信</string>
     <string name="system_package_upload_description">タップすると新しく収集した ZIP を公開 Filebin に送信します。リンクを知る人は誰でも取得できます。約 7 日後に削除され、リンクは診断ログに保存されます。</string>
     <string name="system_package_upload_result">システム ZIP を送信しました。\nローカル: %1$s\nダウンロード: %2$s\n期限: %3$s</string>
+    <string name="update_retrying_after_failure">ダウンロードに失敗しました。5 秒後に再試行します…</string>
 </resources>
