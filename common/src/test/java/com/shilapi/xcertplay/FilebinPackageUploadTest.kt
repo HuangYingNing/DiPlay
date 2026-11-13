@@ -72,7 +72,7 @@ class FilebinPackageUploadTest {
     @Test fun uploadedPathsRemainInDiagnosticLog() {
         val folder = kotlin.io.path.createTempDirectory("system-upload-log-").toFile()
         try {
-            val file = java.io.File(folder, "system-packages.log")
+            val file = java.io.File(folder, "logs/system-packages.log")
             val local = "/storage/emulated/0/Android/data/com.example/files/diagnostic-reports/DiPlay-System-1.zip"
             val remote = "https://filebin.net/diplayzz01z02z03/probe.zip"
             SessionLogFile(file).use {

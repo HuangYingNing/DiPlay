@@ -43,6 +43,7 @@ internal class SessionLogFile(val file: File) : Closeable {
     private fun write(line: String) {
         val safe = DiagnosticRedactor.redact(line) ?: return
         runCatching {
+            file.parentFile?.mkdirs()
             val bytes = (safe + "\n").toByteArray()
             if (size == UNKNOWN_SIZE) size = file.length()
             if (size > MAX_BYTES) {
