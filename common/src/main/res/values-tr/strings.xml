@@ -1053,4 +1053,5 @@
     <string name="update_retrying_after_failure">İndirme başarısız. 5 saniye sonra yeniden denenecek…</string>
     <string name="head_unit_wireless_unavailable">Araç kablosuz verilerine erişilemiyor</string>
     <string name="connection_help_head_unit_wireless_unavailable">Android bağlı iPhone’u görmüyor ve seçilen ağ arayüzünde telefondan paket almıyor. Flyme Auto’nun DiPlay’e Bluetooth ve erişim noktası izni verip vermediğini kontrol edin. ADB izni yalnızca tanılama içindir.</string>
+    <string name="system_package_reused">Yerelde zaten arşivlenmiş ve yeniden toplanmamış APK: %1$d.</string>
 </resources>

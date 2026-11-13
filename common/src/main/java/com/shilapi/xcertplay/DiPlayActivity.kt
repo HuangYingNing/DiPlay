@@ -6308,7 +6308,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                     appDialogBuilder()
                         .setTitle(getString(R.string.system_package_export))
                         .setMessage(getString(R.string.system_package_export_result,
-                            archive.copied, archive.skipped, archive.file.absolutePath))
+                            archive.copied, archive.skipped, archive.file.absolutePath) + "\n" +
+                            getString(R.string.system_package_reused, archive.reused))
                         .setPositiveButton(getString(R.string.share)) { _, _ ->
                             runCatching {
                                 val uri = SystemPackageArchive.shareUri(this, archive.file)
@@ -6346,7 +6347,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             val result = runCatching {
                 val archive = SystemPackageArchive.create(appContext)
                 localFile = archive.file
-                record("SYSTEM_PACKAGE_UPLOAD prepared local=${archive.file.absolutePath} bytes=${archive.file.length()} copied=${archive.copied} skipped=${archive.skipped}")
+                record("SYSTEM_PACKAGE_UPLOAD prepared local=${archive.file.absolutePath} bytes=${archive.file.length()} copied=${archive.copied} reused=${archive.reused} skipped=${archive.skipped}")
                 FilebinPackageUpload.upload(archive.file)
             }
             result.onSuccess { uploaded ->

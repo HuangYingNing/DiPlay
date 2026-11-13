@@ -998,4 +998,5 @@
     <string name="update_retrying_after_failure">Помилка завантаження. Повтор через 5 секунд…</string>
     <string name="head_unit_wireless_unavailable">Бездротові дані автомобіля недоступні</string>
     <string name="connection_help_head_unit_wireless_unavailable">Android не бачить підключений iPhone і не отримує його пакети через вибраний мережевий інтерфейс. Перевірте, чи Flyme Auto надає DiPlay доступ до Bluetooth і точки доступу. Дозвіл ADB потрібен лише для діагностики.</string>
+    <string name="system_package_reused">Однакові APK вже збережено локально й не зібрано повторно: %1$d.</string>
 </resources>

@@ -16,4 +16,10 @@ class SystemPackageArchiveSelectionTest {
         assertTrue(SystemPackageArchive.shouldCollect("com.geely.gc.settingcenter", systemApp = false))
         assertFalse(SystemPackageArchive.shouldCollect("com.example.bluetooth", systemApp = false))
     }
+
+    @Test fun messageChannelIsCapturedBeforeLargeSystemPackagesAndCurrentInventoryFits() {
+        assertTrue(SystemPackageArchive.capturePriority("com.reachauto.messagechannel") <
+            SystemPackageArchive.capturePriority("com.android.settings"))
+        assertTrue(SystemPackageArchive.MAX_TOTAL_BYTES >= 295_113_655L)
+    }
 }

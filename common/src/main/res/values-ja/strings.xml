@@ -1247,4 +1247,5 @@
     <string name="update_retrying_after_failure">ダウンロードに失敗しました。5 秒後に再試行します…</string>
     <string name="head_unit_wireless_unavailable">車載機の無線データを利用できません</string>
     <string name="connection_help_head_unit_wireless_unavailable">Android から接続済みの iPhone が見えず、選択したネットワークでも iPhone からのパケットを受信していません。Flyme Auto が DiPlay に Bluetooth とホットスポットへのアクセスを許可しているか確認してください。ADB の許可は診断用です。</string>
+    <string name="system_package_reused">ローカルに同一ファイルがあるため再収集しなかった APK: %1$d 件。</string>
 </resources>

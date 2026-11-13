@@ -1168,4 +1168,5 @@
     <string name="update_retrying_after_failure">Download failed. Retrying in 5 seconds…</string>
     <string name="head_unit_wireless_unavailable">Head-unit wireless data unavailable</string>
     <string name="connection_help_head_unit_wireless_unavailable">Android cannot see the paired iPhone or receive its packets on the selected network interface. Check whether Flyme Auto exposes Bluetooth and hotspot access to DiPlay. ADB authorization only helps diagnostics.</string>
+    <string name="system_package_reused">Already archived locally: %1$d APKs.</string>
 </resources>
