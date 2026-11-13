@@ -1751,7 +1751,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             card.addView(button(getString(R.string.system_package_export), false) { exportSystemPackages() }, matchButton(10, 60))
             card.addView(label(getString(R.string.system_package_export_description), 14, MUTED))
             systemPackageUploadButton = button(
-                if (systemPackageUploadInProgress) getString(R.string.uploading_to_cloud) else getString(R.string.system_package_upload),
+                if (systemPackageUploadInProgress) getString(R.string.system_package_uploading) else getString(R.string.system_package_upload),
                 false,
             ) { uploadSystemPackages() }.apply { isEnabled = !systemPackageUploadInProgress }
             card.addView(systemPackageUploadButton, matchButton(10, 60))
@@ -6336,7 +6336,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     private fun uploadSystemPackages() {
         if (systemPackageUploadInProgress) return
         systemPackageUploadInProgress = true
-        systemPackageUploadButton?.apply { isEnabled = false; text = getString(R.string.uploading_to_cloud) }
+        systemPackageUploadButton?.apply { isEnabled = false; text = getString(R.string.system_package_uploading) }
         val appContext = applicationContext
         Thread({
             fun record(message: String) {

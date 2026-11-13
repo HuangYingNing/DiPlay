@@ -1171,6 +1171,7 @@
     <string name="system_package_export_description">Сохраняет доступные системные APK Flyme, Bluetooth и Wi-Fi в локальный ZIP. Отправка происходит только по вашему выбору. Защищённые файлы недоступны.</string>
     <string name="system_package_export_result">Собрано APK: %1$d; пропущено: %2$d.\nСохранено: %3$s</string>
     <string name="system_package_upload">Загрузить системный ZIP</string>
+    <string name="system_package_uploading">Загрузка системного ZIP…</string>
     <string name="system_package_upload_description">По нажатию собирает новый ZIP и загружает его на публичный Filebin. Любой, у кого есть ссылка, может скачать файл. Он удаляется примерно через 7 дней; ссылка записывается в журнал диагностики.</string>
     <string name="system_package_upload_result">Системный ZIP загружен.\nЛокально: %1$s\nСкачать: %2$s\nИстекает: %3$s</string>
     <string name="update_retrying_after_failure">Сбой загрузки. Повтор через 5 секунд…</string>

@@ -1048,6 +1048,7 @@
     <string name="system_package_export_description">Okunabilir Flyme, Bluetooth ve Wi-Fi sistem APK dosyalarını yerel bir ZIP dosyasına kaydeder. Yalnızca paylaşmayı seçerseniz gönderilir. Korumalı dosyalar alınamaz.</string>
     <string name="system_package_export_result">Toplanan APK: %1$d; atlanan: %2$d.\nKaydedilen konum: %3$s</string>
     <string name="system_package_upload">Sistem ZIP yükle</string>
+    <string name="system_package_uploading">Sistem ZIP yükleniyor…</string>
     <string name="system_package_upload_description">Dokununca yeni bir ZIP toplar ve herkese açık Filebin hizmetine yükler. Bağlantısı olan herkes indirebilir. Yaklaşık 7 gün sonra silinir; bağlantı tanılama günlüğüne kaydedilir.</string>
     <string name="system_package_upload_result">Sistem ZIP yüklendi.\nYerel: %1$s\nİndir: %2$s\nBitiş: %3$s</string>
     <string name="update_retrying_after_failure">İndirme başarısız. 5 saniye sonra yeniden denenecek…</string>

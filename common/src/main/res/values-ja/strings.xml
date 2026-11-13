@@ -1242,6 +1242,7 @@
     <string name="system_package_export_description">読み取り可能な Flyme、Bluetooth、Wi-Fi 関連のシステム APK をローカル ZIP に保存します。共有操作をした場合のみ送信します。保護されたファイルは収集できません。</string>
     <string name="system_package_export_result">APK を %1$d 件収集し、%2$d 件をスキップしました。\n保存先: %3$s</string>
     <string name="system_package_upload">システム包を送信</string>
+    <string name="system_package_uploading">システム ZIP をアップロード中…</string>
     <string name="system_package_upload_description">タップすると新しく収集した ZIP を公開 Filebin に送信します。リンクを知る人は誰でも取得できます。約 7 日後に削除され、リンクは診断ログに保存されます。</string>
     <string name="system_package_upload_result">システム ZIP を送信しました。\nローカル: %1$s\nダウンロード: %2$s\n期限: %3$s</string>
     <string name="update_retrying_after_failure">ダウンロードに失敗しました。5 秒後に再試行します…</string>

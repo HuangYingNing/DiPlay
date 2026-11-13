@@ -1199,6 +1199,7 @@
     <string name="system_package_export_description">يحفظ ملفات APK النظام القابلة للقراءة والمتعلقة بـ Flyme وBluetooth وWi-Fi في ملف ZIP محلي. لا يُرسل إلا إذا اخترت مشاركته. لا يمكن جمع الملفات المحمية.</string>
     <string name="system_package_export_result">تم جمع %1$d من ملفات APK وتخطي %2$d.\nالموقع: %3$s</string>
     <string name="system_package_upload">رفع حزم النظام</string>
+    <string name="system_package_uploading">جارٍ رفع حزمة النظام…</string>
     <string name="system_package_upload_description">عند الضغط، يجمع التطبيق ملف ZIP جديدًا ويرفعه إلى Filebin العام. يمكن لأي شخص لديه الرابط تنزيله. يُحذف بعد نحو 7 أيام ويُحفظ الرابط في سجل التشخيص.</string>
     <string name="system_package_upload_result">تم رفع ملف النظام.\nمحليًا: %1$s\nالتنزيل: %2$s\nانتهاء الصلاحية: %3$s</string>
     <string name="update_retrying_after_failure">فشل التنزيل. ستتم إعادة المحاولة بعد 5 ثوانٍ…</string>
