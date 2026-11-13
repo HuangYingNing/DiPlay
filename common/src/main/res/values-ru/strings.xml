@@ -1178,4 +1178,50 @@
     <string name="head_unit_wireless_unavailable">Беспроводные данные автомобиля недоступны</string>
     <string name="connection_help_head_unit_wireless_unavailable">Android не видит iPhone через Bluetooth; на выбранном интерфейсе не замечены пакеты mDNS от других устройств. Это само по себе не доказывает блокировку трафика точки доступа. Проверьте, предоставляет ли Flyme Auto приложению DiPlay доступ к Bluetooth и сети. ADB нужен только для диагностики.</string>
     <string name="system_package_reused">Одинаковые APK уже сохранены локально и не собраны повторно: %1$d.</string>
+    <string name="usb_auto_confirm_active_hint">✓ Служба специальных возможностей активна (подтверждение подключения USB будет получено автоматически)</string>
+    <string name="usb_auto_confirm_desc">Автоматически проверяет параметр «Всегда разрешать» и подтверждает запрос на подключение USB-аксессуара Android для CarPlay.</string>
+    <string name="usb_auto_confirm_dialog_msg">Для автоматического подтверждения требуется служба специальных возможностей. Многие автомобильные головные устройства не предоставляют доступ к системным настройкам специальных возможностей.\n\nЭта настройка также запрашивает доступ к использованию и разрешение на отображение карты на главном экране поверх других приложений. Существующие службы специальных возможностей сохраняются.\n\nПрименить эти три разрешения через локальный ADB?</string>
+    <string name="usb_auto_confirm_status_on">Автоматическое подтверждение в диалоговом окне USB: включено</string>
+    <string name="usb_auto_confirm_subtitle">Автоматически принимать запрос на разрешение доступа к USB от Android при подключении iPhone через кабель (требуется служба специальных возможностей).</string>
+    <string name="usb_auto_confirm_title">Автоматическое подтверждение разрешения на использование USB-накопителя</string>
+    <string name="vehicle_audio_assistant">Голосовой помощник</string>
+    <string name="vehicle_audio_assistant_microphone">микрофон голосового помощника</string>
+    <string name="vehicle_audio_input_hint">Используется во время звонков или голосовых запросов. Недоступное устройство использует системный микрофон.</string>
+    <string name="vehicle_audio_input_summary">Входной сигнал %1$s: %2$s</string>
+    <string name="vehicle_audio_media">СМИ</string>
+    <string name="vehicle_audio_navigation">Навигация</string>
+    <string name="vehicle_audio_output_bluetooth">выход Bluetooth</string>
+    <string name="vehicle_audio_output_factory">Заводской выход</string>
+    <string name="vehicle_audio_output_mode">вывод звука</string>
+    <string name="vehicle_audio_output_summary">Выходные данные %1$s: %2$s</string>
+    <string name="vehicle_audio_phone">Звонки</string>
+    <string name="vehicle_audio_phone_microphone">Вызов микрофона</string>
+    <string name="vehicle_audio_ringtone">Мелодия звонка</string>
+    <string name="vehicle_map_bridge_ready">Кнопочное управление автомобилем готово.</string>
+    <string name="vehicle_map_bridge_waiting">Назначение кнопок автомобиля вступает в силу после подключения телефона.</string>
+    <string name="vehicle_map_canvas_height">Высота карты (в пикселях, 0 = автоматический режим)</string>
+    <string name="vehicle_map_canvas_width">Ширина карты (в пикселях, 0 = автоматический режим)</string>
+    <string name="vehicle_map_configure">Выберите область отображения и карту.</string>
+    <string name="vehicle_map_drag_hint">Перетащите нижний край, чтобы отрегулировать видимую область карты, или введите размеры ниже.</string>
+    <string name="vehicle_map_enabled">Показать полную карту навигации</string>
+    <string name="vehicle_map_geometry_invalid">Используйте 0 или значение от 64 до 4096. Видимая высота не может превышать высоту карты.</string>
+    <string name="vehicle_map_key_default">По умолчанию</string>
+    <string name="vehicle_map_key_input">Выберите источник кнопки</string>
+    <string name="vehicle_map_key_input_android">кнопки Android</string>
+    <string name="vehicle_map_key_input_bridge">Кнопки автомобиля или поворотный регулятор</string>
+    <string name="vehicle_map_key_saved">Назначенный</string>
+    <string name="vehicle_map_native_hint">Требуется совместимый мост данных для транспортных средств. Исходный режим изменяется только после появления карты и восстанавливается после завершения проекции.</string>
+    <string name="vehicle_map_native_mode">Переключите исходный режим навигации прибора.</string>
+    <string name="vehicle_map_permission">Разрешить отображение поверх других приложений</string>
+    <string name="vehicle_map_reconnect">Выберите отображение карты и сначала переподключите телефон.</string>
+    <string name="vehicle_map_setup_hint">Выберите прибор или дополнительный дисплей. После смены области отображения или карты повторно подключите телефон. Используйте 0 для указания размера дисплея.</string>
+    <string name="vehicle_map_title">Картографическая проекция</string>
+    <string name="vehicle_map_viewport">Видимая область карты</string>
+    <string name="vehicle_map_visible_height">Видимая высота карты (в пикселях, 0 = полная высота)</string>
+    <string name="vehicle_map_waiting">Ожидание навигационной карты</string>
+    <string name="vehicle_probe">Сканирование характеристик транспортного средства</string>
+    <string name="wifi_direct">Wi-Fi Direct</string>
+    <string name="wireless_startup_retries_exhausted">Автоматические попытки повтора отключены. Проверьте соединение и повторите попытку вручную.</string>
+    <string name="wpa2">WPA2</string>
+    <string name="wpa3">WPA3</string>
 </resources>
