@@ -5,10 +5,10 @@ import java.io.File
 import java.security.MessageDigest
 import java.util.zip.ZipFile
 
-/** 从车机本地旧系统包读取摘要，避免再次采集未变化的 APK。 */
+/** 从车机本地已上传系统包读取摘要，避免再次采集未变化的系统文件。 */
 internal object SystemPackageArchiveHistory {
     private const val MAX_ARCHIVES = 32
-    private const val MAX_MANIFEST_BYTES = 1024 * 1024L
+    private const val MAX_MANIFEST_BYTES = 8L * 1024 * 1024
     private val validDigest = Regex("[0-9a-fA-F]{64}")
     private val uploadedArchive = Regex("SYSTEM_PACKAGE_UPLOAD completed local=([^\\s]+)")
 
@@ -29,9 +29,9 @@ internal object SystemPackageArchiveHistory {
                         val entry = zip.getEntry("manifest.json") ?: return@use
                         if (entry.size !in 1L..MAX_MANIFEST_BYTES) return@use
                         val manifest = JSONObject(zip.getInputStream(entry).bufferedReader().use { it.readText() })
-                        val packages = manifest.optJSONArray("packages") ?: return@use
-                        for (index in 0 until packages.length()) {
-                            val item = packages.optJSONObject(index) ?: continue
+                        val packages = manifest.optJSONArray("packages")
+                        for (index in 0 until (packages?.length() ?: 0)) {
+                            val item = packages?.optJSONObject(index) ?: continue
                             val packageName = item.optString("package")
                             val files = item.optJSONArray("files") ?: continue
                             for (fileIndex in 0 until files.length()) {
@@ -42,6 +42,16 @@ internal object SystemPackageArchiveHistory {
                                 if (bytes > 0L && validDigest.matches(hash))
                                     found.getOrPut(packageName) { mutableSetOf() }.add(Digest(bytes, hash.lowercase()))
                             }
+                        }
+                        val systemFiles = manifest.optJSONArray("systemFiles")
+                        if (systemFiles != null) for (index in 0 until systemFiles.length()) {
+                            val item = systemFiles.optJSONObject(index) ?: continue
+                            if (item.optString("status") != "已收集") continue
+                            val path = item.optString("path")
+                            val hash = item.optString("sha256")
+                            val bytes = item.optLong("bytes")
+                            if (path.startsWith('/') && bytes > 0L && validDigest.matches(hash))
+                                found.getOrPut(path) { mutableSetOf() }.add(Digest(bytes, hash.lowercase()))
                         }
                     }
                 }

@@ -42,4 +42,27 @@ class SystemPackageArchiveHistoryTest {
         apk.writeText("two")
         assertNull(SystemPackageArchiveHistory.matchingDigest(history, "com.reachauto.messagechannel", apk))
     }
+
+    @Test fun uploadedSystemFileIsReusedByPathAndContent() {
+        val directory = temporary.newFolder("system-packages")
+        val source = temporary.newFile("services.jar").apply { writeText("framework-v1") }
+        val hash = MessageDigest.getInstance("SHA-256").digest(source.readBytes())
+            .joinToString("") { "%02x".format(it) }
+        val archive = File(directory, "DiPlay-System-framework.zip")
+        val manifest = JSONObject().put("systemFiles", org.json.JSONArray().put(
+            JSONObject().put("path", source.absolutePath).put("status", "已收集")
+                .put("bytes", source.length()).put("sha256", hash)))
+        ZipOutputStream(archive.outputStream()).use { zip ->
+            zip.putNextEntry(ZipEntry("manifest.json"))
+            zip.write(manifest.toString().toByteArray())
+            zip.closeEntry()
+        }
+        val log = temporary.newFile("system-files.log").apply {
+            writeText("SYSTEM_PACKAGE_UPLOAD completed local=${archive.absolutePath} url=https://example.test/file\n")
+        }
+        val history = SystemPackageArchiveHistory.load(directory, File(directory, "current.zip"), log)
+        assertEquals(hash, SystemPackageArchiveHistory.matchingDigest(history, source.absolutePath, source))
+        source.writeText("framework-v2")
+        assertNull(SystemPackageArchiveHistory.matchingDigest(history, source.absolutePath, source))
+    }
 }

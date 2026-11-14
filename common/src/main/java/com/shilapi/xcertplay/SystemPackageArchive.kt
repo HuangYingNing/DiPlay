@@ -13,10 +13,12 @@ import java.security.MessageDigest
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
-/** 收集车机可读取的互联组件 APK；不读取应用私有数据或受保护的系统分区。 */
+/** 分批收集车机可读取的系统程序与配置；不读取应用私有数据或受保护的系统分区。 */
 internal object SystemPackageArchive {
     internal const val MAX_TOTAL_BYTES = 384L * 1024 * 1024
-    private const val MAX_FILE_BYTES = 96L * 1024 * 1024
+    private const val MAX_FILE_BYTES = 192L * 1024 * 1024
+    private const val MAX_SYSTEM_FILE_BYTES = 192L * 1024 * 1024
+    private val relatedBinaryNames = Regex("adb|bluetooth|wifi|wificond|hostapd|supplicant|usb|carplay|flyme|geely|reachauto|dilink")
     private val keywords = listOf("flyme", "meizu", "geely", "ecarx", "autolink", "carplay", "bluetooth", "wifi", "connect")
     private val corePackages = setOf(
         "android", "com.android.car", "com.android.car.frameworkpackagestubs", "com.android.settings",
@@ -33,14 +35,43 @@ internal object SystemPackageArchive {
     fun matches(packageName: String): Boolean = packageName in corePackages ||
         keywords.any { it in packageName.lowercase() }
 
-    fun shouldCollect(packageName: String, systemApp: Boolean): Boolean = matches(packageName) &&
-        (systemApp || packageName in vendorBridgePackages || packageName in corePackages)
+    fun shouldCollect(packageName: String, systemApp: Boolean): Boolean =
+        systemApp || packageName in vendorBridgePackages || packageName in corePackages
+
+    internal fun shouldCollectSystemFile(path: String): Boolean {
+        if (!listOf("/system/", "/system_ext/", "/product/", "/vendor/", "/odm/", "/apex/")
+                .any(path::startsWith)) return false
+        val lower = path.lowercase()
+        val name = lower.substringAfterLast('/')
+        if (lower.contains("/etc/security/") || name.endsWith(".key") || name.endsWith(".pem")) return false
+        if (listOf(".apk", ".jar", ".xml", ".rc", ".prop", ".conf", ".cil")
+                .any(name::endsWith)) return true
+        if (listOf(".so", ".odex", ".vdex").any(name::endsWith)) return true
+        return relatedBinaryNames.containsMatchIn(name) &&
+            (name.endsWith(".so") || lower.contains("/bin/"))
+    }
+
+    internal fun systemFilePriority(path: String): Int {
+        val lower = path.lowercase()
+        val name = lower.substringAfterLast('/')
+        return when {
+            name == "services.jar" || name == "framework.jar" || name == "adbd" -> -2
+            name.contains("adb") || name.contains("bluetooth") || name.contains("wifi") -> 0
+            lower.contains("/framework/") || lower.contains("/etc/init/") ||
+                lower.contains("/etc/permissions/") || lower.contains("/etc/vintf/") -> 1
+            name.endsWith(".apk") -> 3
+            name.endsWith(".odex") || name.endsWith(".vdex") -> 4
+            name.endsWith(".so") -> 5
+            else -> 2
+        }
+    }
 
     internal fun capturePriority(packageName: String): Int = when (packageName) {
         "com.reachauto.messagechannel" -> 0
         "com.geely.gc.settingcenter" -> 1
         in corePackages -> 2
-        else -> 3
+        "com.android.webview" -> 5
+        else -> if (matches(packageName)) 3 else 4
     }
 
     @Suppress("DEPRECATION")
@@ -65,6 +96,15 @@ internal object SystemPackageArchive {
             }
             val history = SystemPackageArchiveHistory.load(directory, file,
                 File(context.filesDir, "logs/system-packages.log"))
+            val installedPaths = installed.flatMap { info ->
+                val app = info.applicationInfo ?: return@flatMap emptyList<String>()
+                listOfNotNull(app.publicSourceDir) + (app.splitPublicSourceDirs?.toList() ?: emptyList())
+            }.mapNotNull { runCatching { File(it).canonicalPath }.getOrNull() }.toSet()
+            val extraSystemFiles = systemFiles.paths.asSequence()
+                .filter(::shouldCollectSystemFile)
+                .filter { path -> runCatching { File(path).canonicalPath !in installedPaths }.getOrDefault(false) }
+                .sortedWith(compareBy<String>(::systemFilePriority).thenBy { it })
+                .toList()
             val packages = installed
                 .filter { info -> info.applicationInfo?.let { app ->
                     shouldCollect(info.packageName,
@@ -72,8 +112,53 @@ internal object SystemPackageArchive {
                 } == true }
                 .sortedWith(compareBy<PackageInfo> { capturePriority(it.packageName) }.thenBy(PackageInfo::packageName))
             val entries = JSONArray()
+            val systemEntries = JSONArray()
             var totalBytes = 0L
+            var systemFileBytes = 0L
             ZipOutputStream(file.outputStream().buffered()).use { zip ->
+                for (path in extraSystemFiles) {
+                    val source = File(path)
+                    val size = source.length()
+                    val record = JSONObject().put("path", path).put("bytes", size)
+                    val knownDigest = if (source.isFile && source.canRead())
+                        SystemPackageArchiveHistory.matchingDigest(history, path, source) else null
+                    val reason = when {
+                        !source.isFile || !source.canRead() -> "不可读取"
+                        size <= 0L -> "空文件"
+                        knownDigest != null -> "本机已有相同文件"
+                        size > MAX_FILE_BYTES -> "单文件超过限制"
+                        systemFileBytes + size > MAX_SYSTEM_FILE_BYTES || totalBytes + size > MAX_TOTAL_BYTES ->
+                            "本批次容量已满"
+                        else -> null
+                    }
+                    if (reason != null) {
+                        record.put("status", reason)
+                        if (knownDigest != null) {
+                            record.put("sha256", knownDigest)
+                            reused++
+                        } else skipped++
+                    } else {
+                        val digest = MessageDigest.getInstance("SHA-256")
+                        val entry = "system/${path.trimStart('/')}"
+                        FileInputStream(source).use { input ->
+                            zip.putNextEntry(ZipEntry(entry))
+                            val buffer = ByteArray(64 * 1024)
+                            while (true) {
+                                val count = input.read(buffer)
+                                if (count < 0) break
+                                zip.write(buffer, 0, count)
+                                digest.update(buffer, 0, count)
+                            }
+                            zip.closeEntry()
+                        }
+                        record.put("status", "已收集").put("entry", entry)
+                            .put("sha256", digest.digest().joinToString("") { "%02x".format(it) })
+                        systemFileBytes += size
+                        totalBytes += size
+                        copied++
+                    }
+                    systemEntries.put(record)
+                }
                 for (info in packages) {
                     val app = info.applicationInfo ?: continue
                     val item = JSONObject().put("package", info.packageName)
@@ -134,6 +219,7 @@ internal object SystemPackageArchive {
                     .put("systemFileCount", systemFiles.paths.size)
                     .put("systemFileUnreadableDirectories", systemFiles.unreadableDirectories)
                     .put("systemFileScanTruncated", systemFiles.truncated)
+                    .put("systemFiles", systemEntries)
                     .put("packages", entries)
                 zip.putNextEntry(ZipEntry("system-files.txt"))
                 systemFiles.paths.forEach { path ->
