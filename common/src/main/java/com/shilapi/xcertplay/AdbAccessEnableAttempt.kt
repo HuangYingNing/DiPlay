@@ -93,6 +93,7 @@ internal object AdbAccessEnableAttempt {
                 "adbWifiEnabled=${setting("adb_wifi_enabled")} " +
                 "developerOptions=${setting(Settings.Global.DEVELOPMENT_SETTINGS_ENABLED)} " +
                 "deviceProvisioned=${setting(Settings.Global.DEVICE_PROVISIONED)} " +
+                "adbEnabledReadMayBeMasked=true " +
                 "adminUser=${runCatching { user?.isAdminUser }.getOrNull() ?: "unknown"} " +
                 "debuggingRestricted=${runCatching {
                     user?.hasUserRestriction(UserManager.DISALLOW_DEBUGGING_FEATURES)
@@ -105,11 +106,17 @@ internal object AdbAccessEnableAttempt {
         val usb = runCatching {
             appContext.registerReceiver(null, IntentFilter("android.hardware.usb.action.USB_STATE"))
         }.getOrNull()
+        val tcpPort = readSystemProperty("service.adb.tcp.port")
+        val usbConnected = usb?.getBooleanExtra("connected", false)
         AdbEnableDiagnostics.append(appContext, attemptId, "$stage-usb",
             if (usb == null) "state=unavailable" else
-                "connected=${usb.getBooleanExtra("connected", false)} " +
+                "connected=$usbConnected " +
                     "configured=${usb.getBooleanExtra("configured", false)} " +
                     "adbFunction=${usb.getBooleanExtra("adb", false)}")
+        // 星愿 SystemUI 在非 TCP ADB 模式下监听 USB 断开；只记录可能导致弹窗关闭的条件。
+        AdbEnableDiagnostics.append(appContext, attemptId, "$stage-dialog-condition",
+            "tcpPort=$tcpPort usbConnected=${usbConnected ?: "unknown"} " +
+                "possibleUsbDisconnectDismissal=${(tcpPort == "unset" || tcpPort.toIntOrNull() == 0) && usbConnected == false}")
         logConfirmationRoute(appContext, attemptId)
     }
 

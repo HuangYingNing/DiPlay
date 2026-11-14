@@ -4838,6 +4838,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         val candidates = listOf(
             Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS),
             Intent(Settings.ACTION_DEVICE_INFO_SETTINGS),
+            Intent().setClassName("com.geely.gc.settingcenter", "com.geely.gc.settingcenter.view.MainActivity"),
             Intent(Settings.ACTION_SETTINGS),
         )
         for (intent in candidates) {
@@ -4846,7 +4847,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 applicationContext,
                 attemptId,
                 "resolve-settings",
-                "action=${intent.action} component=${resolved?.flattenToShortString() ?: "none"}",
+                "action=${intent.action ?: "explicit"} component=${resolved?.flattenToShortString() ?: "none"}",
             )
             if (resolved == null) continue
             if (resolved.className.endsWith("DevelopmentSettingsDisabledActivity")) {
@@ -4866,7 +4867,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 applicationContext,
                 attemptId,
                 "start-settings",
-                "action=${intent.action} result=${if (started.isSuccess) "started" else "failed"} " +
+                "action=${intent.action ?: "explicit"} component=${resolved.flattenToShortString()} " +
+                    "result=${if (started.isSuccess) "started" else "failed"} " +
                     "type=${started.exceptionOrNull()?.javaClass?.simpleName ?: "none"}",
             )
             if (started.isSuccess) return true
