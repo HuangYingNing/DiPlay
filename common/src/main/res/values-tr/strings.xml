@@ -1215,4 +1215,29 @@
     <string name="vehicle_audio_phone_microphone">Çağrı mikrofonu</string>
     <string name="vehicle_audio_ringtone">Zil sesi</string>
     <string name="vehicle_map_bridge_ready">Araç buton kontrolü hazır.</string>
+    <string name="vehicle_map_bridge_waiting">Telefonunuzu bağladıktan sonra araç düğmesi atamaları geçerli olur.</string>
+    <string name="vehicle_map_canvas_height">Harita yüksekliği (piksel, 0 = otomatik)</string>
+    <string name="vehicle_map_canvas_width">Harita genişliği (piksel, 0 = otomatik)</string>
+    <string name="vehicle_map_configure">Görüntüleme ve harita alanını seçin.</string>
+    <string name="vehicle_map_drag_hint">Görünür harita alanını ayarlamak için alt kenarı sürükleyin veya aşağıdaki alana boyutları girin.</string>
+    <string name="vehicle_map_enabled">Tam navigasyon haritasını yansıtın.</string>
+    <string name="vehicle_map_geometry_invalid">0 veya 64 ile 4096 arasında bir değer kullanın. Görünür yükseklik, harita yüksekliğini aşamaz.</string>
+    <string name="vehicle_map_key_default">Varsayılan</string>
+    <string name="vehicle_map_key_input">Düğme kaynağını seçin</string>
+    <string name="vehicle_map_key_input_android">Android düğmeleri</string>
+    <string name="vehicle_map_key_input_bridge">Araç düğmeleri veya döner topuz</string>
+    <string name="vehicle_map_key_saved">Atandı</string>
+    <string name="vehicle_map_native_hint">Uyumlu bir araç veri köprüsü gerektirir. Orijinal mod yalnızca harita göründükten sonra değişir ve projeksiyon sona erdiğinde geri yüklenir.</string>
+    <string name="vehicle_map_native_mode">Orijinal gösterge navigasyon modunu değiştirin.</string>
+    <string name="vehicle_map_permission">Diğer uygulamaların üzerinde görüntülenmesine izin ver</string>
+    <string name="vehicle_map_reconnect">Öncelikle bir harita görüntüleme yöntemi seçin ve telefonunuzu yeniden bağlayın.</string>
+    <string name="vehicle_map_setup_hint">Bir cihaz veya ikincil ekran seçin. Ekranı veya harita alanını değiştirdikten sonra telefonunuzu yeniden bağlayın. Ekran boyutunu takip etmek için 0\'ı kullanın.</string>
+    <string name="vehicle_map_title">Harita projeksiyonu</string>
+    <string name="vehicle_map_viewport">Görünür harita alanı</string>
+    <string name="vehicle_map_visible_height">Görünür harita yüksekliği (piksel, 0 = tam yükseklik)</string>
+    <string name="vehicle_map_waiting">Navigasyon haritasını bekliyorum.</string>
+    <string name="vehicle_probe">Araç özellik taraması</string>
+    <string name="wifi_direct">Wi-Fi Direct</string>
+    <string name="wpa2">WPA2</string>
+    <string name="wpa3">WPA3</string>
 </resources>
