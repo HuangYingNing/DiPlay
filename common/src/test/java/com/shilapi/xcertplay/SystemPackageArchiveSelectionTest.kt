@@ -7,6 +7,7 @@ import org.junit.Test
 class SystemPackageArchiveSelectionTest {
     @Test fun coreCarAndNetworkPackagesAreCollected() {
         assertTrue(SystemPackageArchive.shouldCollect("com.android.car", systemApp = true))
+        assertTrue(SystemPackageArchive.shouldCollect("android", systemApp = true))
         assertTrue(SystemPackageArchive.shouldCollect("com.android.networkstack.tethering", systemApp = true))
         assertTrue(SystemPackageArchive.shouldCollect("com.android.settings", systemApp = true))
     }

@@ -256,6 +256,9 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     private var adbEnableInProgress = false
     private var adbEnableResultMessage: Int? = null
     private var adbEnableGeneration = 0
+    private var adbSettingsAttemptId: String? = null
+    private var adbSettingsLeftApp = false
+    private var adbSettingsOpenedAtMillis = 0L
     private var vehicleProbeAuthorizationInProgress = false
     private var vehicleProbeInProgress = false
     private var vehicleProbeOutcome: BydVehicleProbeOutcome? = null
@@ -551,6 +554,16 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
 
     override fun onResume() {
         super.onResume()
+        val settingsAttemptId = adbSettingsAttemptId.takeIf { adbSettingsLeftApp }
+        if (settingsAttemptId != null) {
+            adbSettingsAttemptId = null
+            adbSettingsLeftApp = false
+            AdbEnableDiagnostics.append(applicationContext, settingsAttemptId, "settings-return",
+                "elapsedMs=${android.os.SystemClock.elapsedRealtime() - adbSettingsOpenedAtMillis}")
+            Thread({
+                AdbAccessEnableAttempt.logEnvironment(applicationContext, settingsAttemptId, "after-settings")
+            }, "diplay-adb-settings-return").start()
+        }
         applyFullscreenMode()
         // Returning from another activity can bring the head unit's own density back.
         if (enforceInterfaceSize()) render()
@@ -581,6 +594,10 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         }
     }
     override fun onPause() {
+        adbSettingsAttemptId?.let { attemptId ->
+            adbSettingsLeftApp = true
+            AdbEnableDiagnostics.append(applicationContext, attemptId, "settings-left-app", "paused=true")
+        }
         appearanceUpdatesResumed = false
         appearanceObserverRemoval?.invoke()
         appearanceObserverRemoval = null
@@ -4841,6 +4858,9 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 )
                 continue
             }
+            adbSettingsAttemptId = attemptId
+            adbSettingsLeftApp = false
+            adbSettingsOpenedAtMillis = android.os.SystemClock.elapsedRealtime()
             val started = runCatching { startActivity(intent) }
             AdbEnableDiagnostics.append(
                 applicationContext,
@@ -4850,6 +4870,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                     "type=${started.exceptionOrNull()?.javaClass?.simpleName ?: "none"}",
             )
             if (started.isSuccess) return true
+            adbSettingsAttemptId = null
         }
         return false
     }

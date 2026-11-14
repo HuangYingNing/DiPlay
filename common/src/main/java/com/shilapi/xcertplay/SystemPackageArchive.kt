@@ -19,7 +19,7 @@ internal object SystemPackageArchive {
     private const val MAX_FILE_BYTES = 96L * 1024 * 1024
     private val keywords = listOf("flyme", "meizu", "geely", "ecarx", "autolink", "carplay", "bluetooth", "wifi", "connect")
     private val corePackages = setOf(
-        "com.android.car", "com.android.car.frameworkpackagestubs", "com.android.settings",
+        "android", "com.android.car", "com.android.car.frameworkpackagestubs", "com.android.settings",
         "com.android.systemui", "com.android.phone", "com.android.server.telecom",
         "com.android.providers.settings", "com.android.networkstack",
         "com.android.networkstack.permissionconfig", "com.android.networkstack.tethering",

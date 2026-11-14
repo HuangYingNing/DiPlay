@@ -25,6 +25,7 @@ class LocalAdb(
     private val key: KeyPair,
     private val host: String = "127.0.0.1",
     private val port: Int = 5555,
+    private val onHandshakeEvent: ((String) -> Unit)? = null,
 ) : Closeable {
     enum class Access { READY, NOT_APPROVED, UNREACHABLE, UNSUPPORTED }
 
@@ -33,12 +34,21 @@ class LocalAdb(
     private var input: InputStream? = null
     private var output: OutputStream? = null
     private var nextStreamId = 1
+    private var handshakePhase = "not_started"
+    private var publicKeyOffered = false
+
+    private fun trace(event: String) {
+        handshakePhase = event
+        runCatching { onHandshakeEvent?.invoke(event) }
+    }
 
     @Synchronized
     fun connect(mayAsk: Boolean): Access {
         if (cancelled.get()) return Access.UNREACHABLE
         if (socket?.isClosed == false) return Access.READY
+        publicKeyOffered = false
         return try {
+            trace("tcp_connecting")
             val address = InetSocketAddress(host, port)
             val opened = Socket().also { socket = it }.apply {
                 if (cancelled.get()) throw IOException("ADB operation cancelled")
@@ -49,12 +59,20 @@ class LocalAdb(
             socket = opened
             input = BufferedInputStream(opened.getInputStream())
             output = opened.getOutputStream()
+            trace("tcp_connected")
             send(AdbPacket(AdbPacket.CNXN, AdbPacket.VERSION, AdbPacket.MAX_PAYLOAD, "host::\u0000".toByteArray()))
-            handshake(mayAsk).also { if (it != Access.READY) closeQuietly() }
+            trace("cnxn_sent")
+            handshake(mayAsk).also {
+                trace("result_${it.name.lowercase()}")
+                if (it != Access.READY) closeQuietly()
+            }
         } catch (_: SocketTimeoutException) {
+            val offered = publicKeyOffered
+            trace("timeout_after_$handshakePhase")
             closeQuietly()
-            if (mayAsk) Access.NOT_APPROVED else Access.UNREACHABLE
-        } catch (_: IOException) {
+            if (mayAsk && offered) Access.NOT_APPROVED else Access.UNREACHABLE
+        } catch (failure: IOException) {
+            trace("io_failure_after_${handshakePhase}_${failure.javaClass.simpleName}")
             closeQuietly()
             Access.UNREACHABLE
         }
@@ -204,21 +222,30 @@ class LocalAdb(
 
     private fun handshake(mayAsk: Boolean): Access {
         var packet = receive()
+        trace("first_${packet.kind()}")
         if (packet.command == AdbPacket.STLS) return Access.UNSUPPORTED
         if (packet.command == AdbPacket.CNXN) return Access.READY
         if (packet.command != AdbPacket.AUTH || packet.arg0 != AdbPacket.AUTH_TOKEN) return Access.UNREACHABLE
+        trace("auth_challenge_received")
         send(AdbPacket(AdbPacket.AUTH, AdbPacket.AUTH_SIGNATURE, 0, AdbKeys.sign(packet.payload, key.private)))
+        trace("signature_sent")
         packet = receive()
+        trace("after_signature_${packet.kind()}")
         if (packet.command == AdbPacket.CNXN) return Access.READY
         if (!mayAsk) return Access.NOT_APPROVED
+        if (packet.command != AdbPacket.AUTH || packet.arg0 != AdbPacket.AUTH_TOKEN) return Access.UNREACHABLE
         // adbd did not know the key: offer it, which opens the approval dialog on the car's screen.
         send(AdbPacket(AdbPacket.AUTH, AdbPacket.AUTH_PUBLIC_KEY, 0, AdbKeys.publicKeyMessage(key.public)))
+        publicKeyOffered = true
+        trace("public_key_sent")
         return awaitApproval()
     }
 
     private fun awaitApproval(): Access {
         val pendingInput = input ?: throw IOException("not connected")
         val deadline = System.nanoTime() + APPROVAL_TIMEOUT_MS * 1_000_000L
+        val started = System.nanoTime()
+        var lastLoggedSeconds = 0L
         socket?.soTimeout = APPROVAL_RECHECK_MS
         try {
             while (System.nanoTime() < deadline) {
@@ -226,21 +253,36 @@ class LocalAdb(
                 pendingInput.mark(AdbPacket.MAX_PAYLOAD + 24)
                 try {
                     val packet = receive()
+                    trace("approval_${packet.kind()}")
                     return if (packet.command == AdbPacket.CNXN) Access.READY else Access.NOT_APPROVED
                 } catch (_: SocketTimeoutException) {
                     pendingInput.reset()
+                    val waitedSeconds = (System.nanoTime() - started) / 1_000_000_000L
+                    if (waitedSeconds / 10 > lastLoggedSeconds / 10) {
+                        lastLoggedSeconds = waitedSeconds
+                        trace("approval_wait_${waitedSeconds}s")
+                    }
                     // 部分车机保存了授权密钥，却不唤醒原连接；只用已保存的密钥检查，不再弹窗。
                     val approved = LocalAdb(key, host, port).use { it.connect(mayAsk = false) == Access.READY }
                     if (approved) {
+                        trace("approved_on_fresh_connection")
                         closeQuietly()
                         return connect(mayAsk = false)
                     }
                 }
             }
+            trace("approval_deadline_reached")
             return Access.NOT_APPROVED
         } finally {
             socket?.soTimeout = READ_TIMEOUT_MS
         }
+    }
+
+    private fun AdbPacket.kind(): String = when (command) {
+        AdbPacket.CNXN -> "cnxn"
+        AdbPacket.STLS -> "stls"
+        AdbPacket.AUTH -> if (arg0 == AdbPacket.AUTH_TOKEN) "auth_token" else "auth_other"
+        else -> "unexpected_command"
     }
 
     private fun send(packet: AdbPacket) {

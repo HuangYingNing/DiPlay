@@ -1,8 +1,11 @@
 package com.shilapi.xcertplay
 
 import android.Manifest
+import android.content.ComponentName
 import android.content.Context
+import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.content.res.Resources
 import android.os.Build
 import android.os.UserManager
 import android.provider.Settings
@@ -49,23 +52,7 @@ internal object AdbAccessEnableAttempt {
             "manufacturer=${Build.MANUFACTURER} model=${Build.MODEL} product=${Build.PRODUCT} " +
                 "sdk=${Build.VERSION.SDK_INT} uid=${android.os.Process.myUid()}",
         )
-        log(
-            "system-policy",
-            "developerOptions=${runCatching {
-                Settings.Global.getInt(appContext.contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0)
-            }.getOrNull() ?: "unknown"} " +
-                "deviceProvisioned=${runCatching {
-                    Settings.Global.getInt(appContext.contentResolver, Settings.Global.DEVICE_PROVISIONED, 0)
-                }.getOrNull() ?: "unknown"} " +
-                "adminUser=${runCatching {
-                    (appContext.getSystemService(Context.USER_SERVICE) as? UserManager)?.isAdminUser
-                }.getOrNull() ?: "unknown"} " +
-                "debuggingRestricted=${runCatching {
-                    (appContext.getSystemService(Context.USER_SERVICE) as? UserManager)
-                        ?.hasUserRestriction(UserManager.DISALLOW_DEBUGGING_FEATURES)
-                }.getOrNull() ?: "unknown"} " +
-                "tcpPortProperty=${readSystemProperty("service.adb.tcp.port")}",
-        )
+        logEnvironment(appContext, attemptId, "before")
         return run(
             Operations(
                 hasSecureSettingsPermission = {
@@ -85,11 +72,83 @@ internal object AdbAccessEnableAttempt {
                     }
                 },
                 requestAuthorization = {
-                    LocalAdb(AdbKeys.load(appContext)).use { it.connect(mayAsk = true) }
+                    LocalAdb(AdbKeys.load(appContext), onHandshakeEvent = { event ->
+                        log("adb-protocol", event)
+                    }).use { it.connect(mayAsk = true) }
                 },
             ),
             log,
         )
+    }
+
+    fun logEnvironment(context: Context, attemptId: String, stage: String) {
+        val appContext = context.applicationContext
+        val global = appContext.contentResolver
+        fun setting(name: String): String = runCatching {
+            Settings.Global.getInt(global, name, -1).toString()
+        }.getOrDefault("unknown")
+        val user = appContext.getSystemService(Context.USER_SERVICE) as? UserManager
+        AdbEnableDiagnostics.append(appContext, attemptId, "$stage-policy",
+            "adbEnabled=${setting(Settings.Global.ADB_ENABLED)} " +
+                "adbWifiEnabled=${setting("adb_wifi_enabled")} " +
+                "developerOptions=${setting(Settings.Global.DEVELOPMENT_SETTINGS_ENABLED)} " +
+                "deviceProvisioned=${setting(Settings.Global.DEVICE_PROVISIONED)} " +
+                "adminUser=${runCatching { user?.isAdminUser }.getOrNull() ?: "unknown"} " +
+                "debuggingRestricted=${runCatching {
+                    user?.hasUserRestriction(UserManager.DISALLOW_DEBUGGING_FEATURES)
+                }.getOrNull() ?: "unknown"} uid=${android.os.Process.myUid()}")
+        val properties = listOf("init.svc.adbd", "ro.adb.secure", "ro.debuggable", "ro.build.type",
+            "service.adb.tcp.port", "persist.adb.tcp.port", "service.adb.tls.port",
+            "persist.sys.usb.config", "sys.usb.config", "sys.usb.state")
+        AdbEnableDiagnostics.append(appContext, attemptId, "$stage-properties",
+            properties.joinToString(" ") { name -> "$name=${readSystemProperty(name)}" })
+        val usb = runCatching {
+            appContext.registerReceiver(null, IntentFilter("android.hardware.usb.action.USB_STATE"))
+        }.getOrNull()
+        AdbEnableDiagnostics.append(appContext, attemptId, "$stage-usb",
+            if (usb == null) "state=unavailable" else
+                "connected=${usb.getBooleanExtra("connected", false)} " +
+                    "configured=${usb.getBooleanExtra("configured", false)} " +
+                    "adbFunction=${usb.getBooleanExtra("adb", false)}")
+        logConfirmationRoute(appContext, attemptId)
+    }
+
+    private fun logConfirmationRoute(context: Context, attemptId: String) {
+        val resources = Resources.getSystem()
+        for (name in listOf("config_customAdbPublicKeyConfirmationComponent",
+            "config_customAdbPublicKeyConfirmationSecondaryUserComponent")) {
+            val id = runCatching { resources.getIdentifier(name, "string", "android") }.getOrDefault(0)
+            val route = if (id == 0) null else runCatching { resources.getString(id) }.getOrNull()
+            val component = route?.let(ComponentName::unflattenFromString)
+            val activity = component?.let { target ->
+                runCatching {
+                    context.packageManager.getActivityInfo(target, PackageManager.MATCH_DISABLED_COMPONENTS)
+                }.getOrNull()
+            }
+            val service = component?.let { target ->
+                runCatching {
+                    context.packageManager.getServiceInfo(target, PackageManager.MATCH_DISABLED_COMPONENTS)
+                }.getOrNull()
+            }
+            val status = when {
+                activity != null -> "activity enabled=${activity.enabled} exported=${activity.exported} " +
+                    "permission=${activity.permission ?: "none"}"
+                service != null -> "service enabled=${service.enabled} exported=${service.exported} " +
+                    "permission=${service.permission ?: "none"}"
+                component != null -> "component-not-visible"
+                else -> "resource-unavailable"
+            }
+            AdbEnableDiagnostics.append(context, attemptId, "confirmation-route",
+                "resource=$name target=${component?.flattenToShortString() ?: "none"} $status")
+        }
+        val fallback = ComponentName("com.android.systemui", "com.android.systemui.usb.UsbDebuggingActivity")
+        val fallbackInfo = runCatching {
+            context.packageManager.getActivityInfo(fallback, PackageManager.MATCH_DISABLED_COMPONENTS)
+        }.getOrNull()
+        AdbEnableDiagnostics.append(context, attemptId, "systemui-confirmation",
+            "component=${fallback.flattenToShortString()} visible=${fallbackInfo != null} " +
+                "enabled=${fallbackInfo?.enabled ?: "unknown"} exported=${fallbackInfo?.exported ?: "unknown"} " +
+                "permission=${fallbackInfo?.permission ?: "unknown"}")
     }
 
     private fun readSystemProperty(name: String): String {

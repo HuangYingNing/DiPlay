@@ -14,9 +14,19 @@ internal interface BydVehicleSettingsBackend {
 }
 
 internal object AndroidBydVehicleSettingsBackend : BydVehicleSettingsBackend {
-    override fun check(context: Context, mayAsk: Boolean) = BydAdbAccess.check(context, mayAsk)
+    override fun check(context: Context, mayAsk: Boolean) =
+        BydAdbAccess.check(context, mayAsk, diagnosticCallback(context, mayAsk, "check"))
 
-    override fun checkState(context: Context, mayAsk: Boolean) = BydAdbAccess.checkState(context, mayAsk)
+    override fun checkState(context: Context, mayAsk: Boolean) =
+        BydAdbAccess.checkState(context, mayAsk, diagnosticCallback(context, mayAsk, "check-state"))
+
+    private fun diagnosticCallback(context: Context, mayAsk: Boolean, operation: String): ((String) -> Unit)? {
+        if (!mayAsk) return null
+        val attemptId = System.currentTimeMillis().toString(36)
+        AdbEnableDiagnostics.append(context, attemptId, "operation", "name=$operation")
+        AdbAccessEnableAttempt.logEnvironment(context, attemptId, "before")
+        return { event -> AdbEnableDiagnostics.append(context, attemptId, "adb-protocol", event) }
+    }
 
     override fun probe(context: Context, persist: Boolean) =
         BydVehicleCapabilityProbe.probe(context, persist)

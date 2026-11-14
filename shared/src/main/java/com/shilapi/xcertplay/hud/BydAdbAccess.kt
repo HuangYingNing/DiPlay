@@ -20,8 +20,8 @@ object BydAdbAccess {
     )
 
     /** Blocking: run off the main thread. [mayAsk] lets the car show its approval dialog for DiPlay's key. */
-    fun check(context: Context, mayAsk: Boolean): Status {
-        LocalAdb(AdbKeys.load(context)).use { adb ->
+    fun check(context: Context, mayAsk: Boolean, onHandshakeEvent: ((String) -> Unit)? = null): Status {
+        LocalAdb(AdbKeys.load(context), onHandshakeEvent = onHandshakeEvent).use { adb ->
             val state = state(adb.connect(mayAsk))
             if (state != State.READY) return Status(state)
             return readStatus(context, adb::shell)
@@ -29,8 +29,8 @@ object BydAdbAccess {
     }
 
     /** ADB handshake only; does not read any BYD service or offer feature conclusions. */
-    fun checkState(context: Context, mayAsk: Boolean): State =
-        LocalAdb(AdbKeys.load(context)).use { state(it.connect(mayAsk)) }
+    fun checkState(context: Context, mayAsk: Boolean, onHandshakeEvent: ((String) -> Unit)? = null): State =
+        LocalAdb(AdbKeys.load(context), onHandshakeEvent = onHandshakeEvent).use { state(it.connect(mayAsk)) }
 
     internal fun state(access: LocalAdb.Access): State = when (access) {
         LocalAdb.Access.READY -> State.READY

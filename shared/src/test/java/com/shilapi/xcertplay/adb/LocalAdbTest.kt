@@ -69,8 +69,33 @@ class LocalAdbTest {
         assertFalse(quiet.offeredKey)
 
         val asking = FakeAdbd(key, knowsKey = false, approves = true)
-        LocalAdb(key, port = asking.port).use { assertEquals(LocalAdb.Access.READY, it.connect(mayAsk = true)) }
+        val events = mutableListOf<String>()
+        LocalAdb(key, port = asking.port, onHandshakeEvent = { event -> events += event }).use {
+            assertEquals(LocalAdb.Access.READY, it.connect(mayAsk = true))
+        }
         assertTrue(asking.offeredKey)
+        assertTrue(events.contains("auth_challenge_received"))
+        assertTrue(events.contains("public_key_sent"))
+        assertTrue(events.contains("result_ready"))
+    }
+
+    @Test fun aSilentTcpPortIsNotReportedAsAnUnapprovedKey() {
+        ServerSocket(0).use { server ->
+            val peer = thread(isDaemon = true) {
+                server.accept().use { socket ->
+                    AdbPacket.read(socket.getInputStream())
+                    Thread.sleep(LocalAdb.READ_TIMEOUT_MS + 500L)
+                }
+            }
+            val events = mutableListOf<String>()
+            LocalAdb(key, port = server.localPort, onHandshakeEvent = { event -> events += event }).use {
+                assertEquals(LocalAdb.Access.UNREACHABLE, it.connect(mayAsk = true))
+            }
+            peer.join(1_000)
+            assertTrue(events.contains("cnxn_sent"))
+            assertTrue(events.any { it.startsWith("timeout_after_") })
+            assertFalse(events.contains("public_key_sent"))
+        }
     }
 
     @Test
