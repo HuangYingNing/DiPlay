@@ -925,6 +925,7 @@ open class CarPlayHostActivity : ComponentActivity() {
 
     private fun requestVpnConsent() {
         if (awaitingVpnConsent) return
+        appendLog(UsbHostInventory.capture(this))
         val consent = try {
             CarPlayVpnService.prepare(this)
         } catch (error: ActivityNotFoundException) {
